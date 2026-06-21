@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PravahAI Login</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        body{
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            min-height:100vh;
+            background:#0b0f1a;
+        }
+
+        .auth-card{
+            width:420px;
+            background:#141c2e;
+            border:1px solid rgba(255,255,255,.08);
+            border-radius:16px;
+            padding:35px;
+        }
+
+        .auth-title{
+            font-size:30px;
+            font-weight:700;
+            margin-bottom:5px;
+        }
+
+        .auth-sub{
+            color:#94a3b8;
+            margin-bottom:25px;
+        }
+
+        .form-group{
+            margin-bottom:15px;
+        }
+
+        .form-control{
+            width:100%;
+            background:#1a2540;
+            border:1px solid rgba(255,255,255,.08);
+            color:white;
+            padding:12px;
+            border-radius:10px;
+            outline:none;
+        }
+
+        .btn-auth{
+            width:100%;
+            background:linear-gradient(135deg,#00d4ff,#0055ff);
+            border:none;
+            padding:12px;
+            border-radius:10px;
+            font-weight:700;
+            cursor:pointer;
+            margin-top:10px;
+        }
+
+        .bottom-link{
+            text-align:center;
+            margin-top:20px;
+        }
+
+        .bottom-link a{
+            color:#00d4ff;
+            text-decoration:none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="auth-card">
+
+    <h1 class="auth-title">PravahAI</h1>
+    <p class="auth-sub">Sign in to your account</p>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div style="color:#ff6666;margin-bottom:15px;">
+            {{ messages[0] }}
+        </div>
+    {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+
+        <div class="form-group">
+            <input
+                type="text"
+                name="username"
+                class="form-control"
+                placeholder="Username"
+                required>
+        </div>
+
+        <div class="form-group">
+            <input
+                type="password"
+                name="password"
+                class="form-control"
+                placeholder="Password"
+                required>
+        </div>
+
+        <button class="btn-auth">
+            Login
+        </button>
+
+    </form>
+
+    <div class="bottom-link">
+        Don't have an account?
+        <a href="/signup">Create Account</a>
+    </div>
+
+</div>
+
+</body>
+</html>

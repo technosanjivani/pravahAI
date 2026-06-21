@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Account</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+
+        body{
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            min-height:100vh;
+            background:#0b0f1a;
+            padding:30px;
+        }
+
+        .auth-card{
+            width:550px;
+            background:#141c2e;
+            border:1px solid rgba(255,255,255,.08);
+            border-radius:16px;
+            padding:35px;
+        }
+
+        .grid{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:12px;
+        }
+
+        .form-control{
+            width:100%;
+            background:#1a2540;
+            border:1px solid rgba(255,255,255,.08);
+            color:white;
+            padding:12px;
+            border-radius:10px;
+            outline:none;
+        }
+
+        .btn-auth{
+            width:100%;
+            background:linear-gradient(135deg,#00d4ff,#0055ff);
+            border:none;
+            padding:12px;
+            border-radius:10px;
+            font-weight:700;
+            cursor:pointer;
+            margin-top:15px;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="auth-card">
+
+    <h1>Create Account</h1>
+
+    <form method="POST">
+
+        <div class="grid">
+
+            <input
+                name="username"
+                class="form-control"
+                placeholder="Username"
+                required>
+
+            <input
+                name="email"
+                type="email"
+                class="form-control"
+                placeholder="Email"
+                required>
+
+            <input
+                name="phone"
+                class="form-control"
+                placeholder="Phone Number"
+                required>
+
+            <input
+                name="business_name"
+                class="form-control"
+                placeholder="Business Name"
+                required>
+
+            <input
+                name="business_type"
+                class="form-control"
+                placeholder="Business Type"
+                required>
+
+            <input
+                name="password"
+                type="password"
+                class="form-control"
+                placeholder="Password"
+                required>
+
+        </div>
+
+        <button class="btn-auth">
+            Create Account
+        </button>
+
+    </form>
+
+</div>
+
+</body>
+</html>
