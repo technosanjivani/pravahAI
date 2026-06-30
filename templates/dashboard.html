@@ -22,52 +22,36 @@
   --green:       #22c55e;
   --red:         #ef4444;
   --yellow:      #f59e0b;
+  --purple:      #a855f7;
+  --orange:      #f97316;
   --sidebar-w:   220px;
   --topbar-h:    60px;
   --radius:      12px;
   --radius-sm:   8px;
 }
 html { scroll-behavior: smooth; }
-body {
-  font-family: 'Inter', sans-serif;
-  background: var(--bg-base);
-  color: var(--text-h);
-  min-height: 100vh;
-  display: flex;
-}
+body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(--text-h); min-height: 100vh; display: flex; }
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 99px; }
 
 /* ─── SIDEBAR ──────────────────────────────────── */
 #sidebar {
-  width: var(--sidebar-w);
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0; left: 0; bottom: 0;
-  z-index: 200;
-  transition: transform .3s ease;
-  overflow-y: auto;
+  width: var(--sidebar-w); background: var(--bg-surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0;
+  z-index: 200; transition: transform .3s ease; overflow-y: auto;
 }
 .sidebar-logo { padding: 20px 18px 16px; border-bottom: 1px solid var(--border); }
 .logo-wrap { display: flex; align-items: center; gap: 10px; }
-.logo-icon {
-  width: 34px; height: 34px;
-  border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px;
-}
-
+.logo-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
 .logo-icon img { width: 30px; height: 35px; }
 .logo-text h2 { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-h); }
 .logo-text p  { font-size: 10px; color: var(--text-b); margin-top: 1px; }
-
 .nav-section { padding: 12px 10px 0; flex: 1; }
+.nav-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 600; padding: 10px 10px 4px; }
 .nav-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 10px; border-radius: var(--radius-sm); cursor: pointer;
-  color: var(--text-b); font-size: 13.5px; font-weight: 500;
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm);
+  cursor: pointer; color: var(--text-b); font-size: 13.5px; font-weight: 500;
   transition: background .18s, color .18s; text-decoration: none; position: relative;
 }
 .nav-item:hover { background: var(--bg-hover); color: var(--text-h); }
@@ -77,26 +61,17 @@ body {
   width: 3px; border-radius: 0 3px 3px 0; background: var(--accent-1);
 }
 .nav-icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
-.soon-badge {
-  margin-left: auto; background: var(--bg-hover); color: var(--text-dim);
-  font-size: 9.5px; font-weight: 600; padding: 2px 7px; border-radius: 99px;
-}
-
+.soon-badge { margin-left: auto; background: var(--bg-hover); color: var(--text-dim); font-size: 9.5px; font-weight: 600; padding: 2px 7px; border-radius: 99px; }
 .sidebar-footer { padding: 14px 10px; border-top: 1px solid var(--border); }
 .user-row { display: flex; align-items: center; gap: 10px; padding: 6px 2px; }
-.avatar {
-  width: 34px; height: 34px; border-radius: 50%; background: var(--accent-grad);
-  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #000; flex-shrink: 0;
-}
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #000; flex-shrink: 0; }
 .user-name { font-size: 12.5px; font-weight: 600; color: var(--text-h); }
 .user-email { font-size: 10.5px; color: var(--text-b); }
 .logout-link { margin-left: auto; color: var(--text-dim); font-size: 16px; text-decoration: none; }
 .logout-link:hover { color: var(--red); }
 
 /* ─── MAIN ─────────────────────────────────────── */
-#main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-height: 100vh; background: var(--bg-base); }
-
-/* ─── TOPBAR ───────────────────────────────────── */
+#main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
 #topbar {
   height: var(--topbar-h); background: var(--bg-surface); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; padding: 0 24px; gap: 14px; position: sticky; top: 0; z-index: 100;
@@ -108,49 +83,39 @@ body {
 .search-wrap input { background: none; border: none; outline: none; color: var(--text-h); font-size: 13px; width: 100%; }
 .search-wrap input::placeholder { color: var(--text-dim); }
 .topbar-right { display: flex; align-items: center; gap: 14px; margin-left: auto; }
-.top-avatar {
-  width: 36px; height: 36px; border-radius: 50%; background: var(--accent-grad);
-  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #000;
-}
-.ham-btn {
-  display: none; background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
-  width: 36px; height: 36px; align-items: center; justify-content: center; cursor: pointer; color: var(--text-h); font-size: 18px;
-}
+.top-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #000; }
+.ham-btn { display: none; background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); width: 36px; height: 36px; align-items: center; justify-content: center; cursor: pointer; color: var(--text-h); font-size: 18px; }
 
-/* ─── CONTENT ──────────────────────────────────── */
+/* ─── PAGES ─────────────────────────────────────── */
 #content { padding: 28px 28px 60px; }
+.page { display: none; }
+.page.active { display: block; }
 .page-header { margin-bottom: 24px; }
 .page-header h1 { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; }
 .page-header p { font-size: 13.5px; color: var(--text-b); margin-top: 4px; }
 
-/* ─── STAT CARDS ────────────────────────────────── */
+/* ─── STAT CARDS ─────────────────────────────────── */
 .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
-.stat-card {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 18px 20px; transition: border-color .2s, transform .2s;
-}
+.stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; transition: border-color .2s, transform .2s; }
 .stat-card:hover { border-color: rgba(0,212,255,.25); transform: translateY(-2px); }
 .stat-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .stat-icon { font-size: 18px; }
 .stat-label { font-size: 12px; color: var(--text-b); font-weight: 500; }
 .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -.5px; }
 
-/* ─── TOOLBAR ──────────────────────────────────── */
-.toolbar {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
-}
+/* ─── TOOLBAR / BUTTONS ───────────────────────────── */
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 .btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13px; font-weight: 600; border-radius: var(--radius-sm);
-  padding: 9px 16px; cursor: pointer; border: 1px solid var(--border);
-  transition: opacity .15s, transform .15s, background .15s;
-  font-family: inherit; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  border-radius: var(--radius-sm); padding: 9px 16px; cursor: pointer; border: 1px solid var(--border);
+  transition: opacity .15s, transform .15s, background .15s; font-family: inherit; text-decoration: none;
 }
 .btn:hover { transform: translateY(-1px); }
 .btn-primary { background: var(--accent-grad); color: #000; border: none; }
 .btn-primary:hover { opacity: .88; }
 .btn-ghost { background: var(--bg-card); color: var(--text-h); }
 .btn-ghost:hover { background: var(--bg-hover); }
+.btn-danger { background: rgba(239,68,68,.15); color: var(--red); border-color: rgba(239,68,68,.3); }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
 .btn[disabled] { opacity: .5; cursor: not-allowed; transform: none; }
 .spacer { flex: 1; }
@@ -160,80 +125,187 @@ body {
 }
 .search-box-mini::placeholder { color: var(--text-dim); }
 
-/* ─── SHEET TABLE ──────────────────────────────── */
-.sheet-card {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
-  overflow: hidden;
-}
+/* ─── SHEET TABLE ─────────────────────────────────── */
+.sheet-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .sheet-scroll { overflow-x: auto; }
 table.sheet { width: 100%; border-collapse: collapse; min-width: 980px; }
-table.sheet thead th {
-  font-size: 11.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em;
-  font-weight: 600; padding: 10px 4px; background: var(--bg-hover); text-align: left; position: sticky; top: 0;
-}
+table.sheet thead th { font-size: 11.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; padding: 10px 4px; background: var(--bg-hover); text-align: left; position: sticky; top: 0; }
 table.sheet thead th.col-num { width: 36px; text-align: center; }
 table.sheet thead th.col-actions { width: 70px; text-align: center; }
 table.sheet tbody tr { border-top: 1px solid var(--border); }
 table.sheet tbody tr.is-dirty { background: rgba(0,212,255,.04); }
-table.sheet tbody tr.is-new { background: rgba(34,197,94,.05); }
+table.sheet tbody tr.is-new   { background: rgba(34,197,94,.05); }
 table.sheet td { padding: 0; vertical-align: middle; }
 table.sheet td.row-num { text-align: center; font-size: 11.5px; color: var(--text-dim); padding: 8px 4px; }
-.cell-input {
-  width: 100%; background: transparent; border: 1px solid transparent; outline: none;
-  color: var(--text-h); font-size: 13px; font-family: inherit; padding: 11px 10px; border-radius: 0;
-}
+.cell-input { width: 100%; background: transparent; border: 1px solid transparent; outline: none; color: var(--text-h); font-size: 13px; font-family: inherit; padding: 11px 10px; border-radius: 0; }
 .cell-input:focus { border-color: var(--accent-1); background: var(--bg-hover); border-radius: 6px; }
 .cell-input::placeholder { color: var(--text-dim); }
 td.col-description .cell-input { min-width: 200px; }
 td.col-website .cell-input { min-width: 150px; }
 .row-actions { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 6px; }
-.row-act-btn {
-  width: 26px; height: 26px; border-radius: 6px; background: var(--bg-hover); border: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; transition: background .15s;
-}
+.row-act-btn { width: 26px; height: 26px; border-radius: 6px; background: var(--bg-hover); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; transition: background .15s; }
 .row-act-btn:hover { background: rgba(239,68,68,.18); }
-.sheet-footer {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 12px 16px; border-top: 1px solid var(--border);
-}
+.sheet-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); }
 .dirty-note { font-size: 12px; color: var(--yellow); }
 .empty-state { padding: 50px 20px; text-align: center; color: var(--text-b); font-size: 13.5px; }
 
-/* ─── MODAL ────────────────────────────────────── */
-.modal-overlay {
-  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
-  z-index: 500; align-items: center; justify-content: center; padding: 20px;
-}
-.modal-overlay.open { display: flex; }
-.modal-box {
+/* ─── CAMPAIGNS LIST ──────────────────────────────── */
+.campaigns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.campaign-card {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
-  width: 100%; max-width: 460px; padding: 24px;
+  padding: 20px; transition: border-color .2s, transform .2s; cursor: pointer;
 }
-.modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 700; margin-bottom: 4px; }
-.modal-sub { font-size: 12.5px; color: var(--text-b); margin-bottom: 18px; }
-.form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.campaign-card:hover { border-color: rgba(0,212,255,.3); transform: translateY(-2px); }
+.camp-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.camp-name { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 700; }
+.camp-desc { font-size: 12.5px; color: var(--text-b); margin-bottom: 14px; line-height: 1.5; }
+.camp-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.badge {
+  font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px;
+}
+.badge-draft     { background: rgba(75,90,116,.4);  color: var(--text-b); }
+.badge-active    { background: rgba(0,212,255,.15); color: var(--accent-1); }
+.badge-running   { background: rgba(245,158,11,.15); color: var(--yellow); }
+.badge-completed { background: rgba(34,197,94,.15);  color: var(--green); }
+.badge-paused    { background: rgba(168,85,247,.15); color: var(--purple); }
+.camp-stat { font-size: 11.5px; color: var(--text-b); }
+.camp-actions { display: flex; gap: 6px; margin-top: 14px; }
+
+/* ─── FLOW BUILDER ────────────────────────────────── */
+.flow-builder-wrap { display: flex; gap: 16px; height: calc(100vh - 180px); min-height: 600px; }
+
+/* Palette */
+.flow-palette {
+  width: 200px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px; overflow-y: auto;
+}
+.palette-title { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 600; margin-bottom: 10px; }
+.palette-item {
+  display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: var(--radius-sm);
+  background: var(--bg-hover); border: 1px solid var(--border); margin-bottom: 8px; cursor: grab;
+  font-size: 13px; font-weight: 500; color: var(--text-h); user-select: none;
+}
+.palette-item:hover { border-color: var(--accent-1); }
+.palette-item:active { cursor: grabbing; }
+.pi-icon { font-size: 16px; flex-shrink: 0; }
+
+/* Canvas */
+.flow-canvas-wrap {
+  flex: 1; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  overflow-y: auto; padding: 20px; position: relative;
+}
+.flow-canvas { min-height: 100%; position: relative; }
+.flow-drop-hint {
+  border: 2px dashed var(--border); border-radius: var(--radius); padding: 40px 20px;
+  text-align: center; color: var(--text-dim); font-size: 13.5px;
+}
+.flow-canvas.drag-over .flow-drop-hint { border-color: var(--accent-1); color: var(--accent-1); }
+
+/* Flow steps */
+.flow-steps-list { display: flex; flex-direction: column; gap: 0; }
+.flow-connector {
+  width: 2px; height: 24px; background: var(--border); margin: 0 auto;
+  display: flex; align-items: center; justify-content: center; position: relative;
+}
+.flow-connector::after {
+  content: '▼'; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
+  font-size: 8px; color: var(--text-dim);
+}
+.flow-step {
+  background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; position: relative; transition: border-color .2s;
+  cursor: default;
+}
+.flow-step:hover { border-color: rgba(0,212,255,.3); }
+.flow-step.dragging-step { opacity: .4; }
+.flow-step.drop-target   { border-color: var(--accent-1); background: rgba(0,212,255,.06); }
+.step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.step-drag-handle { cursor: grab; color: var(--text-dim); font-size: 14px; padding: 2px; }
+.step-drag-handle:active { cursor: grabbing; }
+.step-type-icon { font-size: 18px; flex-shrink: 0; }
+.step-type-label { font-size: 12px; font-weight: 600; color: var(--text-b); text-transform: uppercase; letter-spacing: .06em; flex: 1; }
+.step-del-btn { margin-left: auto; width: 22px; height: 22px; border-radius: 6px; background: transparent; border: none; cursor: pointer; color: var(--text-dim); font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.step-del-btn:hover { color: var(--red); background: rgba(239,68,68,.12); }
+.step-fields { display: flex; flex-direction: column; gap: 8px; }
+.step-field { display: flex; flex-direction: column; gap: 4px; }
+.step-field label { font-size: 11px; color: var(--text-b); font-weight: 500; }
+.step-input, .step-textarea, .step-select {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text-h); font-family: inherit; font-size: 12.5px; padding: 7px 10px; outline: none;
+}
+.step-textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+.step-select option { background: var(--bg-card); }
+.step-input:focus, .step-textarea:focus, .step-select:focus { border-color: var(--accent-1); }
+.vars-hint { font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
+/* Step color accents */
+.flow-step[data-type="whatsapp"]    { border-left: 3px solid var(--green); }
+.flow-step[data-type="email_gmail"] { border-left: 3px solid var(--accent-1); }
+.flow-step[data-type="email_resend"]{ border-left: 3px solid var(--purple); }
+.flow-step[data-type="wait"]        { border-left: 3px solid var(--yellow); }
+.flow-step[data-type="condition"]   { border-left: 3px solid var(--orange); }
+
+/* ─── SETTINGS ────────────────────────────────────── */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.settings-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+.settings-card-title { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.settings-card-sub { font-size: 12.5px; color: var(--text-b); margin-bottom: 18px; }
+.form-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
 .form-row label { font-size: 12px; color: var(--text-b); font-weight: 500; }
-.form-row label .optional { color: var(--text-dim); font-weight: 400; }
 .form-input {
   background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 10px 12px; color: var(--text-h); font-size: 13px; outline: none; font-family: inherit;
+  padding: 9px 12px; color: var(--text-h); font-size: 13px; outline: none; font-family: inherit; width: 100%;
 }
 .form-input:focus { border-color: var(--accent-1); }
-.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.integration-status { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 0; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-dot.ok     { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.off    { background: var(--text-dim); }
+.status-dot.error  { background: var(--red); }
+.settings-actions { display: flex; gap: 8px; margin-top: 6px; }
 
-/* ─── TOAST ────────────────────────────────────── */
+/* ─── LOGS TABLE ─────────────────────────────────── */
+.logs-table-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+table.logs-table { width: 100%; border-collapse: collapse; }
+table.logs-table th { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; padding: 10px 14px; background: var(--bg-hover); text-align: left; }
+table.logs-table td { font-size: 12.5px; padding: 10px 14px; border-top: 1px solid var(--border); color: var(--text-b); }
+table.logs-table td:first-child { color: var(--text-h); }
+.log-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+.log-sent    { background: rgba(34,197,94,.15);  color: var(--green); }
+.log-failed  { background: rgba(239,68,68,.15);  color: var(--red); }
+.log-pending { background: rgba(245,158,11,.15); color: var(--yellow); }
+
+/* ─── MODAL ──────────────────────────────────────── */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 500; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.open { display: flex; }
+.modal-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; max-width: 480px; padding: 24px; max-height: 90vh; overflow-y: auto; }
+.modal-box.wide { max-width: 640px; }
+.modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+.modal-sub { font-size: 12.5px; color: var(--text-b); margin-bottom: 18px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+/* Lead selector in campaign modal */
+.lead-selector { max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.lead-sel-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px; transition: background .15s; }
+.lead-sel-item:last-child { border-bottom: none; }
+.lead-sel-item:hover { background: var(--bg-hover); }
+.lead-sel-item input[type="checkbox"] { accent-color: var(--accent-1); }
+.lead-sel-name { font-weight: 500; }
+.lead-sel-meta { font-size: 11.5px; color: var(--text-b); margin-left: auto; }
+
+/* ─── TOAST ──────────────────────────────────────── */
 #toast {
-  position: fixed; bottom: 22px; right: 22px; z-index: 600;
+  position: fixed; bottom: 22px; right: 22px; z-index: 700;
   background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--accent-1);
   border-radius: var(--radius-sm); padding: 12px 18px; font-size: 13px; color: var(--text-h);
   box-shadow: 0 8px 24px rgba(0,0,0,.4); display: none; max-width: 320px;
 }
 #toast.show { display: block; }
 #toast.error { border-left-color: var(--red); }
+#toast.success { border-left-color: var(--green); }
 
 #sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 190; }
 
-@media (max-width: 1200px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1200px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .settings-grid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) {
   #sidebar { transform: translateX(-100%); }
   #sidebar.open { transform: translateX(0); }
@@ -241,41 +313,39 @@ td.col-website .cell-input { min-width: 150px; }
   #main { margin-left: 0; }
   .ham-btn { display: flex; }
   #content { padding: 20px 16px 60px; }
+  .flow-builder-wrap { flex-direction: column; height: auto; }
+  .flow-palette { width: 100%; height: 140px; overflow-x: auto; overflow-y: hidden; display: flex; gap: 8px; align-items: center; padding: 10px; }
+  .flow-palette .palette-title { display: none; }
+  .palette-item { margin-bottom: 0; flex-shrink: 0; }
 }
-@media (max-width: 560px) { .stats-row { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .stats-row { grid-template-columns: 1fr; } .campaigns-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-
 <div id="sidebar-overlay" onclick="closeSidebar()"></div>
 
 <!-- SIDEBAR -->
 <nav id="sidebar">
   <div class="sidebar-logo">
     <div class="logo-wrap">
-      <div class="logo-icon"><img src="{{ url_for('static', filename='img/PravaahAI-logo.png') }}"
-         alt="PravaahAI Logo"></div>
-      <div class="logo-text">
-        <h2>PravaahAI</h2>
-        <p>Global Trade Intelligence</p>
-      </div>
+      <div class="logo-icon"><img src="{{ url_for('static', filename='img/PravaahAI-logo.png') }}" alt="PravaahAI Logo"></div>
+      <div class="logo-text"><h2>PravaahAI</h2><p>Global Trade Intelligence</p></div>
     </div>
   </div>
-
   <div class="nav-section">
-    <a class="nav-item active" href="/dashboard">
-      <span class="nav-icon">🏠</span> Dashboard
+    <div class="nav-label">Leads</div>
+    <a class="nav-item active" href="#" onclick="showPage('leads', this)">
+      <span class="nav-icon">👥</span> My Leads
     </a>
-    <a class="nav-item" href="#" onclick="comingSoon(event)">
-      <span class="nav-icon">🔍</span> Lead Search
-      <span class="soon-badge">Soon</span>
+    <div class="nav-label">Campaigns</div>
+    <a class="nav-item" href="#" onclick="showPage('campaigns', this)">
+      <span class="nav-icon">🚀</span> Campaigns
     </a>
-    <a class="nav-item" href="#" onclick="comingSoon(event)">
-      <span class="nav-icon">🔖</span> Saved Leads
-      <span class="soon-badge">Soon</span>
+    <div class="nav-label">Settings</div>
+    <a class="nav-item" href="#" onclick="showPage('settings', this)">
+      <span class="nav-icon">⚙️</span> Integrations
     </a>
   </div>
-
   <div class="sidebar-footer">
     <div class="user-row">
       <div class="avatar">{{ user.username[0]|upper if user.username else "U" }}</div>
@@ -294,7 +364,7 @@ td.col-website .cell-input { min-width: 150px; }
     <button class="ham-btn" onclick="openSidebar()">☰</button>
     <div class="search-wrap">
       <span style="color:var(--text-dim);font-size:15px;">🔍</span>
-      <input type="text" id="global-search" placeholder="Search leads by name, business, email..." oninput="handleSearchInput()" />
+      <input type="text" id="global-search" placeholder="Search leads…" oninput="handleSearchInput()" />
     </div>
     <div class="topbar-right">
       <div class="top-avatar">{{ user.username[0]|upper if user.username else "U" }}</div>
@@ -302,87 +372,201 @@ td.col-website .cell-input { min-width: 150px; }
   </header>
 
   <main id="content">
-    <div class="page-header">
-      <h1>Welcome back, {{ user.username or "there" }} 👋</h1>
-      <p>Manage and grow your lead list — add manually, edit inline, or import in bulk.</p>
-    </div>
 
-    <!-- STATS -->
-    <div class="stats-row" id="stats-row"></div>
-
-    <!-- TOOLBAR -->
-    <div class="toolbar">
-      <button class="btn btn-primary" onclick="openAddModal()">＋ Add Lead</button>
-      <button class="btn btn-ghost" onclick="addBlankRow()">＋ Add Row to Sheet</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">⬆ Import CSV / Excel</button>
-      <input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportFile(event)" />
-      <a class="btn btn-ghost btn-sm" href="/api/leads/template">⬇ Download Template</a>
-      <div class="spacer"></div>
-      <span class="dirty-note" id="dirty-note" style="display:none;">Unsaved changes</span>
-      <button class="btn btn-primary" id="save-all-btn" onclick="saveAll()" disabled>💾 Save All</button>
-    </div>
-
-    <!-- SHEET -->
-    <div class="sheet-card">
-      <div class="sheet-scroll">
-        <table class="sheet">
-          <thead>
-            <tr>
-              <th class="col-num">#</th>
-              <th>Name</th>
-              <th>Business Name</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Website</th>
-              <th>Description</th>
-              <th class="col-actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="sheet-tbody"></tbody>
-        </table>
+    <!-- ═══ PAGE: LEADS ═══ -->
+    <div class="page active" id="page-leads">
+      <div class="page-header">
+        <h1>Welcome back, {{ user.username or "there" }} 👋</h1>
+        <p>Manage and grow your lead list — add manually, edit inline, or import in bulk.</p>
       </div>
-      <div id="empty-state" class="empty-state" style="display:none;">
-        No leads yet. Click <strong>“Add Lead”</strong>, <strong>“Add Row to Sheet”</strong>, or import a CSV/Excel file to get started.
+      <div class="stats-row" id="stats-row"></div>
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="openAddModal()">＋ Add Lead</button>
+        <button class="btn btn-ghost" onclick="addBlankRow()">＋ Add Row</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">⬆ Import CSV / Excel</button>
+        <input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportFile(event)" />
+        <a class="btn btn-ghost btn-sm" href="/api/leads/template">⬇ Template</a>
+        <div class="spacer"></div>
+        <span class="dirty-note" id="dirty-note" style="display:none;">Unsaved changes</span>
+        <button class="btn btn-primary" id="save-all-btn" onclick="saveAll()" disabled>💾 Save All</button>
       </div>
-      <div class="sheet-footer">
-        <span style="font-size:12px;color:var(--text-dim);" id="row-count-label">0 leads</span>
-        <button class="btn btn-ghost btn-sm" onclick="addBlankRow()">＋ Add Row</button>
+      <div class="sheet-card">
+        <div class="sheet-scroll">
+          <table class="sheet">
+            <thead>
+              <tr>
+                <th class="col-num">#</th>
+                <th>Name</th><th>Business Name</th><th>Email</th><th>Phone</th><th>Website</th><th>Description</th>
+                <th class="col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sheet-tbody"></tbody>
+          </table>
+        </div>
+        <div id="empty-state" class="empty-state" style="display:none;">
+          No leads yet. Click <strong>"Add Lead"</strong> or import a CSV/Excel file to get started.
+        </div>
+        <div class="sheet-footer">
+          <span style="font-size:12px;color:var(--text-dim);" id="row-count-label">0 leads</span>
+          <button class="btn btn-ghost btn-sm" onclick="addBlankRow()">＋ Add Row</button>
+        </div>
       </div>
     </div>
+
+    <!-- ═══ PAGE: CAMPAIGNS ═══ -->
+    <div class="page" id="page-campaigns">
+      <div class="page-header">
+        <h1>Automation Campaigns 🚀</h1>
+        <p>Build multi-step WhatsApp & Email flows. Drag-and-drop steps, set waits, add conditions.</p>
+      </div>
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="openNewCampaignModal()">＋ New Campaign</button>
+        <div class="spacer"></div>
+      </div>
+      <div class="campaigns-grid" id="campaigns-grid">
+        <div class="empty-state">No campaigns yet. Create your first one!</div>
+      </div>
+    </div>
+
+    <!-- ═══ PAGE: FLOW BUILDER ═══ -->
+    <div class="page" id="page-flow-builder">
+      <div class="page-header" style="display:flex;align-items:center;gap:14px;">
+        <button class="btn btn-ghost btn-sm" onclick="backToCampaigns()">← Back</button>
+        <div>
+          <h1 id="fb-campaign-name">Flow Builder</h1>
+          <p id="fb-campaign-desc" style="font-size:13px;color:var(--text-b);">Design your automation sequence</p>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn btn-ghost btn-sm" onclick="openLeadSelector()">👥 Assign Leads (<span id="fb-lead-count">0</span>)</button>
+        <button class="btn btn-ghost btn-sm" onclick="saveFlow()">💾 Save Flow</button>
+        <button class="btn btn-primary" id="launch-btn" onclick="launchCampaign()">▶ Launch</button>
+      </div>
+
+      <div class="flow-builder-wrap">
+        <!-- Palette -->
+        <div class="flow-palette">
+          <div class="palette-title">Step Types</div>
+          <div class="palette-item" draggable="true" data-step-type="whatsapp" ondragstart="paletteDragStart(event)">
+            <span class="pi-icon">💬</span> WhatsApp
+          </div>
+          <div class="palette-item" draggable="true" data-step-type="email_gmail" ondragstart="paletteDragStart(event)">
+            <span class="pi-icon">📧</span> Email (Gmail)
+          </div>
+          <div class="palette-item" draggable="true" data-step-type="email_resend" ondragstart="paletteDragStart(event)">
+            <span class="pi-icon">✉️</span> Email (Resend)
+          </div>
+          <div class="palette-item" draggable="true" data-step-type="wait" ondragstart="paletteDragStart(event)">
+            <span class="pi-icon">⏳</span> Wait
+          </div>
+          <div class="palette-item" draggable="true" data-step-type="condition" ondragstart="paletteDragStart(event)">
+            <span class="pi-icon">🔀</span> Condition
+          </div>
+        </div>
+
+        <!-- Canvas -->
+        <div class="flow-canvas-wrap" id="flow-canvas-wrap"
+             ondragover="canvasDragOver(event)" ondrop="canvasDrop(event)" ondragleave="canvasDragLeave(event)">
+          <div class="flow-canvas" id="flow-canvas">
+            <div class="flow-drop-hint" id="flow-drop-hint">
+              ← Drag steps from the left panel and drop here to build your flow
+            </div>
+            <div class="flow-steps-list" id="flow-steps-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PAGE: SETTINGS ═══ -->
+    <div class="page" id="page-settings">
+      <div class="page-header">
+        <h1>Integrations & Settings ⚙️</h1>
+        <p>Connect your WhatsApp (Evolution API), Gmail, and Resend accounts.</p>
+      </div>
+      <div class="settings-grid">
+        <!-- WhatsApp / Evolution -->
+        <div class="settings-card">
+          <div class="settings-card-title">💬 WhatsApp (Evolution API)</div>
+          <div class="settings-card-sub">Connect your Evolution API instance to send WhatsApp messages.</div>
+          <div class="form-row">
+            <label>Instance Name</label>
+            <input class="form-input" id="s-evo-instance" placeholder="e.g. my-instance" />
+          </div>
+          <div class="form-row">
+            <label>API URL</label>
+            <input class="form-input" id="s-evo-url" placeholder="https://your-evo-server.com" />
+          </div>
+          <div class="form-row">
+            <label>API Key</label>
+            <input class="form-input" id="s-evo-key" type="password" placeholder="●●●●●●●●" />
+          </div>
+          <div class="integration-status" id="evo-status">
+            <span class="status-dot off"></span> <span>Not configured</span>
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-ghost btn-sm" onclick="testWhatsApp()">🔌 Test Connection</button>
+            <button class="btn btn-primary btn-sm" onclick="saveIntegrations()">Save</button>
+          </div>
+        </div>
+
+        <!-- Gmail -->
+        <div class="settings-card">
+          <div class="settings-card-title">📧 Gmail (App Password)</div>
+          <div class="settings-card-sub">Use your Gmail + an App Password to send emails from your personal account.</div>
+          <div class="form-row">
+            <label>Gmail Address</label>
+            <input class="form-input" id="s-gmail-addr" placeholder="you@gmail.com" />
+          </div>
+          <div class="form-row">
+            <label>App Password <a href="https://myaccount.google.com/apppasswords" target="_blank" style="font-size:11px;color:var(--accent-1);margin-left:4px;">How to get one ↗</a></label>
+            <input class="form-input" id="s-gmail-pass" type="password" placeholder="xxxx xxxx xxxx xxxx" />
+          </div>
+          <div class="integration-status" id="gmail-status">
+            <span class="status-dot off"></span> <span>Not configured</span>
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-primary btn-sm" onclick="saveIntegrations()">Save</button>
+          </div>
+        </div>
+
+        <!-- Resend -->
+        <div class="settings-card">
+          <div class="settings-card-title">✉️ Resend (Domain Email)</div>
+          <div class="settings-card-sub">Send from your own domain with Resend. Great for professional outreach.</div>
+          <div class="form-row">
+            <label>Resend API Key</label>
+            <input class="form-input" id="s-resend-key" type="password" placeholder="re_●●●●●●●●" />
+          </div>
+          <div class="form-row">
+            <label>From Address</label>
+            <input class="form-input" id="s-resend-from" placeholder="hello@yourdomain.com" />
+          </div>
+          <div class="integration-status" id="resend-status">
+            <span class="status-dot off"></span> <span>Not configured</span>
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-ghost btn-sm" onclick="testResend()">🔌 Test Key</button>
+            <button class="btn btn-primary btn-sm" onclick="saveIntegrations()">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
-<!-- ADD LEAD MODAL -->
+<!-- ══════════════ MODALS ══════════════ -->
+
+<!-- Add Lead -->
 <div class="modal-overlay" id="add-modal">
   <div class="modal-box">
     <div class="modal-title">Add a Lead</div>
     <div class="modal-sub">Fill in the lead's details below.</div>
-
-    <div class="form-row">
-      <label>Name</label>
-      <input class="form-input" id="m-name" placeholder="e.g. Bhuvi Patel" />
-    </div>
-    <div class="form-row">
-      <label>Business Name</label>
-      <input class="form-input" id="m-business" placeholder="e.g. Al Noor Spices Trading LLC" />
-    </div>
-    <div class="form-row">
-      <label>Email</label>
-      <input class="form-input" id="m-email" placeholder="e.g. info@business.com" />
-    </div>
-    <div class="form-row">
-      <label>Phone Number</label>
-      <input class="form-input" id="m-phone" placeholder="e.g. +971 50 123 4567" />
-    </div>
-    <div class="form-row">
-      <label>Website <span class="optional">(optional)</span></label>
-      <input class="form-input" id="m-website" placeholder="e.g. https://business.com" />
-    </div>
-    <div class="form-row">
-      <label>Lead Description</label>
-      <input class="form-input" id="m-description" placeholder="What are they looking for?" />
-    </div>
-
+    <div class="form-row"><label>Name</label><input class="form-input" id="m-name" placeholder="Bhuvi Patel" /></div>
+    <div class="form-row"><label>Business Name</label><input class="form-input" id="m-business" placeholder="Al Noor Spices" /></div>
+    <div class="form-row"><label>Email</label><input class="form-input" id="m-email" placeholder="info@business.com" /></div>
+    <div class="form-row"><label>Phone</label><input class="form-input" id="m-phone" placeholder="+971 50 123 4567" /></div>
+    <div class="form-row"><label>Website</label><input class="form-input" id="m-website" placeholder="https://..." /></div>
+    <div class="form-row"><label>Description</label><input class="form-input" id="m-description" placeholder="What are they looking for?" /></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
       <button class="btn btn-primary" onclick="submitAddModal()">Save Lead</button>
@@ -390,21 +574,106 @@ td.col-website .cell-input { min-width: 150px; }
   </div>
 </div>
 
+<!-- New Campaign -->
+<div class="modal-overlay" id="new-campaign-modal">
+  <div class="modal-box">
+    <div class="modal-title">New Campaign</div>
+    <div class="modal-sub">Give your campaign a name, then build the flow.</div>
+    <div class="form-row"><label>Campaign Name</label><input class="form-input" id="nc-name" placeholder="e.g. Onboarding Sequence" /></div>
+    <div class="form-row"><label>Description <span style="color:var(--text-dim);font-size:11px;">(optional)</span></label><input class="form-input" id="nc-desc" placeholder="What does this campaign do?" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('new-campaign-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="createCampaign()">Create & Build Flow</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lead Selector -->
+<div class="modal-overlay" id="lead-selector-modal">
+  <div class="modal-box wide">
+    <div class="modal-title">Assign Leads to Campaign</div>
+    <div class="modal-sub">Select which leads this campaign should run for.</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <input class="form-input" id="lead-sel-search" placeholder="Search leads…" oninput="filterLeadSelector()" style="flex:1;" />
+      <button class="btn btn-ghost btn-sm" onclick="selectAllLeads()">Select All</button>
+      <button class="btn btn-ghost btn-sm" onclick="deselectAllLeads()">Clear</button>
+    </div>
+    <div class="lead-selector" id="lead-selector-list"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('lead-selector-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmLeadSelection()">Confirm (<span id="sel-count">0</span> leads)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Campaign Logs -->
+<div class="modal-overlay" id="logs-modal">
+  <div class="modal-box wide" style="max-width:720px;">
+    <div class="modal-title">Campaign Execution Logs</div>
+    <div class="modal-sub" id="logs-modal-sub">Recent send history for this campaign.</div>
+    <div class="logs-table-wrap">
+      <table class="logs-table">
+        <thead><tr><th>Lead</th><th>Channel</th><th>Step</th><th>Status</th><th>Time</th><th>Error</th></tr></thead>
+        <tbody id="logs-tbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('logs-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
-/* ══════════════════════════════════════════
+/* ════════════════════════════════════════════════
    STATE
-══════════════════════════════════════════ */
-let leads = [];          // canonical leads loaded from / saved to server
-let searchQuery = "";
+════════════════════════════════════════════════ */
+let leads         = [];
+let campaigns     = [];
+let searchQuery   = "";
 let searchDebounce = null;
 
-/* ══════════════════════════════════════════
-   INIT
-══════════════════════════════════════════ */
-document.addEventListener("DOMContentLoaded", loadLeads);
+// Flow builder state
+let currentCampaignId   = null;
+let currentCampaignLeadIds = [];
+let flowSteps           = [];   // array of step objects
+let dragSrcPaletteType  = null; // dragging from palette
+let dragSrcStepIdx      = null; // dragging existing step to reorder
 
+/* ════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════ */
+document.addEventListener("DOMContentLoaded", () => {
+  loadLeads();
+  loadCampaigns();
+  loadIntegrations();
+});
+
+/* ════════════════════════════════════════════════
+   PAGE ROUTING
+════════════════════════════════════════════════ */
+function showPage(name, navEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (navEl) navEl.classList.add('active');
+  // Hide search for non-leads pages
+  document.querySelector('.search-wrap').style.opacity = (name === 'leads') ? '1' : '0.3';
+}
+
+function backToCampaigns() {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-campaigns').classList.add('active');
+  const campNav = document.querySelector('[onclick*="campaigns"]');
+  if (campNav) campNav.classList.add('active');
+  loadCampaigns();
+}
+
+/* ════════════════════════════════════════════════
+   LEADS
+════════════════════════════════════════════════ */
 async function loadLeads() {
   try {
     const res = await fetch(`/api/leads${searchQuery ? "?q=" + encodeURIComponent(searchQuery) : ""}`);
@@ -412,284 +681,637 @@ async function loadLeads() {
     const data = await res.json();
     leads = data.leads.map(l => ({ ...l, _dirty: false }));
     renderAll();
-  } catch (err) {
-    showToast("Could not load leads. " + err.message, true);
-  }
+  } catch (err) { showToast("Could not load leads. " + err.message, "error"); }
 }
 
-function renderAll() {
-  renderStats();
-  renderSheet();
-}
+function renderAll() { renderStats(); renderSheet(); }
 
-/* ══════════════════════════════════════════
-   STATS (derived from real lead data)
-══════════════════════════════════════════ */
 function renderStats() {
-  const total = leads.length;
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const total    = leads.length;
+  const weekAgo  = Date.now() - 7 * 86400000;
   const thisWeek = leads.filter(l => l.created_at && new Date(l.created_at).getTime() >= weekAgo).length;
-  const withEmail = leads.filter(l => l.email).length;
+  const withEmail   = leads.filter(l => l.email).length;
   const withWebsite = leads.filter(l => l.website).length;
-
   const stats = [
-    { icon: "👥", label: "Total Leads", value: total },
+    { icon: "👥", label: "Total Leads",     value: total },
     { icon: "🆕", label: "Added This Week", value: thisWeek },
-    { icon: "✉️", label: "With Email", value: withEmail },
-    { icon: "🌐", label: "With Website", value: withWebsite },
+    { icon: "✉️", label: "With Email",      value: withEmail },
+    { icon: "🌐", label: "With Website",    value: withWebsite },
   ];
-
   document.getElementById("stats-row").innerHTML = stats.map(s => `
     <div class="stat-card">
-      <div class="stat-header">
-        <span class="stat-icon">${s.icon}</span>
-        <span class="stat-label">${s.label}</span>
-      </div>
+      <div class="stat-header"><span class="stat-icon">${s.icon}</span><span class="stat-label">${s.label}</span></div>
       <div class="stat-value">${s.value}</div>
-    </div>
-  `).join("");
+    </div>`).join("");
 }
 
-/* ══════════════════════════════════════════
-   SHEET RENDER
-══════════════════════════════════════════ */
 function renderSheet() {
   const tbody = document.getElementById("sheet-tbody");
-  const emptyState = document.getElementById("empty-state");
-  const countLabel = document.getElementById("row-count-label");
-
-  countLabel.textContent = `${leads.length} lead${leads.length === 1 ? "" : "s"}`;
-
-  if (leads.length === 0) {
-    tbody.innerHTML = "";
-    emptyState.style.display = "block";
-  } else {
-    emptyState.style.display = "none";
-    tbody.innerHTML = leads.map((lead, idx) => rowHtml(lead, idx)).join("");
-  }
-
+  const empty = document.getElementById("empty-state");
+  document.getElementById("row-count-label").textContent = `${leads.length} lead${leads.length===1?"":"s"}`;
+  if (!leads.length) { tbody.innerHTML = ""; empty.style.display = "block"; }
+  else { empty.style.display = "none"; tbody.innerHTML = leads.map((l,i) => rowHtml(l,i)).join(""); }
   updateSaveButtonState();
 }
 
 function rowHtml(lead, idx) {
-  const rowClass = lead._dirty ? (lead._id ? "is-dirty" : "is-new") : "";
-  return `
-    <tr data-idx="${idx}" class="${rowClass}">
-      <td class="row-num">${idx + 1}</td>
-      <td class="col-name"><input class="cell-input" value="${esc(lead.name)}" placeholder="Name"
-        oninput="updateCell(${idx}, 'name', this.value)" /></td>
-      <td class="col-business"><input class="cell-input" value="${esc(lead.business_name)}" placeholder="Business name"
-        oninput="updateCell(${idx}, 'business_name', this.value)" /></td>
-      <td class="col-email"><input class="cell-input" value="${esc(lead.email)}" placeholder="Email"
-        oninput="updateCell(${idx}, 'email', this.value)" /></td>
-      <td class="col-phone"><input class="cell-input" value="${esc(lead.phone)}" placeholder="Phone"
-        oninput="updateCell(${idx}, 'phone', this.value)" /></td>
-      <td class="col-website"><input class="cell-input" value="${esc(lead.website)}" placeholder="Website (optional)"
-        oninput="updateCell(${idx}, 'website', this.value)" /></td>
-      <td class="col-description"><input class="cell-input" value="${esc(lead.description)}" placeholder="Description"
-        oninput="updateCell(${idx}, 'description', this.value)" /></td>
-      <td class="col-actions">
-        <div class="row-actions">
-          <div class="row-act-btn" title="Delete row" onclick="deleteRow(${idx})">🗑</div>
-        </div>
-      </td>
-    </tr>
-  `;
+  const cls = lead._dirty ? (lead._id ? "is-dirty" : "is-new") : "";
+  return `<tr data-idx="${idx}" class="${cls}">
+    <td class="row-num">${idx+1}</td>
+    <td class="col-name"><input class="cell-input" value="${esc(lead.name)}" placeholder="Name" oninput="updateCell(${idx},'name',this.value)" /></td>
+    <td class="col-business"><input class="cell-input" value="${esc(lead.business_name)}" placeholder="Business" oninput="updateCell(${idx},'business_name',this.value)" /></td>
+    <td class="col-email"><input class="cell-input" value="${esc(lead.email)}" placeholder="Email" oninput="updateCell(${idx},'email',this.value)" /></td>
+    <td class="col-phone"><input class="cell-input" value="${esc(lead.phone)}" placeholder="Phone" oninput="updateCell(${idx},'phone',this.value)" /></td>
+    <td class="col-website"><input class="cell-input" value="${esc(lead.website)}" placeholder="Website" oninput="updateCell(${idx},'website',this.value)" /></td>
+    <td class="col-description"><input class="cell-input" value="${esc(lead.description)}" placeholder="Description" oninput="updateCell(${idx},'description',this.value)" /></td>
+    <td class="col-actions"><div class="row-actions"><div class="row-act-btn" onclick="deleteRow(${idx})">🗑</div></div></td>
+  </tr>`;
 }
 
-function esc(val) {
-  return (val || "").toString()
-    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+function esc(v) {
+  return (v||"").toString().replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
 }
 
-/* ══════════════════════════════════════════
-   ROW EDITING
-══════════════════════════════════════════ */
 function updateCell(idx, field, value) {
-  leads[idx][field] = value;
-  leads[idx]._dirty = true;
-  // Keep visual dirty state without a full re-render (avoids losing focus)
+  leads[idx][field] = value; leads[idx]._dirty = true;
   const row = document.querySelector(`tr[data-idx="${idx}"]`);
   if (row) row.classList.add(leads[idx]._id ? "is-dirty" : "is-new");
   updateSaveButtonState();
 }
 
 function addBlankRow() {
-  leads.unshift({
-    _id: null, name: "", business_name: "", email: "", phone: "",
-    website: "", description: "", _dirty: true
-  });
+  leads.unshift({_id:null,name:"",business_name:"",email:"",phone:"",website:"",description:"",_dirty:true});
   renderSheet();
-  const firstInput = document.querySelector('tr[data-idx="0"] .col-name input');
-  if (firstInput) firstInput.focus();
+  document.querySelector('tr[data-idx="0"] .col-name input')?.focus();
 }
 
 async function deleteRow(idx) {
   const lead = leads[idx];
-
-  if (!lead._id) {
-    // Unsaved row — just drop it client-side
-    leads.splice(idx, 1);
-    renderSheet();
-    return;
-  }
-
-  if (!confirm(`Delete lead "${lead.name || "Untitled"}"? This cannot be undone.`)) return;
-
+  if (!lead._id) { leads.splice(idx,1); renderSheet(); return; }
+  if (!confirm(`Delete lead "${lead.name||"Untitled"}"?`)) return;
   try {
-    const res = await fetch(`/api/leads/${lead._id}`, { method: "DELETE" });
+    const res = await fetch(`/api/leads/${lead._id}`, {method:"DELETE"});
     if (!res.ok) throw new Error("Delete failed");
-    leads.splice(idx, 1);
-    renderAll();
-    showToast("Lead deleted");
-  } catch (err) {
-    showToast("Could not delete lead. " + err.message, true);
-  }
+    leads.splice(idx,1); renderAll(); showToast("Lead deleted");
+  } catch(err) { showToast(err.message, "error"); }
 }
 
 function updateSaveButtonState() {
-  const dirtyCount = leads.filter(l => l._dirty).length;
-  const btn = document.getElementById("save-all-btn");
+  const n = leads.filter(l=>l._dirty).length;
+  document.getElementById("save-all-btn").disabled = !n;
   const note = document.getElementById("dirty-note");
-  btn.disabled = dirtyCount === 0;
-  note.style.display = dirtyCount > 0 ? "inline" : "none";
-  note.textContent = `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`;
+  note.style.display = n ? "inline" : "none";
+  note.textContent   = `${n} unsaved change${n===1?"":"s"}`;
 }
 
 async function saveAll() {
-  const dirtyRows = leads.filter(l => l._dirty);
-  const validRows = dirtyRows.filter(l => l.name && l.name.trim());
-
-  if (validRows.length === 0) {
-    showToast("Add at least a name before saving.", true);
-    return;
-  }
-  if (validRows.length < dirtyRows.length) {
-    showToast(`${dirtyRows.length - validRows.length} row(s) skipped — name is required.`, true);
-  }
-
+  const dirty = leads.filter(l=>l._dirty);
+  const valid = dirty.filter(l=>l.name&&l.name.trim());
+  if (!valid.length) { showToast("Add at least a name before saving.", "error"); return; }
   const btn = document.getElementById("save-all-btn");
-  btn.disabled = true;
-  btn.textContent = "Saving...";
-
+  btn.disabled = true; btn.textContent = "Saving…";
   try {
-    const res = await fetch("/api/leads/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ leads: validRows })
-    });
+    const res = await fetch("/api/leads/bulk", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({leads:valid})});
     if (!res.ok) throw new Error("Save failed");
     const data = await res.json();
-    showToast(`Saved ${data.saved} lead${data.saved === 1 ? "" : "s"}.`);
+    showToast(`Saved ${data.saved} lead${data.saved===1?"":"s"}.`, "success");
     await loadLeads();
-  } catch (err) {
-    showToast("Could not save changes. " + err.message, true);
-  } finally {
-    btn.textContent = "💾 Save All";
-  }
+  } catch(err) { showToast(err.message, "error"); }
+  finally { btn.textContent = "💾 Save All"; }
 }
 
-/* ══════════════════════════════════════════
-   ADD LEAD MODAL (quick single add)
-══════════════════════════════════════════ */
+// Modal
 function openAddModal() {
-  ["m-name", "m-business", "m-email", "m-phone", "m-website", "m-description"].forEach(id => {
-    document.getElementById(id).value = "";
-  });
+  ["m-name","m-business","m-email","m-phone","m-website","m-description"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("add-modal").classList.add("open");
 }
-function closeAddModal() {
-  document.getElementById("add-modal").classList.remove("open");
-}
+function closeAddModal() { document.getElementById("add-modal").classList.remove("open"); }
 
 async function submitAddModal() {
   const payload = {
-    name: document.getElementById("m-name").value.trim(),
+    name:          document.getElementById("m-name").value.trim(),
     business_name: document.getElementById("m-business").value.trim(),
-    email: document.getElementById("m-email").value.trim(),
-    phone: document.getElementById("m-phone").value.trim(),
-    website: document.getElementById("m-website").value.trim(),
-    description: document.getElementById("m-description").value.trim(),
+    email:         document.getElementById("m-email").value.trim(),
+    phone:         document.getElementById("m-phone").value.trim(),
+    website:       document.getElementById("m-website").value.trim(),
+    description:   document.getElementById("m-description").value.trim(),
   };
-
-  if (!payload.name) {
-    showToast("Name is required.", true);
-    return;
-  }
-
+  if (!payload.name) { showToast("Name is required.", "error"); return; }
   try {
-    const res = await fetch("/api/leads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Could not add lead");
-    }
-    closeAddModal();
-    showToast("Lead added.");
-    await loadLeads();
-  } catch (err) {
-    showToast(err.message, true);
-  }
+    const res = await fetch("/api/leads",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    if (!res.ok) { const e=await res.json(); throw new Error(e.error||"Could not add lead"); }
+    closeAddModal(); showToast("Lead added.", "success"); await loadLeads();
+  } catch(err) { showToast(err.message, "error"); }
 }
 
-/* ══════════════════════════════════════════
-   IMPORT CSV / EXCEL
-══════════════════════════════════════════ */
 async function handleImportFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const formData = new FormData();
-  formData.append("file", file);
-
-  showToast("Importing leads...");
-
+  const file = event.target.files[0]; if (!file) return;
+  const fd = new FormData(); fd.append("file", file);
+  showToast("Importing…");
   try {
-    const res = await fetch("/api/leads/import", { method: "POST", body: formData });
+    const res = await fetch("/api/leads/import",{method:"POST",body:fd});
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Import failed");
-
-    showToast(`Imported ${data.inserted} lead${data.inserted === 1 ? "" : "s"}` +
-      (data.skipped ? ` (${data.skipped} skipped — missing name)` : ""));
+    if (!res.ok) throw new Error(data.error||"Import failed");
+    showToast(`Imported ${data.inserted} lead${data.inserted===1?"":"s"}${data.skipped?` (${data.skipped} skipped)`:""}`, "success");
     await loadLeads();
-  } catch (err) {
-    showToast(err.message, true);
-  } finally {
-    event.target.value = "";
-  }
+  } catch(err) { showToast(err.message, "error"); }
+  finally { event.target.value=""; }
 }
 
-/* ══════════════════════════════════════════
-   SEARCH
-══════════════════════════════════════════ */
 function handleSearchInput() {
   searchQuery = document.getElementById("global-search").value.trim();
   clearTimeout(searchDebounce);
   searchDebounce = setTimeout(loadLeads, 350);
 }
 
-/* ══════════════════════════════════════════
-   MISC UI
-══════════════════════════════════════════ */
-function comingSoon(e) {
-  e.preventDefault();
-  showToast("This section is coming soon 🚧");
+/* ════════════════════════════════════════════════
+   CAMPAIGNS
+════════════════════════════════════════════════ */
+async function loadCampaigns() {
+  try {
+    const res = await fetch("/api/campaigns");
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    campaigns = data.campaigns;
+    renderCampaigns();
+  } catch { showToast("Could not load campaigns", "error"); }
+}
+
+function renderCampaigns() {
+  const grid = document.getElementById("campaigns-grid");
+  if (!campaigns.length) {
+    grid.innerHTML = `<div class="empty-state">No campaigns yet. Create your first one!</div>`;
+    return;
+  }
+  grid.innerHTML = campaigns.map(c => {
+    const badgeCls = `badge badge-${c.status}`;
+    return `<div class="campaign-card" onclick="openFlowBuilder('${c._id}')">
+      <div class="camp-header">
+        <div class="camp-name">${esc(c.name)}</div>
+        <span class="${badgeCls}">${c.status}</span>
+      </div>
+      <div class="camp-desc">${esc(c.description||"No description")}</div>
+      <div class="camp-meta">
+        <span class="camp-stat">📋 ${c.flow.length} step${c.flow.length===1?"":"s"}</span>
+        <span class="camp-stat">👥 ${c.lead_ids.length} lead${c.lead_ids.length===1?"":"s"}</span>
+        ${c.last_run_at ? `<span class="camp-stat">🕐 ${timeAgo(c.last_run_at)}</span>` : ""}
+      </div>
+      <div class="camp-actions" onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="openFlowBuilder('${c._id}')">✏️ Edit Flow</button>
+        <button class="btn btn-ghost btn-sm" onclick="openCampaignLogs('${c._id}','${esc(c.name)}')">📊 Logs</button>
+        <button class="btn btn-primary btn-sm" onclick="quickLaunch('${c._id}')">▶ Launch</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCampaign('${c._id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function openNewCampaignModal() {
+  document.getElementById("nc-name").value = "";
+  document.getElementById("nc-desc").value = "";
+  document.getElementById("new-campaign-modal").classList.add("open");
+}
+
+async function createCampaign() {
+  const name = document.getElementById("nc-name").value.trim();
+  const desc = document.getElementById("nc-desc").value.trim();
+  if (!name) { showToast("Campaign name required", "error"); return; }
+  try {
+    const res = await fetch("/api/campaigns",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,description:desc,flow:[],lead_ids:[]})});
+    if (!res.ok) throw new Error("Could not create campaign");
+    const data = await res.json();
+    closeModal("new-campaign-modal");
+    await loadCampaigns();
+    openFlowBuilder(data.campaign._id);
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+async function deleteCampaign(id) {
+  if (!confirm("Delete this campaign and all its logs?")) return;
+  try {
+    const res = await fetch(`/api/campaigns/${id}`,{method:"DELETE"});
+    if (!res.ok) throw new Error();
+    showToast("Campaign deleted");
+    await loadCampaigns();
+  } catch { showToast("Could not delete campaign", "error"); }
+}
+
+async function quickLaunch(id) {
+  if (!confirm("Launch this campaign now?")) return;
+  try {
+    const res = await fetch(`/api/campaigns/${id}/launch`,{method:"POST"});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error||"Launch failed");
+    showToast("Campaign launched! 🚀", "success");
+    await loadCampaigns();
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+async function openCampaignLogs(id, name) {
+  document.getElementById("logs-modal-sub").textContent = `Execution log for: ${name}`;
+  document.getElementById("logs-tbody").innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">Loading…</td></tr>`;
+  document.getElementById("logs-modal").classList.add("open");
+  try {
+    const res = await fetch(`/api/campaigns/${id}/logs`);
+    const data = await res.json();
+    const logs = data.logs;
+    if (!logs.length) {
+      document.getElementById("logs-tbody").innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">No logs yet. Run the campaign first.</td></tr>`;
+      return;
+    }
+    document.getElementById("logs-tbody").innerHTML = logs.map(l => `
+      <tr>
+        <td>${esc(l.lead_name||l.lead_id)}</td>
+        <td>${channelBadge(l.channel)}</td>
+        <td>Step ${l.step_index+1}</td>
+        <td><span class="log-status log-${l.status}">${l.status}</span></td>
+        <td style="white-space:nowrap;">${l.executed_at ? new Date(l.executed_at).toLocaleString() : "—"}</td>
+        <td style="color:var(--red);font-size:11.5px;">${esc(l.error||"")}</td>
+      </tr>`).join("");
+  } catch { showToast("Could not load logs", "error"); }
+}
+
+function channelBadge(ch) {
+  const map = {whatsapp:"💬 WhatsApp",email_gmail:"📧 Gmail",email_resend:"✉️ Resend"};
+  return map[ch] || ch;
+}
+
+/* ════════════════════════════════════════════════
+   FLOW BUILDER
+════════════════════════════════════════════════ */
+async function openFlowBuilder(campaignId) {
+  // Show the page
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-flow-builder').classList.add('active');
+
+  currentCampaignId = campaignId;
+
+  // Load campaign data
+  try {
+    const res  = await fetch(`/api/campaigns/${campaignId}`);
+    const data = await res.json();
+    const c    = data.campaign;
+    document.getElementById("fb-campaign-name").textContent = c.name;
+    document.getElementById("fb-campaign-desc").textContent = c.description || "Design your automation sequence";
+    flowSteps = JSON.parse(JSON.stringify(c.flow || []));
+    currentCampaignLeadIds = c.lead_ids || [];
+    updateFbLeadCount();
+    renderFlowCanvas();
+  } catch { showToast("Could not load campaign", "error"); }
+}
+
+function updateFbLeadCount() {
+  document.getElementById("fb-lead-count").textContent = currentCampaignLeadIds.length;
+}
+
+function renderFlowCanvas() {
+  const list = document.getElementById("flow-steps-list");
+  const hint = document.getElementById("flow-drop-hint");
+  hint.style.display = flowSteps.length ? "none" : "block";
+
+  list.innerHTML = flowSteps.map((step, idx) => {
+    const connector = idx > 0 ? `<div class="flow-connector"></div>` : "";
+    return connector + stepHtml(step, idx);
+  }).join("");
+}
+
+function stepHtml(step, idx) {
+  const typeInfo = {
+    whatsapp:    { icon: "💬", label: "WhatsApp Message" },
+    email_gmail: { icon: "📧", label: "Email via Gmail" },
+    email_resend:{ icon: "✉️", label: "Email via Resend" },
+    wait:        { icon: "⏳", label: "Wait / Delay" },
+    condition:   { icon: "🔀", label: "Condition (If / Else)" },
+  }[step.type] || { icon: "❓", label: step.type };
+
+  let fields = "";
+
+  if (step.type === "whatsapp") {
+    fields = `
+      <div class="step-field">
+        <label>Message</label>
+        <textarea class="step-textarea" oninput="updateStep(${idx},'message',this.value)" placeholder="Hi {{name}}, we'd love to connect…">${esc(step.message||"")}</textarea>
+        <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}}</div>
+      </div>`;
+  } else if (step.type === "email_gmail" || step.type === "email_resend") {
+    fields = `
+      <div class="step-field">
+        <label>Subject</label>
+        <input class="step-input" value="${esc(step.subject||"")}" oninput="updateStep(${idx},'subject',this.value)" placeholder="Hi {{name}}, quick note from us" />
+      </div>
+      <div class="step-field">
+        <label>Body (HTML or plain text)</label>
+        <textarea class="step-textarea" style="min-height:90px;" oninput="updateStep(${idx},'body',this.value)" placeholder="<p>Hello {{name}},</p><p>…</p>">${esc(step.body||"")}</textarea>
+        <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}} {{website}}</div>
+      </div>`;
+  } else if (step.type === "wait") {
+    fields = `
+      <div class="step-field" style="flex-direction:row;gap:8px;align-items:flex-end;">
+        <div style="flex:1;">
+          <label>Amount</label>
+          <input class="step-input" type="number" min="1" value="${step.amount||1}" oninput="updateStep(${idx},'amount',this.value)" />
+        </div>
+        <div style="flex:1;">
+          <label>Unit</label>
+          <select class="step-select" onchange="updateStep(${idx},'unit',this.value)">
+            ${["seconds","minutes","hours","days"].map(u=>`<option value="${u}"${step.unit===u?" selected":""}>${u}</option>`).join("")}
+          </select>
+        </div>
+      </div>`;
+  } else if (step.type === "condition") {
+    fields = `
+      <div class="step-field" style="flex-direction:row;gap:8px;align-items:flex-end;">
+        <div style="flex:1;">
+          <label>Field</label>
+          <select class="step-select" onchange="updateStep(${idx},'field',this.value)">
+            ${["name","business_name","email","phone","website","description"].map(f=>`<option value="${f}"${step.field===f?" selected":""}>${f}</option>`).join("")}
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label>Operator</label>
+          <select class="step-select" onchange="updateStep(${idx},'operator',this.value)">
+            ${["exists","not_exists","equals","contains","not_contains"].map(o=>`<option value="${o}"${step.operator===o?" selected":""}>${o}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      ${["equals","contains","not_contains"].includes(step.operator) ? `
+      <div class="step-field">
+        <label>Value to compare</label>
+        <input class="step-input" value="${esc(step.value||"")}" oninput="updateStep(${idx},'value',this.value)" placeholder="e.g. gmail.com" />
+      </div>` : ""}
+      <div class="step-field" style="flex-direction:row;gap:8px;">
+        <div style="flex:1;">
+          <label>✅ If TRUE → go to step #</label>
+          <input class="step-input" type="number" min="1" value="${step.then_step!=null?step.then_step+1:""}" oninput="updateStep(${idx},'then_step',this.value?parseInt(this.value)-1:null)" placeholder="next" />
+        </div>
+        <div style="flex:1;">
+          <label>❌ If FALSE → go to step #</label>
+          <input class="step-input" type="number" min="1" value="${step.else_step!=null?step.else_step+1:""}" oninput="updateStep(${idx},'else_step',this.value?parseInt(this.value)-1:null)" placeholder="next" />
+        </div>
+      </div>
+      <div class="vars-hint">Leave blank to continue to the next step.</div>`;
+  }
+
+  return `<div class="flow-step" data-type="${step.type}" data-idx="${idx}"
+      draggable="true" ondragstart="stepDragStart(event,${idx})" ondragover="stepDragOver(event,${idx})" ondrop="stepDrop(event,${idx})" ondragleave="stepDragLeave(event)">
+    <div class="step-header">
+      <span class="step-drag-handle" title="Drag to reorder">⠿</span>
+      <span class="step-type-icon">${typeInfo.icon}</span>
+      <span class="step-type-label">${typeInfo.label}</span>
+      <button class="step-del-btn" onclick="deleteStep(${idx})" title="Remove step">✕</button>
+    </div>
+    <div class="step-fields">${fields}</div>
+  </div>`;
+}
+
+function updateStep(idx, key, value) {
+  flowSteps[idx][key] = value;
+}
+
+function deleteStep(idx) {
+  flowSteps.splice(idx, 1);
+  renderFlowCanvas();
+}
+
+/* Palette drag */
+function paletteDragStart(event) {
+  dragSrcPaletteType = event.currentTarget.dataset.stepType;
+  dragSrcStepIdx     = null;
+  event.dataTransfer.effectAllowed = "copy";
+}
+
+/* Canvas drag-over / drop */
+function canvasDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = dragSrcPaletteType ? "copy" : "move";
+  document.getElementById("flow-canvas").classList.add("drag-over");
+}
+function canvasDragLeave(event) {
+  if (!event.currentTarget.contains(event.relatedTarget))
+    document.getElementById("flow-canvas").classList.remove("drag-over");
+}
+function canvasDrop(event) {
+  event.preventDefault();
+  document.getElementById("flow-canvas").classList.remove("drag-over");
+  if (dragSrcPaletteType) {
+    // Only add if dropped on canvas background (not on a step)
+    if (!event.target.closest('.flow-step')) {
+      addStep(dragSrcPaletteType);
+    }
+    dragSrcPaletteType = null;
+  }
+}
+
+function addStep(type) {
+  const defaults = {
+    whatsapp:    { type, message: "" },
+    email_gmail: { type, subject: "", body: "" },
+    email_resend:{ type, subject: "", body: "" },
+    wait:        { type, amount: 1, unit: "minutes" },
+    condition:   { type, field: "email", operator: "exists", value: "", then_step: null, else_step: null },
+  };
+  flowSteps.push(defaults[type] || { type });
+  renderFlowCanvas();
+  // Scroll to bottom
+  const wrap = document.getElementById("flow-canvas-wrap");
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+/* Step drag-to-reorder */
+function stepDragStart(event, idx) {
+  if (event.target.closest('.step-drag-handle') || event.currentTarget.draggable) {
+    dragSrcStepIdx    = idx;
+    dragSrcPaletteType = null;
+    event.dataTransfer.effectAllowed = "move";
+    event.stopPropagation();
+    setTimeout(() => event.currentTarget.classList.add("dragging-step"), 0);
+  }
+}
+function stepDragOver(event, idx) {
+  if (dragSrcStepIdx === null) return;
+  event.preventDefault();
+  event.stopPropagation();
+  document.querySelectorAll('.flow-step').forEach(s => s.classList.remove("drop-target"));
+  event.currentTarget.classList.add("drop-target");
+}
+function stepDragLeave(event) {
+  event.currentTarget.classList.remove("drop-target");
+}
+function stepDrop(event, idx) {
+  event.preventDefault();
+  event.stopPropagation();
+  document.querySelectorAll('.flow-step').forEach(s => s.classList.remove("drop-target","dragging-step"));
+  if (dragSrcStepIdx === null || dragSrcStepIdx === idx) { dragSrcStepIdx = null; return; }
+  const moved = flowSteps.splice(dragSrcStepIdx, 1)[0];
+  const insertAt = idx > dragSrcStepIdx ? idx : idx;
+  flowSteps.splice(insertAt, 0, moved);
+  dragSrcStepIdx = null;
+  renderFlowCanvas();
+}
+
+async function saveFlow() {
+  if (!currentCampaignId) return;
+  try {
+    const res = await fetch(`/api/campaigns/${currentCampaignId}`,{
+      method:"PATCH",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({flow: flowSteps, lead_ids: currentCampaignLeadIds})
+    });
+    if (!res.ok) throw new Error("Save failed");
+    showToast("Flow saved ✓", "success");
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+async function launchCampaign() {
+  if (!currentCampaignId) return;
+  await saveFlow();
+  if (!confirm("Launch campaign now? This will start sending immediately.")) return;
+  try {
+    const res  = await fetch(`/api/campaigns/${currentCampaignId}/launch`,{method:"POST"});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error||"Launch failed");
+    showToast("Campaign launched! 🚀", "success");
+    document.getElementById("launch-btn").textContent = "Running…";
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+/* ── Lead Selector ── */
+function openLeadSelector() {
+  renderLeadSelectorList("");
+  document.getElementById("lead-sel-search").value = "";
+  document.getElementById("lead-selector-modal").classList.add("open");
+  updateSelCount();
+}
+function filterLeadSelector() {
+  renderLeadSelectorList(document.getElementById("lead-sel-search").value.toLowerCase());
+}
+function renderLeadSelectorList(q) {
+  const filtered = leads.filter(l =>
+    !q || l.name.toLowerCase().includes(q) || (l.business_name||"").toLowerCase().includes(q)
+  );
+  document.getElementById("lead-selector-list").innerHTML = filtered.length
+    ? filtered.map(l => `
+      <label class="lead-sel-item">
+        <input type="checkbox" value="${l._id}" ${currentCampaignLeadIds.includes(l._id)?"checked":""} onchange="toggleLeadSel('${l._id}',this.checked)" />
+        <div>
+          <div class="lead-sel-name">${esc(l.name)}</div>
+          <div style="font-size:11.5px;color:var(--text-b);">${esc(l.business_name||"")} ${l.phone?`· ${esc(l.phone)}`:""}</div>
+        </div>
+        <div class="lead-sel-meta">${l.email ? "✉️" : ""}${l.phone ? " 📞" : ""}</div>
+      </label>`).join("")
+    : `<div style="padding:20px;text-align:center;color:var(--text-dim);">No leads found</div>`;
+}
+function toggleLeadSel(id, checked) {
+  if (checked && !currentCampaignLeadIds.includes(id)) currentCampaignLeadIds.push(id);
+  else if (!checked) currentCampaignLeadIds = currentCampaignLeadIds.filter(x=>x!==id);
+  updateSelCount();
+}
+function selectAllLeads()   { currentCampaignLeadIds = leads.map(l=>l._id); renderLeadSelectorList(""); updateSelCount(); }
+function deselectAllLeads() { currentCampaignLeadIds = []; renderLeadSelectorList(""); updateSelCount(); }
+function updateSelCount()   { document.getElementById("sel-count").textContent = currentCampaignLeadIds.length; }
+function confirmLeadSelection() {
+  closeModal("lead-selector-modal");
+  updateFbLeadCount();
+  showToast(`${currentCampaignLeadIds.length} lead${currentCampaignLeadIds.length===1?"":"s"} selected`);
+}
+
+/* ════════════════════════════════════════════════
+   INTEGRATIONS / SETTINGS
+════════════════════════════════════════════════ */
+async function loadIntegrations() {
+  try {
+    const res  = await fetch("/api/integrations");
+    const data = await res.json();
+    document.getElementById("s-evo-instance").value = data.evo_instance || "";
+    document.getElementById("s-evo-url").value      = data.evo_url || "";
+    document.getElementById("s-evo-key").value      = data.has_evo ? "●●●●●●●●" : "";
+    document.getElementById("s-gmail-addr").value   = data.gmail_address || "";
+    document.getElementById("s-gmail-pass").value   = data.has_gmail ? "●●●●●●●●" : "";
+    document.getElementById("s-resend-key").value   = data.has_resend ? "●●●●●●●●" : "";
+    document.getElementById("s-resend-from").value  = data.resend_from_address || "";
+    setStatus("evo-status",    data.has_evo    ? "ok" : "off", data.has_evo    ? "Configured" : "Not configured");
+    setStatus("gmail-status",  data.has_gmail  ? "ok" : "off", data.has_gmail  ? "Configured" : "Not configured");
+    setStatus("resend-status", data.has_resend ? "ok" : "off", data.has_resend ? "Configured" : "Not configured");
+  } catch { /* silent */ }
+}
+
+function setStatus(elId, state, label) {
+  const el = document.getElementById(elId);
+  el.querySelector(".status-dot").className = `status-dot ${state}`;
+  el.querySelector("span:last-child").textContent = label;
+}
+
+async function saveIntegrations() {
+  const payload = {
+    evo_instance:        document.getElementById("s-evo-instance").value.trim(),
+    evo_url:             document.getElementById("s-evo-url").value.trim(),
+    evo_key:             document.getElementById("s-evo-key").value.trim(),
+    gmail_address:       document.getElementById("s-gmail-addr").value.trim(),
+    gmail_app_password:  document.getElementById("s-gmail-pass").value.trim(),
+    resend_api_key:      document.getElementById("s-resend-key").value.trim(),
+    resend_from_address: document.getElementById("s-resend-from").value.trim(),
+  };
+  try {
+    const res = await fetch("/api/integrations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    if (!res.ok) throw new Error("Save failed");
+    showToast("Integrations saved ✓", "success");
+    loadIntegrations();
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+async function testWhatsApp() {
+  setStatus("evo-status", "off", "Testing…");
+  try {
+    const res  = await fetch("/api/integrations/test/whatsapp",{method:"POST"});
+    const data = await res.json();
+    if (data.success) setStatus("evo-status","ok",`Connected · ${data.state||"open"}`);
+    else setStatus("evo-status","error", data.error||"Connection failed");
+  } catch { setStatus("evo-status","error","Request failed"); }
+}
+
+async function testResend() {
+  setStatus("resend-status", "off", "Testing…");
+  try {
+    const res  = await fetch("/api/integrations/test/resend",{method:"POST"});
+    const data = await res.json();
+    if (data.success) setStatus("resend-status","ok","API key valid ✓");
+    else setStatus("resend-status","error", data.error||"Invalid key");
+  } catch { setStatus("resend-status","error","Request failed"); }
+}
+
+/* ════════════════════════════════════════════════
+   UTILITIES
+════════════════════════════════════════════════ */
+function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+
+function timeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff/60000);
+  if (mins < 1)   return "just now";
+  if (mins < 60)  return `${mins}m ago`;
+  const hrs = Math.floor(mins/60);
+  if (hrs < 24)   return `${hrs}h ago`;
+  return `${Math.floor(hrs/24)}d ago`;
 }
 
 function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebar-overlay').classList.add('open'); }
 function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
 
 let toastTimeout = null;
-function showToast(msg, isError = false) {
+function showToast(msg, type="") {
   const toast = document.getElementById("toast");
   toast.textContent = msg;
-  toast.className = "show" + (isError ? " error" : "");
+  toast.className = `show ${type}`;
   clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => { toast.className = ""; }, 3500);
+  toastTimeout = setTimeout(() => toast.className = "", 3800);
 }
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
 </script>
 </body>
 </html>
