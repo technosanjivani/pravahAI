@@ -1,2 +1,14 @@
 Flask==2.3.0
+gunicorn
 python-dotenv==0.21.0
+
+pymongo
+dnspython
+
+Werkzeug
+
+pandas
+openpyxl
+xlrd
+
+requests
