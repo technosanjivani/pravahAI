@@ -541,6 +541,23 @@ table.logs-table td:first-child { color: var(--text-h); }
             <button class="btn btn-primary btn-sm" onclick="saveIntegrations()">Save</button>
           </div>
         </div>
+
+        <!-- AI Prompts -->
+        <div class="settings-card">
+          <div class="settings-card-title">🤖 AI Prompts</div>
+          <div class="settings-card-sub">Write your own system prompt for how AI generates outreach. Leave blank to use PravaahAI's default style.</div>
+          <div class="form-row">
+            <label>💬 WhatsApp System Prompt</label>
+            <textarea class="form-input" id="s-ai-wa-prompt" rows="4" style="resize:vertical;font-family:inherit;" placeholder="e.g. Write short, casual WhatsApp messages, mention our 20% first-order discount, always end with a question."></textarea>
+          </div>
+          <div class="form-row">
+            <label>📧 Email System Prompt</label>
+            <textarea class="form-input" id="s-ai-email-prompt" rows="4" style="resize:vertical;font-family:inherit;" placeholder="e.g. Write formal B2B outreach emails under 120 words, sign off as 'Team PravaahAI'."></textarea>
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-primary btn-sm" onclick="saveIntegrations()">Save</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -612,6 +629,26 @@ table.logs-table td:first-child { color: var(--text-h); }
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('logs-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Test WhatsApp -->
+<div class="modal-overlay" id="test-whatsapp-modal">
+  <div class="modal-box">
+    <div class="modal-title">🧪 Send Test WhatsApp Message</div>
+    <div class="modal-sub">Sends this step's message (AI/template applied) as a real WhatsApp message, prefixed with [TEST], so you can check it before launching.</div>
+    <div class="form-row">
+      <label>Pick an assigned lead</label>
+      <select class="form-input" id="test-wa-lead"></select>
+    </div>
+    <div class="form-row">
+      <label>…or enter a phone number directly</label>
+      <input class="form-input" id="test-wa-phone" placeholder="+971 50 123 4567" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('test-whatsapp-modal')">Cancel</button>
+      <button class="btn btn-primary" id="test-wa-send-btn" onclick="sendTestWhatsApp()">🧪 Send Test</button>
     </div>
   </div>
 </div>
@@ -1004,6 +1041,9 @@ function stepHtml(step, idx) {
         <textarea class="step-textarea" oninput="updateStep(${idx},'message',this.value)" placeholder="Hi {{name}}, we'd love to connect…">${esc(step.message||"")}</textarea>
         <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}} {{website}} {{description}}</div>
       </div>
+      <div class="step-field">
+        <button type="button" class="btn btn-ghost btn-sm" style="width:fit-content;" onclick="openTestWhatsAppModal(${idx})">🧪 Send Test Message</button>
+      </div>
       ${aiBlockHtml(step, idx, "whatsapp")}`;
   } else if (step.type === "email") {
     fields = `
@@ -1115,6 +1155,46 @@ async function previewAIGenerate(idx, kind) {
     renderFlowCanvas();
     showToast("Generated ✓ — edit as needed, then Save Flow.", "success");
   } catch(err) { showToast(err.message, "error"); }
+}
+
+/* ── Test WhatsApp send ── */
+let testStepIdx = null;
+
+async function openTestWhatsAppModal(idx) {
+  testStepIdx = idx;
+  // Save current flow first so the backend sends the exact step you're editing
+  await saveFlow();
+  document.getElementById("test-wa-phone").value = "";
+  renderTestLeadOptions();
+  document.getElementById("test-whatsapp-modal").classList.add("open");
+}
+
+function renderTestLeadOptions() {
+  const sel = document.getElementById("test-wa-lead");
+  const assigned = leads.filter(l => currentCampaignLeadIds.includes(l._id));
+  sel.innerHTML = `<option value="">— none, use phone number below —</option>` +
+    assigned.map(l => `<option value="${l._id}">${esc(l.name)}${l.phone ? " (" + esc(l.phone) + ")" : " (no phone)"}</option>`).join("");
+}
+
+async function sendTestWhatsApp() {
+  const phone  = document.getElementById("test-wa-phone").value.trim();
+  const leadId = document.getElementById("test-wa-lead").value;
+  if (!phone && !leadId) { showToast("Enter a phone number or pick a lead.", "error"); return; }
+
+  const btn = document.getElementById("test-wa-send-btn");
+  btn.disabled = true; btn.textContent = "Sending…";
+  try {
+    const res = await fetch(`/api/campaigns/${currentCampaignId}/test-whatsapp`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ step_index: testStepIdx, phone, lead_id: leadId || null })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Test failed");
+    showToast(`Test message sent to ${data.to} ✓`, "success");
+    closeModal("test-whatsapp-modal");
+  } catch(err) { showToast(err.message, "error"); }
+  finally { btn.disabled = false; btn.textContent = "🧪 Send Test"; }
 }
 
 /* Palette drag */
@@ -1270,6 +1350,8 @@ async function loadIntegrations() {
     document.getElementById("s-gmail-pass").value   = data.has_gmail ? "●●●●●●●●" : "";
     document.getElementById("s-resend-key").value   = data.has_resend ? "●●●●●●●●" : "";
     document.getElementById("s-resend-from").value  = data.resend_from_address || "";
+    document.getElementById("s-ai-wa-prompt").value    = data.ai_whatsapp_prompt || "";
+    document.getElementById("s-ai-email-prompt").value = data.ai_email_prompt || "";
     setStatus("evo-status",    data.has_evo    ? "ok" : "off", data.has_evo    ? "Configured" : "Not configured");
     setStatus("gmail-status",  data.has_gmail  ? "ok" : "off", data.has_gmail  ? "Configured" : "Not configured");
     setStatus("resend-status", data.has_resend ? "ok" : "off", data.has_resend ? "Configured" : "Not configured");
@@ -1289,6 +1371,8 @@ async function saveIntegrations() {
     gmail_app_password:  document.getElementById("s-gmail-pass").value.trim(),
     resend_api_key:      document.getElementById("s-resend-key").value.trim(),
     resend_from_address: document.getElementById("s-resend-from").value.trim(),
+    ai_whatsapp_prompt:  document.getElementById("s-ai-wa-prompt").value.trim(),
+    ai_email_prompt:     document.getElementById("s-ai-email-prompt").value.trim(),
   };
   try {
     const res = await fetch("/api/integrations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});

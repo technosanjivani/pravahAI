@@ -63,15 +63,15 @@ def send_whatsapp_message(
         "Content-Type": "application/json",
     }
 
+    # Evolution API v2 expects a FLAT body for /message/sendText —
+    # "text", "delay", and "presence" are top-level fields, not nested
+    # under "textMessage"/"options" (that was the older v1 shape and is
+    # what was causing: instance requires property "text").
     payload = {
         "number": phone_number,
-        "options": {
-            "delay": 1000,
-            "presence": "composing",
-        },
-        "textMessage": {
-            "text": message,
-        },
+        "text": message,
+        "delay": 1000,
+        "presence": "composing",
     }
 
     try:
@@ -85,10 +85,21 @@ def send_whatsapp_message(
         except Exception:
             error = {"message": response.text}
         logger.error("Evolution API HTTP Error: %s", error)
+
+        # error.get("message") can be a string OR a list of validation
+        # errors (e.g. ['instance requires property "text"']) depending
+        # on which validation layer rejected the request — normalize it
+        # to a readable string either way.
+        raw_message = error.get("message", "HTTP Error")
+        if isinstance(raw_message, list):
+            error_text = "; ".join(str(m) for m in raw_message)
+        else:
+            error_text = str(raw_message)
+
         return {
             "success": False,
             "data": error,
-            "error": error.get("message", "HTTP Error"),
+            "error": error_text,
         }
 
     except requests.exceptions.RequestException as e:
