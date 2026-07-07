@@ -35,7 +35,7 @@ import pandas as pd
 from evo import send_whatsapp_message, get_instance_status
 from gmail import send_gmail
 from resend import send_resend_email, verify_resend_key
-
+import requests
 # ----------------------------------
 # Load Environment Variables
 # ----------------------------------
@@ -205,26 +205,85 @@ def render_template_vars(text: str, lead: dict) -> str:
     return text
 
 
+def generate_ai_content(lead: dict, content_type: str, instructions: str = "") -> dict:
+    """
+    Calls Mistral with the lead's full data (name -> description) and returns
+    a generated WhatsApp message, or an email subject+body.
+    """
+    if not MISTRAL_API_KEY:
+        return {"success": False, "error": "MISTRAL_API_KEY not configured"}
+
+    lead_context = (
+        f"Name: {lead.get('name','')}\n"
+        f"Business Name: {lead.get('business_name','')}\n"
+        f"Email: {lead.get('email','')}\n"
+        f"Phone: {lead.get('phone','')}\n"
+        f"Website: {lead.get('website','')}\n"
+        f"Description: {lead.get('description','')}\n"
+    )
+
+    if content_type == "whatsapp":
+        system_prompt = (
+            "You are a sales outreach assistant. Write a short, friendly, personalized "
+            "WhatsApp message (2-4 sentences) to this lead using their real data below. "
+            "No placeholders. Return ONLY the message text, nothing else."
+        )
+    else:
+        system_prompt = (
+            "You are a sales outreach assistant. Write a personalized outreach email "
+            "for this lead using their real data below. Return ONLY valid JSON in the "
+            'exact shape {"subject": "...", "body": "..."} with no markdown fences and '
+            "no extra text. Body may use simple HTML paragraph tags."
+        )
+
+    user_prompt = f"Lead data:\n{lead_context}"
+    if instructions:
+        user_prompt += f"\nAdditional instructions: {instructions}\n"
+
+    try:
+        resp = requests.post(
+            MISTRAL_URL,
+            headers={
+                "Authorization": f"Bearer {MISTRAL_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": MISTRAL_MODEL,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": 0.7,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        text = resp.json()["choices"][0]["message"]["content"].strip()
+
+        if content_type == "whatsapp":
+            return {"success": True, "message": text}
+
+        import json as _json
+        cleaned = text.strip().strip("```json").strip("```").strip()
+        parsed = _json.loads(cleaned)
+        return {"success": True, "subject": parsed.get("subject", ""), "body": parsed.get("body", "")}
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    
+    
+
 # ----------------------------------
 # Campaign Flow Execution Engine
 # ----------------------------------
 
 def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: str):
-    """
-    Runs all flow steps sequentially for one lead.
-    Steps are processed in order; 'wait' steps block the thread.
-    'condition' steps branch based on lead field values.
-    Runs in a background thread.
-    """
     flow = campaign.get("flow", [])
     campaign_id = str(campaign["_id"])
     lead_id = str(lead["_id"])
 
-    # Credentials
     creds = user.get("integrations", {})
     evo_instance = creds.get("evo_instance", "")
-    evo_url      = creds.get("evo_url", "")
-    evo_key      = creds.get("evo_key", "")
     gmail_addr   = creds.get("gmail_address", "")
     gmail_pass   = creds.get("gmail_app_password", "")
     resend_key   = creds.get("resend_api_key", "")
@@ -235,7 +294,6 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
         step = flow[step_idx]
         step_type = step.get("type", "")
 
-        # ── WAIT ──────────────────────────────
         if step_type == "wait":
             unit    = step.get("unit", "minutes")
             amount  = int(step.get("amount", 1))
@@ -244,7 +302,6 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
             step_idx += 1
             continue
 
-        # ── CONDITION (if/else) ───────────────
         if step_type == "condition":
             field    = step.get("field", "")
             operator = step.get("operator", "exists")
@@ -252,18 +309,12 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
             lead_val = lead.get(field, "")
 
             matched = False
-            if operator == "exists":
-                matched = bool(lead_val)
-            elif operator == "not_exists":
-                matched = not bool(lead_val)
-            elif operator == "equals":
-                matched = str(lead_val).lower() == str(value).lower()
-            elif operator == "contains":
-                matched = str(value).lower() in str(lead_val).lower()
-            elif operator == "not_contains":
-                matched = str(value).lower() not in str(lead_val).lower()
+            if operator == "exists":         matched = bool(lead_val)
+            elif operator == "not_exists":   matched = not bool(lead_val)
+            elif operator == "equals":       matched = str(lead_val).lower() == str(value).lower()
+            elif operator == "contains":     matched = str(value).lower() in str(lead_val).lower()
+            elif operator == "not_contains": matched = str(value).lower() not in str(lead_val).lower()
 
-            # Jump: if matched → go to step.then_step, else → step.else_step
             then_idx = step.get("then_step")
             else_idx = step.get("else_step")
             if matched and then_idx is not None:
@@ -277,48 +328,66 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
         # ── WHATSAPP ──────────────────────────
         if step_type == "whatsapp":
             phone   = lead.get("phone", "")
-            message = render_template_vars(step.get("message", ""), lead)
-            error   = None
+            message = step.get("message", "")
+
+            if step.get("use_ai"):
+                ai_result = generate_ai_content(lead, "whatsapp", step.get("ai_instructions", ""))
+                if ai_result.get("success"):
+                    message = ai_result.get("message", message)
+
+            message = render_template_vars(message, lead)
+
             if not phone:
-                error = "Lead has no phone number"
-                _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, "failed", "whatsapp", error)
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, "failed", "whatsapp", "Lead has no phone number")
+                _bump_campaign_stat(campaign["_id"], "failed")
+            elif not evo_instance:
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, "failed", "whatsapp", "WhatsApp instance not configured")
+                _bump_campaign_stat(campaign["_id"], "failed")
             else:
-                result = send_whatsapp_message(evo_instance, evo_url, evo_key, phone, message)
+                result = send_whatsapp_message(evo_instance, phone, message)
                 status = "sent" if result["success"] else "failed"
                 _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, status, "whatsapp", result.get("error",""))
+                _bump_campaign_stat(campaign["_id"], status)
 
-        # ── EMAIL (Gmail) ─────────────────────
-        elif step_type == "email_gmail":
+        # ── EMAIL (Gmail or Resend, chosen per step) ──
+        elif step_type == "email":
+            provider = step.get("provider", "gmail")
             to_addr  = lead.get("email", "")
-            subject  = render_template_vars(step.get("subject", ""), lead)
-            body     = render_template_vars(step.get("body", ""), lead)
-            if not to_addr:
-                _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, "failed", "email_gmail", "No email address")
-            else:
-                result = send_gmail(gmail_addr, gmail_pass, to_addr, subject, body)
-                status = "sent" if result["success"] else "failed"
-                _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, status, "email_gmail", result.get("error",""))
+            subject  = step.get("subject", "")
+            body     = step.get("body", "")
 
-        # ── EMAIL (Resend) ────────────────────
-        elif step_type == "email_resend":
-            to_addr  = lead.get("email", "")
-            subject  = render_template_vars(step.get("subject", ""), lead)
-            body     = render_template_vars(step.get("body", ""), lead)
+            if step.get("use_ai"):
+                ai_result = generate_ai_content(lead, "email", step.get("ai_instructions", ""))
+                if ai_result.get("success"):
+                    subject = ai_result.get("subject", subject)
+                    body    = ai_result.get("body", body)
+
+            subject = render_template_vars(subject, lead)
+            body    = render_template_vars(body, lead)
+            channel = f"email_{provider}"
+
             if not to_addr:
-                _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, "failed", "email_resend", "No email address")
-            else:
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, "failed", channel, "No email address")
+                _bump_campaign_stat(campaign["_id"], "failed")
+            elif provider == "resend":
                 result = send_resend_email(resend_key, resend_from, to_addr, subject, body)
                 status = "sent" if result["success"] else "failed"
-                _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, status, "email_resend", result.get("error",""))
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, status, channel, result.get("error",""))
+                _bump_campaign_stat(campaign["_id"], status)
+            else:  # gmail
+                result = send_gmail(gmail_addr, gmail_pass, to_addr, subject, body)
+                status = "sent" if result["success"] else "failed"
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name",""), step_idx, status, channel, result.get("error",""))
+                _bump_campaign_stat(campaign["_id"], status)
 
         step_idx += 1
 
-    # Mark campaign last_run_at
-    campaigns_col.update_one(
-        {"_id": campaign["_id"]},
-        {"$set": {"last_run_at": datetime.utcnow()}}
-    )
+    campaigns_col.update_one({"_id": campaign["_id"]}, {"$set": {"last_run_at": datetime.utcnow()}})
 
+
+def _bump_campaign_stat(campaign_oid, status):
+    field = "stats.sent" if status == "sent" else "stats.failed"
+    campaigns_col.update_one({"_id": campaign_oid}, {"$inc": {field: 1}})
 
 def _log_execution(owner_id, campaign_id, lead_id, lead_name, step_index, status, channel, error=""):
     executions_col.insert_one({
@@ -335,10 +404,6 @@ def _log_execution(owner_id, campaign_id, lead_id, lead_name, step_index, status
 
 
 def launch_campaign(campaign_id: str, owner_id: str):
-    """
-    Fetches campaign + attached leads, fires off a background thread
-    that runs the flow for every lead sequentially.
-    """
     campaign = campaigns_col.find_one({"_id": ObjectId(campaign_id), "owner_id": owner_id})
     if not campaign:
         return False
@@ -358,21 +423,22 @@ def launch_campaign(campaign_id: str, owner_id: str):
 
     campaigns_col.update_one(
         {"_id": campaign["_id"]},
-        {"$set": {"status": "running", "last_run_at": datetime.utcnow()}}
+        {"$set": {
+            "status": "running",
+            "last_run_at": datetime.utcnow(),
+            "stats": {"sent": 0, "failed": 0, "pending": len(leads)},
+        }}
     )
 
     def run():
         for lead in leads:
             execute_campaign_for_lead(campaign, lead, user, owner_id)
-        campaigns_col.update_one(
-            {"_id": campaign["_id"]},
-            {"$set": {"status": "completed"}}
-        )
+            campaigns_col.update_one({"_id": campaign["_id"]}, {"$inc": {"stats.pending": -1}})
+        campaigns_col.update_one({"_id": campaign["_id"]}, {"$set": {"status": "completed"}})
 
     t = threading.Thread(target=run, daemon=True)
     t.start()
     return True
-
 
 # ==================================================================
 # HOME / AUTH ROUTES
@@ -698,24 +764,22 @@ def api_campaign_logs(campaign_id):
 # INTEGRATIONS / CREDENTIALS API
 # ==================================================================
 
+
 @app.route("/api/integrations", methods=["GET"])
 @login_required
 def api_get_integrations():
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
     if not user: return jsonify({"error": "User not found"}), 404
     creds = user.get("integrations", {})
-    # Return config but mask secrets
     return jsonify({
-        "evo_instance":      creds.get("evo_instance", ""),
-        "evo_url":           creds.get("evo_url", ""),
-        "evo_key":           "●●●●●●●●" if creds.get("evo_key") else "",
-        "gmail_address":     creds.get("gmail_address", ""),
-        "gmail_app_password": "●●●●●●●●" if creds.get("gmail_app_password") else "",
-        "resend_api_key":    "●●●●●●●●" if creds.get("resend_api_key") else "",
+        "evo_instance":        creds.get("evo_instance", ""),
+        "gmail_address":       creds.get("gmail_address", ""),
+        "gmail_app_password":  "●●●●●●●●" if creds.get("gmail_app_password") else "",
+        "resend_api_key":      "●●●●●●●●" if creds.get("resend_api_key") else "",
         "resend_from_address": creds.get("resend_from_address", ""),
-        "has_evo":           bool(creds.get("evo_key")),
-        "has_gmail":         bool(creds.get("gmail_app_password")),
-        "has_resend":        bool(creds.get("resend_api_key")),
+        "has_evo":     bool(creds.get("evo_instance")),
+        "has_gmail":   bool(creds.get("gmail_app_password")),
+        "has_resend":  bool(creds.get("resend_api_key")),
     })
 
 
@@ -723,28 +787,21 @@ def api_get_integrations():
 @login_required
 def api_save_integrations():
     data = request.get_json(silent=True) or {}
-
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
     existing = user.get("integrations", {}) if user else {}
 
-    # Only overwrite non-masked values
     def maybe_update(key):
         val = data.get(key, "")
         if val and val != "●●●●●●●●":
             existing[key] = val.strip()
 
     maybe_update("evo_instance")
-    maybe_update("evo_url")
-    maybe_update("evo_key")
     maybe_update("gmail_address")
     maybe_update("gmail_app_password")
     maybe_update("resend_api_key")
     maybe_update("resend_from_address")
 
-    users_col.update_one(
-        {"_id": ObjectId(current_user_id())},
-        {"$set": {"integrations": existing}}
-    )
+    users_col.update_one({"_id": ObjectId(current_user_id())}, {"$set": {"integrations": existing}})
     return jsonify({"saved": True})
 
 
@@ -753,11 +810,7 @@ def api_save_integrations():
 def api_test_whatsapp():
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
     creds = user.get("integrations", {}) if user else {}
-    result = get_instance_status(
-        creds.get("evo_instance", ""),
-        creds.get("evo_url", ""),
-        creds.get("evo_key", ""),
-    )
+    result = get_instance_status(creds.get("evo_instance", ""))
     return jsonify(result)
 
 
@@ -769,6 +822,34 @@ def api_test_resend():
     result = verify_resend_key(creds.get("resend_api_key", ""))
     return jsonify(result)
 
+
+#Ai button
+
+@app.route("/api/ai/generate", methods=["POST"])
+@login_required
+def api_ai_generate():
+    data = request.get_json(silent=True) or {}
+    lead_id      = data.get("lead_id")
+    content_type = data.get("type")  # "whatsapp" or "email"
+    instructions = data.get("instructions", "")
+
+    if content_type not in ("whatsapp", "email"):
+        return jsonify({"error": "type must be 'whatsapp' or 'email'"}), 400
+
+    try:
+        oid = ObjectId(lead_id)
+    except (InvalidId, TypeError):
+        return jsonify({"error": "Invalid lead id"}), 400
+
+    lead = leads_col.find_one({"_id": oid, "owner_id": current_user_id()})
+    if not lead:
+        return jsonify({"error": "Lead not found"}), 404
+
+    result = generate_ai_content(lead, content_type, instructions)
+    if not result.get("success"):
+        return jsonify({"error": result.get("error", "AI generation failed")}), 400
+
+    return jsonify(result)
 
 # ==================================================================
 # RUN

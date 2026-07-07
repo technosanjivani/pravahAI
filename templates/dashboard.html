@@ -169,7 +169,9 @@ td.col-website .cell-input { min-width: 150px; }
 .badge-completed { background: rgba(34,197,94,.15);  color: var(--green); }
 .badge-paused    { background: rgba(168,85,247,.15); color: var(--purple); }
 .camp-stat { font-size: 11.5px; color: var(--text-b); }
-.camp-actions { display: flex; gap: 6px; margin-top: 14px; }
+.camp-stat.ok   { color: var(--green); }
+.camp-stat.bad  { color: var(--red); }
+.camp-actions { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
 
 /* ─── FLOW BUILDER ────────────────────────────────── */
 .flow-builder-wrap { display: flex; gap: 16px; height: calc(100vh - 180px); min-height: 600px; }
@@ -228,7 +230,7 @@ td.col-website .cell-input { min-width: 150px; }
 .step-del-btn:hover { color: var(--red); background: rgba(239,68,68,.12); }
 .step-fields { display: flex; flex-direction: column; gap: 8px; }
 .step-field { display: flex; flex-direction: column; gap: 4px; }
-.step-field label { font-size: 11px; color: var(--text-b); font-weight: 500; }
+.step-field label { font-size: 11px; color: var(--text-b); font-weight: 500; display: flex; align-items: center; gap: 6px; }
 .step-input, .step-textarea, .step-select {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
   color: var(--text-h); font-family: inherit; font-size: 12.5px; padding: 7px 10px; outline: none;
@@ -237,10 +239,12 @@ td.col-website .cell-input { min-width: 150px; }
 .step-select option { background: var(--bg-card); }
 .step-input:focus, .step-textarea:focus, .step-select:focus { border-color: var(--accent-1); }
 .vars-hint { font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
+.ai-block { border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 4px; }
+.ai-toggle-label { font-size: 12px; color: var(--text-h); font-weight: 500; }
+.ai-toggle-label input { accent-color: var(--accent-1); }
 /* Step color accents */
 .flow-step[data-type="whatsapp"]    { border-left: 3px solid var(--green); }
-.flow-step[data-type="email_gmail"] { border-left: 3px solid var(--accent-1); }
-.flow-step[data-type="email_resend"]{ border-left: 3px solid var(--purple); }
+.flow-step[data-type="email"]       { border-left: 3px solid var(--accent-1); }
 .flow-step[data-type="wait"]        { border-left: 3px solid var(--yellow); }
 .flow-step[data-type="condition"]   { border-left: 3px solid var(--orange); }
 
@@ -417,7 +421,7 @@ table.logs-table td:first-child { color: var(--text-h); }
     <div class="page" id="page-campaigns">
       <div class="page-header">
         <h1>Automation Campaigns 🚀</h1>
-        <p>Build multi-step WhatsApp & Email flows. Drag-and-drop steps, set waits, add conditions.</p>
+        <p>Build multi-step WhatsApp & Email flows. Drag-and-drop steps, set waits, add conditions, and let AI write the message.</p>
       </div>
       <div class="toolbar">
         <button class="btn btn-primary" onclick="openNewCampaignModal()">＋ New Campaign</button>
@@ -449,11 +453,8 @@ table.logs-table td:first-child { color: var(--text-h); }
           <div class="palette-item" draggable="true" data-step-type="whatsapp" ondragstart="paletteDragStart(event)">
             <span class="pi-icon">💬</span> WhatsApp
           </div>
-          <div class="palette-item" draggable="true" data-step-type="email_gmail" ondragstart="paletteDragStart(event)">
-            <span class="pi-icon">📧</span> Email (Gmail)
-          </div>
-          <div class="palette-item" draggable="true" data-step-type="email_resend" ondragstart="paletteDragStart(event)">
-            <span class="pi-icon">✉️</span> Email (Resend)
+          <div class="palette-item" draggable="true" data-step-type="email" ondragstart="paletteDragStart(event)">
+            <span class="pi-icon">📧</span> Email
           </div>
           <div class="palette-item" draggable="true" data-step-type="wait" ondragstart="paletteDragStart(event)">
             <span class="pi-icon">⏳</span> Wait
@@ -480,24 +481,16 @@ table.logs-table td:first-child { color: var(--text-h); }
     <div class="page" id="page-settings">
       <div class="page-header">
         <h1>Integrations & Settings ⚙️</h1>
-        <p>Connect your WhatsApp (Evolution API), Gmail, and Resend accounts.</p>
+        <p>Connect your WhatsApp instance, Gmail, and Resend accounts.</p>
       </div>
       <div class="settings-grid">
         <!-- WhatsApp / Evolution -->
         <div class="settings-card">
-          <div class="settings-card-title">💬 WhatsApp (Evolution API)</div>
-          <div class="settings-card-sub">Connect your Evolution API instance to send WhatsApp messages.</div>
+          <div class="settings-card-title">💬 WhatsApp</div>
+          <div class="settings-card-sub">Just enter your Evolution instance name — the server URL and API key are managed for you.</div>
           <div class="form-row">
             <label>Instance Name</label>
             <input class="form-input" id="s-evo-instance" placeholder="e.g. my-instance" />
-          </div>
-          <div class="form-row">
-            <label>API URL</label>
-            <input class="form-input" id="s-evo-url" placeholder="https://your-evo-server.com" />
-          </div>
-          <div class="form-row">
-            <label>API Key</label>
-            <input class="form-input" id="s-evo-key" type="password" placeholder="●●●●●●●●" />
           </div>
           <div class="integration-status" id="evo-status">
             <span class="status-dot off"></span> <span>Not configured</span>
@@ -660,6 +653,7 @@ function showPage(name, navEl) {
   if (navEl) navEl.classList.add('active');
   // Hide search for non-leads pages
   document.querySelector('.search-wrap').style.opacity = (name === 'leads') ? '1' : '0.3';
+  if (name === 'campaigns') loadCampaigns(); // refresh stats each time
 }
 
 function backToCampaigns() {
@@ -845,6 +839,7 @@ function renderCampaigns() {
   }
   grid.innerHTML = campaigns.map(c => {
     const badgeCls = `badge badge-${c.status}`;
+    const stats = c.stats || {sent:0, failed:0, pending:0};
     return `<div class="campaign-card" onclick="openFlowBuilder('${c._id}')">
       <div class="camp-header">
         <div class="camp-name">${esc(c.name)}</div>
@@ -854,6 +849,9 @@ function renderCampaigns() {
       <div class="camp-meta">
         <span class="camp-stat">📋 ${c.flow.length} step${c.flow.length===1?"":"s"}</span>
         <span class="camp-stat">👥 ${c.lead_ids.length} lead${c.lead_ids.length===1?"":"s"}</span>
+        <span class="camp-stat ok">✅ ${stats.sent||0} sent</span>
+        <span class="camp-stat bad">❌ ${stats.failed||0} failed</span>
+        ${stats.pending ? `<span class="camp-stat">⏳ ${stats.pending} pending</span>` : ""}
         ${c.last_run_at ? `<span class="camp-stat">🕐 ${timeAgo(c.last_run_at)}</span>` : ""}
       </div>
       <div class="camp-actions" onclick="event.stopPropagation()">
@@ -897,12 +895,12 @@ async function deleteCampaign(id) {
 }
 
 async function quickLaunch(id) {
-  if (!confirm("Launch this campaign now?")) return;
+  if (!confirm("Launch this campaign now? It will keep running on the server even if you close this tab.")) return;
   try {
     const res = await fetch(`/api/campaigns/${id}/launch`,{method:"POST"});
     const data = await res.json();
     if (!res.ok) throw new Error(data.error||"Launch failed");
-    showToast("Campaign launched! 🚀", "success");
+    showToast("Campaign launched! 🚀 It will keep running in the background.", "success");
     await loadCampaigns();
   } catch(err) { showToast(err.message, "error"); }
 }
@@ -932,7 +930,7 @@ async function openCampaignLogs(id, name) {
 }
 
 function channelBadge(ch) {
-  const map = {whatsapp:"💬 WhatsApp",email_gmail:"📧 Gmail",email_resend:"✉️ Resend"};
+  const map = {whatsapp:"💬 WhatsApp", email_gmail:"📧 Gmail", email_resend:"✉️ Resend"};
   return map[ch] || ch;
 }
 
@@ -975,13 +973,26 @@ function renderFlowCanvas() {
   }).join("");
 }
 
+/* AI block shared by whatsapp + email steps */
+function aiBlockHtml(step, idx, kind) {
+  const checked = step.use_ai ? "checked" : "";
+  return `
+    <div class="step-field ai-block">
+      <label class="ai-toggle-label">
+        <input type="checkbox" ${checked} onchange="updateStep(${idx},'use_ai',this.checked)" />
+        🤖 Auto-generate ${kind === "whatsapp" ? "the message" : "subject & body"} per lead with AI at send time
+      </label>
+      <textarea class="step-textarea" style="min-height:50px;margin-top:6px;" placeholder="Optional instructions for the AI (tone, offer, goal…)" oninput="updateStep(${idx},'ai_instructions',this.value)">${esc(step.ai_instructions||"")}</textarea>
+      <button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px;width:fit-content;" onclick="previewAIGenerate(${idx},'${kind}')">✨ Preview with an assigned lead</button>
+    </div>`;
+}
+
 function stepHtml(step, idx) {
   const typeInfo = {
-    whatsapp:    { icon: "💬", label: "WhatsApp Message" },
-    email_gmail: { icon: "📧", label: "Email via Gmail" },
-    email_resend:{ icon: "✉️", label: "Email via Resend" },
-    wait:        { icon: "⏳", label: "Wait / Delay" },
-    condition:   { icon: "🔀", label: "Condition (If / Else)" },
+    whatsapp:  { icon: "💬", label: "WhatsApp Message" },
+    email:     { icon: "📧", label: "Email" },
+    wait:      { icon: "⏳", label: "Wait / Delay" },
+    condition: { icon: "🔀", label: "Condition (If / Else)" },
   }[step.type] || { icon: "❓", label: step.type };
 
   let fields = "";
@@ -991,10 +1002,18 @@ function stepHtml(step, idx) {
       <div class="step-field">
         <label>Message</label>
         <textarea class="step-textarea" oninput="updateStep(${idx},'message',this.value)" placeholder="Hi {{name}}, we'd love to connect…">${esc(step.message||"")}</textarea>
-        <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}}</div>
-      </div>`;
-  } else if (step.type === "email_gmail" || step.type === "email_resend") {
+        <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}} {{website}} {{description}}</div>
+      </div>
+      ${aiBlockHtml(step, idx, "whatsapp")}`;
+  } else if (step.type === "email") {
     fields = `
+      <div class="step-field">
+        <label>Send Via</label>
+        <select class="step-select" onchange="updateStep(${idx},'provider',this.value)">
+          <option value="gmail"${(step.provider||"gmail")==="gmail"?" selected":""}>Gmail</option>
+          <option value="resend"${step.provider==="resend"?" selected":""}>Resend (Domain Email)</option>
+        </select>
+      </div>
       <div class="step-field">
         <label>Subject</label>
         <input class="step-input" value="${esc(step.subject||"")}" oninput="updateStep(${idx},'subject',this.value)" placeholder="Hi {{name}}, quick note from us" />
@@ -1002,8 +1021,9 @@ function stepHtml(step, idx) {
       <div class="step-field">
         <label>Body (HTML or plain text)</label>
         <textarea class="step-textarea" style="min-height:90px;" oninput="updateStep(${idx},'body',this.value)" placeholder="<p>Hello {{name}},</p><p>…</p>">${esc(step.body||"")}</textarea>
-        <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}} {{website}}</div>
-      </div>`;
+        <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}} {{website}} {{description}}</div>
+      </div>
+      ${aiBlockHtml(step, idx, "email")}`;
   } else if (step.type === "wait") {
     fields = `
       <div class="step-field" style="flex-direction:row;gap:8px;align-items:flex-end;">
@@ -1073,6 +1093,30 @@ function deleteStep(idx) {
   renderFlowCanvas();
 }
 
+/* AI preview: fills in the step's fields using the first assigned lead */
+async function previewAIGenerate(idx, kind) {
+  if (!currentCampaignLeadIds.length) { showToast("Assign at least one lead first.", "error"); return; }
+  const leadId = currentCampaignLeadIds[0];
+  showToast("Generating with AI…");
+  try {
+    const res = await fetch("/api/ai/generate", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ lead_id: leadId, type: kind, instructions: flowSteps[idx].ai_instructions || "" })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Generation failed");
+    if (kind === "whatsapp") {
+      flowSteps[idx].message = data.message;
+    } else {
+      flowSteps[idx].subject = data.subject;
+      flowSteps[idx].body    = data.body;
+    }
+    renderFlowCanvas();
+    showToast("Generated ✓ — edit as needed, then Save Flow.", "success");
+  } catch(err) { showToast(err.message, "error"); }
+}
+
 /* Palette drag */
 function paletteDragStart(event) {
   dragSrcPaletteType = event.currentTarget.dataset.stepType;
@@ -1104,11 +1148,10 @@ function canvasDrop(event) {
 
 function addStep(type) {
   const defaults = {
-    whatsapp:    { type, message: "" },
-    email_gmail: { type, subject: "", body: "" },
-    email_resend:{ type, subject: "", body: "" },
-    wait:        { type, amount: 1, unit: "minutes" },
-    condition:   { type, field: "email", operator: "exists", value: "", then_step: null, else_step: null },
+    whatsapp: { type, message: "", use_ai: false, ai_instructions: "" },
+    email:    { type, provider: "gmail", subject: "", body: "", use_ai: false, ai_instructions: "" },
+    wait:     { type, amount: 1, unit: "minutes" },
+    condition:{ type, field: "email", operator: "exists", value: "", then_step: null, else_step: null },
   };
   flowSteps.push(defaults[type] || { type });
   renderFlowCanvas();
@@ -1165,7 +1208,7 @@ async function saveFlow() {
 async function launchCampaign() {
   if (!currentCampaignId) return;
   await saveFlow();
-  if (!confirm("Launch campaign now? This will start sending immediately.")) return;
+  if (!confirm("Launch campaign now? This will start sending immediately and keep running on the server even if you close this tab.")) return;
   try {
     const res  = await fetch(`/api/campaigns/${currentCampaignId}/launch`,{method:"POST"});
     const data = await res.json();
@@ -1223,8 +1266,6 @@ async function loadIntegrations() {
     const res  = await fetch("/api/integrations");
     const data = await res.json();
     document.getElementById("s-evo-instance").value = data.evo_instance || "";
-    document.getElementById("s-evo-url").value      = data.evo_url || "";
-    document.getElementById("s-evo-key").value      = data.has_evo ? "●●●●●●●●" : "";
     document.getElementById("s-gmail-addr").value   = data.gmail_address || "";
     document.getElementById("s-gmail-pass").value   = data.has_gmail ? "●●●●●●●●" : "";
     document.getElementById("s-resend-key").value   = data.has_resend ? "●●●●●●●●" : "";
@@ -1244,8 +1285,6 @@ function setStatus(elId, state, label) {
 async function saveIntegrations() {
   const payload = {
     evo_instance:        document.getElementById("s-evo-instance").value.trim(),
-    evo_url:             document.getElementById("s-evo-url").value.trim(),
-    evo_key:             document.getElementById("s-evo-key").value.trim(),
     gmail_address:       document.getElementById("s-gmail-addr").value.trim(),
     gmail_app_password:  document.getElementById("s-gmail-pass").value.trim(),
     resend_api_key:      document.getElementById("s-resend-key").value.trim(),

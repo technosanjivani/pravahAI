@@ -1,48 +1,68 @@
 """
-evolution_api.py
+evo.py
 Handles sending WhatsApp messages via the Evolution API.
+
+IMPORTANT CHANGE:
+The Evolution server URL and global API key now live ONLY in .env
+(EVOLUTION_API_URL / EVOLUTION_API_KEY). Users never provide these —
+each user only saves their own `instance_name` in Settings, and every
+call below uses the shared URL/key automatically.
 """
 
-import requests
+import os
 import logging
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# Loaded once from .env — shared by every user/instance
+EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "").rstrip("/")
+EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY")
 
 
 def send_whatsapp_message(
     instance_name: str,
-    api_url: str,
-    api_key: str,
     phone_number: str,
     message: str,
 ) -> dict:
     """
-    Send a WhatsApp text message using the Evolution API.
+    Send a WhatsApp message using Evolution API.
 
     Args:
-        instance_name: Evolution instance name (e.g. "my-instance")
-        api_url:       Base URL of the Evolution API server (e.g. "https://evo.example.com")
-        api_key:       Evolution API key / token
-        phone_number:  Recipient phone number in E.164 format (e.g. "+971501234567")
-        message:       Text message body (supports basic WhatsApp markdown)
+        instance_name: The user's Evolution instance name (per-user, saved in Settings).
+        phone_number:  Recipient number (E.164 format, e.g. +971501234567).
+        message:       Message text (already template-rendered).
 
     Returns:
-        dict with keys: success (bool), data (dict|None), error (str|None)
+        dict: {"success": bool, "data": dict|None, "error": str|None}
     """
-    if not all([instance_name, api_url, api_key, phone_number, message]):
-        return {"success": False, "data": None, "error": "Missing required parameters"}
 
-    # Normalise base URL
-    base = api_url.rstrip("/")
+    if not instance_name:
+        return {"success": False, "data": None, "error": "Instance name is required."}
 
-    endpoint = f"{base}/message/sendText/{instance_name}"
+    if not phone_number:
+        return {"success": False, "data": None, "error": "Phone number is required."}
+
+    if not message:
+        return {"success": False, "data": None, "error": "Message is required."}
+
+    if not EVOLUTION_API_URL or not EVOLUTION_API_KEY:
+        return {
+            "success": False,
+            "data": None,
+            "error": "EVOLUTION_API_URL or EVOLUTION_API_KEY not configured in .env",
+        }
+
+    endpoint = f"{EVOLUTION_API_URL}/message/sendText/{instance_name}"
 
     headers = {
+        "apikey": EVOLUTION_API_KEY,
         "Content-Type": "application/json",
-        "apikey": api_key,
     }
 
-    # Evolution API v2 payload shape
     payload = {
         "number": phone_number,
         "options": {
@@ -58,28 +78,41 @@ def send_whatsapp_message(
         response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
         response.raise_for_status()
         return {"success": True, "data": response.json(), "error": None}
-    except requests.exceptions.HTTPError as e:
-        error_body = {}
+
+    except requests.exceptions.HTTPError:
         try:
-            error_body = e.response.json()
+            error = response.json()
         except Exception:
-            pass
-        error_msg = error_body.get("message") or str(e)
-        logger.error("Evolution API HTTP error: %s", error_msg)
-        return {"success": False, "data": None, "error": error_msg}
+            error = {"message": response.text}
+        logger.error("Evolution API HTTP Error: %s", error)
+        return {
+            "success": False,
+            "data": error,
+            "error": error.get("message", "HTTP Error"),
+        }
+
     except requests.exceptions.RequestException as e:
-        logger.error("Evolution API request error: %s", e)
+        logger.exception("Evolution API Request Error")
         return {"success": False, "data": None, "error": str(e)}
 
 
-def get_instance_status(instance_name: str, api_url: str, api_key: str) -> dict:
-    """Check the connection status of an Evolution instance."""
-    if not all([instance_name, api_url, api_key]):
-        return {"success": False, "state": None, "error": "Missing parameters"}
+def get_instance_status(instance_name: str) -> dict:
+    """
+    Get Evolution instance connection state (used by the "Test Connection" button).
+    """
 
-    base = api_url.rstrip("/")
-    endpoint = f"{base}/instance/connectionState/{instance_name}"
-    headers = {"apikey": api_key}
+    if not instance_name:
+        return {"success": False, "state": None, "error": "Instance name is required."}
+
+    if not EVOLUTION_API_URL or not EVOLUTION_API_KEY:
+        return {
+            "success": False,
+            "state": None,
+            "error": "EVOLUTION_API_URL or EVOLUTION_API_KEY not configured in .env",
+        }
+
+    endpoint = f"{EVOLUTION_API_URL}/instance/connectionState/{instance_name}"
+    headers = {"apikey": EVOLUTION_API_KEY}
 
     try:
         response = requests.get(endpoint, headers=headers, timeout=15)
@@ -87,5 +120,7 @@ def get_instance_status(instance_name: str, api_url: str, api_key: str) -> dict:
         data = response.json()
         state = data.get("instance", {}).get("state") or data.get("state")
         return {"success": True, "state": state, "data": data, "error": None}
+
     except requests.exceptions.RequestException as e:
+        logger.exception("Failed to fetch instance status")
         return {"success": False, "state": None, "error": str(e)}
