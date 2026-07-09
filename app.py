@@ -7,7 +7,8 @@ from flask import (
     flash,
     url_for,
     jsonify,
-    Response
+    Response,
+    send_file,
 )
 
 from functools import wraps
@@ -22,10 +23,15 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from dotenv import load_dotenv
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import io
 import csv
+import re
+import json as _json
+import secrets
+import random
+import string
 import threading
 import time
 
@@ -65,6 +71,8 @@ users_col      = db["pravah-users"]
 leads_col      = db["pravah-leads"]
 campaigns_col  = db["pravah-campaigns"]
 executions_col = db["pravah-executions"]   # per-lead campaign execution logs
+messages_col   = db["pravah-messages"]     # inbound/outbound whatsapp message log
+teams_col      = db["pravah-team"]         # team members (sub-accounts)
 
 # ----------------------------------
 # Create Indexes
@@ -73,11 +81,16 @@ executions_col = db["pravah-executions"]   # per-lead campaign execution logs
 try:
     users_col.create_index("username", unique=True)
     users_col.create_index("email", unique=True)
+    users_col.create_index("webhook_token", unique=True, sparse=True)
     leads_col.create_index("owner_id")
     leads_col.create_index([("owner_id", 1), ("created_at", -1)])
+    leads_col.create_index([("owner_id", 1), ("phone", 1)])
     campaigns_col.create_index("owner_id")
     executions_col.create_index([("campaign_id", 1), ("lead_id", 1)])
     executions_col.create_index("owner_id")
+    messages_col.create_index([("owner_id", 1), ("lead_id", 1), ("created_at", -1)])
+    teams_col.create_index("owner_id")
+    teams_col.create_index("email", unique=True)
 except Exception:
     pass
 
@@ -103,13 +116,58 @@ IMPORT_HEADER_ALIASES = {
     "note": "description", "details": "description",
 }
 
+LEAD_STATUSES = {"cold", "warm", "hot"}
+
+# ----------------------------------
+# Campaign throttling settings
+# ----------------------------------
+
+CAMPAIGN_BATCH_SIZE        = int(os.getenv("CAMPAIGN_BATCH_SIZE", 25))       # leads sent per burst
+CAMPAIGN_BATCH_WAIT_MIN    = int(os.getenv("CAMPAIGN_BATCH_WAIT_MIN", 120))  # seconds
+CAMPAIGN_BATCH_WAIT_MAX    = int(os.getenv("CAMPAIGN_BATCH_WAIT_MAX", 300))  # seconds
+CAMPAIGN_AI_GEN_WAIT_SECS  = int(os.getenv("CAMPAIGN_AI_GEN_WAIT_SECS", 120))  # gap between AI generations
+
+# Tracks the last time an AI generation happened per-owner, so consecutive
+# AI-personalized messages inside a running campaign are spaced out.
+_last_ai_call_lock = threading.Lock()
+_last_ai_call_time = {}  # owner_id -> epoch seconds
+
+
+def throttle_ai_call(owner_id: str):
+    """Blocks the calling thread until enough time has passed since the last
+    AI generation for this owner, so we don't hammer the AI or the channel."""
+    with _last_ai_call_lock:
+        last = _last_ai_call_time.get(owner_id, 0)
+    now = time.time()
+    elapsed = now - last
+    if elapsed < CAMPAIGN_AI_GEN_WAIT_SECS:
+        time.sleep(CAMPAIGN_AI_GEN_WAIT_SECS - elapsed)
+    with _last_ai_call_lock:
+        _last_ai_call_time[owner_id] = time.time()
+
 
 def normalize_header(h):
     return str(h).strip().lower().replace(" ", "").replace("_", "").replace("-", "")
 
 
+def normalize_phone(phone: str) -> str:
+    """Keep digits only, so +971 50 123 4567, 971501234567 and
+    971501234567@s.whatsapp.net all compare equal on their last 9-10 digits."""
+    digits = re.sub(r"\D", "", phone or "")
+    return digits[-10:] if len(digits) >= 10 else digits
+
+
+def generate_webhook_token() -> str:
+    return secrets.token_urlsafe(24)
+
+
+def generate_temp_password(length=10) -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
 # ----------------------------------
-# Auth Helper
+# Auth Helpers
 # ----------------------------------
 
 def login_required(view):
@@ -123,8 +181,34 @@ def login_required(view):
     return wrapped
 
 
+def owner_required(view):
+    """Restricts a route to the account owner (not team members)."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if "user_id" not in session:
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Not authenticated"}), 401
+            return redirect("/login")
+        if session.get("role") != "owner":
+            return jsonify({"error": "This section is only available to the account owner"}), 403
+        return view(*args, **kwargs)
+    return wrapped
+
+
 def current_user_id():
+    """The owner_id that all data (leads/campaigns/etc) is scoped under —
+    the same for the owner and for any of their team members."""
     return session.get("user_id")
+
+
+def current_actor_id():
+    """The id of whoever is actually logged in (owner or team member).
+    Used for assignment / 'my leads' filtering."""
+    return session.get("actor_id", session.get("user_id"))
+
+
+def is_owner():
+    return session.get("role") == "owner"
 
 
 # ----------------------------------
@@ -141,6 +225,9 @@ def serialize_lead(lead):
         "website": lead.get("website", ""),
         "description": lead.get("description", ""),
         "source": lead.get("source", "manual"),
+        "status": lead.get("status", "cold"),
+        "assigned_to": lead.get("assigned_to"),
+        "ai_task_prompt": lead.get("ai_task_prompt", ""),
         "created_at": lead.get("created_at").isoformat() if lead.get("created_at") else None,
         "updated_at": lead.get("updated_at").isoformat() if lead.get("updated_at") else None,
     }
@@ -154,6 +241,7 @@ def clean_lead_payload(data):
         "phone": (data.get("phone") or "").strip(),
         "website": (data.get("website") or "").strip(),
         "description": (data.get("description") or "").strip(),
+        "ai_task_prompt": (data.get("ai_task_prompt") or "").strip(),
     }
 
 
@@ -186,6 +274,28 @@ def serialize_execution(e):
     }
 
 
+def serialize_team_member(m):
+    return {
+        "_id": str(m["_id"]),
+        "name": m.get("name", ""),
+        "email": m.get("email", ""),
+        "status": m.get("status", "active"),
+        "leads_assigned": leads_col.count_documents({"assigned_to": str(m["_id"])}),
+        "created_at": m.get("created_at").isoformat() if m.get("created_at") else None,
+    }
+
+
+def serialize_message(m):
+    return {
+        "_id": str(m["_id"]),
+        "lead_id": m.get("lead_id", ""),
+        "direction": m.get("direction", "in"),
+        "channel": m.get("channel", "whatsapp"),
+        "text": m.get("text", ""),
+        "created_at": m.get("created_at").isoformat() if m.get("created_at") else None,
+    }
+
+
 # ----------------------------------
 # Template variable substitution
 # ----------------------------------
@@ -205,58 +315,13 @@ def render_template_vars(text: str, lead: dict) -> str:
     return text
 
 
-def generate_ai_content(lead: dict, content_type: str, instructions: str = "", custom_system_prompt: str = "") -> dict:
-    """
-    Calls Mistral with the lead's full data (name -> description) and returns
-    a generated WhatsApp message, or an email subject+body.
-
-    If custom_system_prompt is provided (the user's own prompt from Settings),
-    it replaces PravaahAI's default style instructions. For emails we still
-    force JSON output on top of it, since the app needs subject+body separately.
-    """
+def _mistral_chat(system_prompt: str, user_prompt: str, force_json: bool = False):
+    """Low-level Mistral call shared by all AI helpers below."""
     MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
     MISTRAL_URL   = "https://api.mistral.ai/v1/chat/completions"
     MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
     if not MISTRAL_API_KEY:
         return {"success": False, "error": "MISTRAL_API_KEY not configured"}
-
-    lead_context = (
-        f"Name: {lead.get('name','')}\n"
-        f"Business Name: {lead.get('business_name','')}\n"
-        f"Email: {lead.get('email','')}\n"
-        f"Phone: {lead.get('phone','')}\n"
-        f"Website: {lead.get('website','')}\n"
-        f"Description: {lead.get('description','')}\n"
-    )
-
-    custom_system_prompt = (custom_system_prompt or "").strip()
-
-    if content_type == "whatsapp":
-        default_prompt = (
-            "You are a sales outreach assistant. Write a short, friendly, personalized "
-            "WhatsApp message (2-4 sentences) to this lead using their real data below. "
-            "No placeholders. Return ONLY the message text, nothing else."
-        )
-        system_prompt = custom_system_prompt or default_prompt
-        # Even with a custom prompt, make sure we only get raw text back
-        system_prompt += "\n\nReturn ONLY the WhatsApp message text, nothing else."
-    else:
-        default_prompt = (
-            "You are a sales outreach assistant. Write a personalized outreach email "
-            "for this lead using their real data below."
-        )
-        base = custom_system_prompt or default_prompt
-        system_prompt = (
-            base
-            + '\n\nNo matter what, return ONLY valid JSON in the exact shape '
-              '{"subject": "...", "body": "..."} with no markdown fences and no extra text. '
-              "Body may use simple HTML paragraph tags."
-        )
-
-    user_prompt = f"Lead data:\n{lead_context}"
-    if instructions:
-        user_prompt += f"\nAdditional instructions: {instructions}\n"
-
     try:
         resp = requests.post(
             MISTRAL_URL,
@@ -276,18 +341,155 @@ def generate_ai_content(lead: dict, content_type: str, instructions: str = "", c
         )
         resp.raise_for_status()
         text = resp.json()["choices"][0]["message"]["content"].strip()
-
-        if content_type == "whatsapp":
-            return {"success": True, "message": text}
-
-        import json as _json
-        cleaned = text.strip().strip("```json").strip("```").strip()
-        parsed = _json.loads(cleaned)
-        return {"success": True, "subject": parsed.get("subject", ""), "body": parsed.get("body", "")}
-
+        if force_json:
+            cleaned = text.strip().strip("```json").strip("```").strip()
+            return {"success": True, "data": _json.loads(cleaned)}
+        return {"success": True, "text": text}
     except Exception as e:
-        return {"success": False, "error": str(e)}   
-    
+        return {"success": False, "error": str(e)}
+
+
+def generate_ai_content(lead: dict, content_type: str, instructions: str = "", custom_system_prompt: str = "") -> dict:
+    """
+    Calls Mistral with the lead's full data (name -> description) and returns
+    a generated WhatsApp message, or an email subject+body.
+
+    If custom_system_prompt is provided (the user's own prompt from Settings),
+    it replaces PravaahAI's default style instructions. For emails we still
+    force JSON output on top of it, since the app needs subject+body separately.
+    """
+    lead_context = (
+        f"Name: {lead.get('name','')}\n"
+        f"Business Name: {lead.get('business_name','')}\n"
+        f"Email: {lead.get('email','')}\n"
+        f"Phone: {lead.get('phone','')}\n"
+        f"Website: {lead.get('website','')}\n"
+        f"Description: {lead.get('description','')}\n"
+    )
+
+    custom_system_prompt = (custom_system_prompt or "").strip()
+
+    if content_type == "whatsapp":
+        default_prompt = (
+            "You are a sales outreach assistant. Write a short, friendly, personalized "
+            "WhatsApp message (2-4 sentences) to this lead using their real data below. "
+            "No placeholders. Return ONLY the message text, nothing else."
+        )
+        system_prompt = custom_system_prompt or default_prompt
+        system_prompt += "\n\nReturn ONLY the WhatsApp message text, nothing else."
+    else:
+        default_prompt = (
+            "You are a sales outreach assistant. Write a personalized outreach email "
+            "for this lead using their real data below."
+        )
+        base = custom_system_prompt or default_prompt
+        system_prompt = (
+            base
+            + '\n\nNo matter what, return ONLY valid JSON in the exact shape '
+              '{"subject": "...", "body": "..."} with no markdown fences and no extra text. '
+              "Body may use simple HTML paragraph tags."
+        )
+
+    user_prompt = f"Lead data:\n{lead_context}"
+    if instructions:
+        user_prompt += f"\nAdditional instructions: {instructions}\n"
+
+    result = _mistral_chat(system_prompt, user_prompt, force_json=(content_type != "whatsapp"))
+    if not result.get("success"):
+        return {"success": False, "error": result.get("error", "AI generation failed")}
+
+    if content_type == "whatsapp":
+        return {"success": True, "message": result["text"]}
+
+    parsed = result["data"]
+    return {"success": True, "subject": parsed.get("subject", ""), "body": parsed.get("body", "")}
+
+
+def generate_chat_reply(lead: dict, incoming_message: str, history: list, task_prompt: str = "", system_prompt: str = "") -> dict:
+    """Generates a WhatsApp auto-reply to an inbound message, using the
+    lead's assigned task prompt (what this lead should be pitched / how the
+    conversation should be steered) plus the account's general WA style prompt."""
+    lead_context = (
+        f"Name: {lead.get('name','')}\n"
+        f"Business Name: {lead.get('business_name','')}\n"
+        f"Email: {lead.get('email','')}\n"
+        f"Phone: {lead.get('phone','')}\n"
+        f"Website: {lead.get('website','')}\n"
+        f"Description: {lead.get('description','')}\n"
+    )
+
+    history_text = "\n".join(
+        f"{'Lead' if h.get('direction')=='in' else 'You'}: {h.get('text','')}"
+        for h in history[-10:]
+    )
+
+    base_style = (system_prompt or "").strip() or (
+        "You are a friendly, concise WhatsApp sales assistant replying to an inbound lead message."
+    )
+    task = (task_prompt or "").strip() or "Keep the lead engaged and move the conversation toward a sale or a booked call."
+
+    system = (
+        f"{base_style}\n\n"
+        f"Your specific goal for this lead: {task}\n\n"
+        "Reply in 1-3 short sentences like a real person texting on WhatsApp. "
+        "No signatures, no placeholders. Return ONLY the reply text."
+    )
+    user_prompt = (
+        f"Lead data:\n{lead_context}\n"
+        f"Recent conversation:\n{history_text}\n\n"
+        f"Lead's latest message: {incoming_message}\n\n"
+        "Write your reply now."
+    )
+
+    result = _mistral_chat(system, user_prompt, force_json=False)
+    if not result.get("success"):
+        return {"success": False, "error": result.get("error", "AI reply generation failed")}
+    return {"success": True, "message": result["text"]}
+
+
+def classify_lead_temperature(lead: dict, incoming_message: str, history: list, current_status: str = "cold") -> str:
+    """Asks the AI to classify a lead as cold / warm / hot based on the
+    conversation so far. Falls back to the current status on any failure."""
+    history_text = "\n".join(
+        f"{'Lead' if h.get('direction')=='in' else 'You'}: {h.get('text','')}"
+        for h in history[-10:]
+    )
+    system = (
+        "You are a sales-lead scoring assistant. Based on the WhatsApp conversation, "
+        "classify how interested/ready-to-buy this lead currently is. "
+        "Respond with EXACTLY one word: cold, warm, or hot. Nothing else."
+    )
+    user_prompt = (
+        f"Conversation so far:\n{history_text}\n"
+        f"Lead's latest message: {incoming_message}\n\n"
+        "Classification (one word: cold, warm, or hot):"
+    )
+    result = _mistral_chat(system, user_prompt, force_json=False)
+    if not result.get("success"):
+        return current_status if current_status in LEAD_STATUSES else "cold"
+    word = result["text"].strip().lower()
+    for status in LEAD_STATUSES:
+        if status in word:
+            return status
+    return current_status if current_status in LEAD_STATUSES else "cold"
+
+
+# ----------------------------------
+# Team round-robin assignment
+# ----------------------------------
+
+def assign_round_robin(owner_id: str):
+    """Picks the next active team member in rotation and returns their id
+    as a string, or None if the account has no team members."""
+    members = list(teams_col.find({"owner_id": owner_id, "status": "active"}).sort("created_at", 1))
+    if not members:
+        return None
+    owner = users_col.find_one({"_id": ObjectId(owner_id)})
+    idx = (owner.get("team_rr_index", 0) if owner else 0) % len(members)
+    chosen = members[idx]
+    users_col.update_one({"_id": ObjectId(owner_id)}, {"$inc": {"team_rr_index": 1}})
+    return str(chosen["_id"])
+
 
 # ----------------------------------
 # Campaign Flow Execution Engine
@@ -312,19 +514,61 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
         step = flow[step_idx]
         step_type = step.get("type", "")
 
-        # ... wait / condition blocks unchanged ...
+        if step_type == "wait":
+            amount = float(step.get("amount", 1) or 1)
+            unit = step.get("unit", "minutes")
+            seconds = {"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}.get(unit, 60) * amount
+            time.sleep(min(seconds, 3600))  # safety cap so a single wait step can't block forever
 
-        if step_type == "whatsapp":
+        elif step_type == "condition":
+            field = step.get("field", "")
+            operator = step.get("operator", "exists")
+            value = (step.get("value") or "").strip().lower()
+            field_val = str(lead.get(field, "") or "").strip().lower()
+            if operator == "exists":
+                result = bool(field_val)
+            elif operator == "not_exists":
+                result = not bool(field_val)
+            elif operator == "equals":
+                result = field_val == value
+            elif operator == "contains":
+                result = value in field_val
+            elif operator == "not_contains":
+                result = value not in field_val
+            else:
+                result = True
+            next_step = step.get("then_step") if result else step.get("else_step")
+            if next_step is not None:
+                step_idx = next_step
+                continue
+
+        elif step_type == "whatsapp":
             phone   = lead.get("phone", "")
             message = step.get("message", "")
 
             if step.get("use_ai"):
+                throttle_ai_call(owner_id)
                 ai_result = generate_ai_content(lead, "whatsapp", step.get("ai_instructions", ""), ai_wa_prompt)
                 if ai_result.get("success"):
                     message = ai_result.get("message", message)
 
             message = render_template_vars(message, lead)
-            # ... rest unchanged ...
+
+            if not evo_instance or not phone:
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "failed", "whatsapp", "Missing WhatsApp instance or phone number")
+                _bump_campaign_stat(campaign["_id"], "failed")
+            else:
+                send_result = send_whatsapp_message(evo_instance, phone, message)
+                if send_result.get("success"):
+                    messages_col.insert_one({
+                        "owner_id": owner_id, "lead_id": lead_id, "direction": "out",
+                        "channel": "whatsapp", "text": message, "created_at": datetime.utcnow(),
+                    })
+                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "sent", "whatsapp")
+                    _bump_campaign_stat(campaign["_id"], "sent")
+                else:
+                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "failed", "whatsapp", send_result.get("error", "Send failed"))
+                    _bump_campaign_stat(campaign["_id"], "failed")
 
         elif step_type == "email":
             provider = step.get("provider", "gmail")
@@ -333,16 +577,42 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
             body     = step.get("body", "")
 
             if step.get("use_ai"):
+                throttle_ai_call(owner_id)
                 ai_result = generate_ai_content(lead, "email", step.get("ai_instructions", ""), ai_email_prompt)
                 if ai_result.get("success"):
                     subject = ai_result.get("subject", subject)
                     body    = ai_result.get("body", body)
 
-            # ... rest unchanged ...
+            subject = render_template_vars(subject, lead)
+            body    = render_template_vars(body, lead)
+            channel_name = f"email_{provider}"
+
+            if not to_addr:
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "failed", channel_name, "Lead has no email address")
+                _bump_campaign_stat(campaign["_id"], "failed")
+            else:
+                try:
+                    if provider == "resend":
+                        if not resend_key or not resend_from:
+                            raise Exception("Resend not configured in Settings")
+                        send_resend_email(resend_key, resend_from, to_addr, subject, body)
+                    else:
+                        if not gmail_addr or not gmail_pass:
+                            raise Exception("Gmail not configured in Settings")
+                        send_gmail(gmail_addr, gmail_pass, to_addr, subject, body)
+                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "sent", channel_name)
+                    _bump_campaign_stat(campaign["_id"], "sent")
+                except Exception as e:
+                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "failed", channel_name, str(e))
+                    _bump_campaign_stat(campaign["_id"], "failed")
+
+        step_idx += 1
+
 
 def _bump_campaign_stat(campaign_oid, status):
     field = "stats.sent" if status == "sent" else "stats.failed"
     campaigns_col.update_one({"_id": campaign_oid}, {"$inc": {field: 1}})
+
 
 def _log_execution(owner_id, campaign_id, lead_id, lead_name, step_index, status, channel, error=""):
     executions_col.insert_one({
@@ -386,14 +656,22 @@ def launch_campaign(campaign_id: str, owner_id: str):
     )
 
     def run():
-        for lead in leads:
-            execute_campaign_for_lead(campaign, lead, user, owner_id)
-            campaigns_col.update_one({"_id": campaign["_id"]}, {"$inc": {"stats.pending": -1}})
+        # Send in bursts of CAMPAIGN_BATCH_SIZE, immediately for the first
+        # burst, then wait a random 2-5 min before the next burst so we don't
+        # blast every lead at once and look like spam / trip WhatsApp limits.
+        for i in range(0, len(leads), CAMPAIGN_BATCH_SIZE):
+            batch = leads[i:i + CAMPAIGN_BATCH_SIZE]
+            for lead in batch:
+                execute_campaign_for_lead(campaign, lead, user, owner_id)
+                campaigns_col.update_one({"_id": campaign["_id"]}, {"$inc": {"stats.pending": -1}})
+            if i + CAMPAIGN_BATCH_SIZE < len(leads):
+                time.sleep(random.uniform(CAMPAIGN_BATCH_WAIT_MIN, CAMPAIGN_BATCH_WAIT_MAX))
         campaigns_col.update_one({"_id": campaign["_id"]}, {"$set": {"status": "completed"}})
 
     t = threading.Thread(target=run, daemon=True)
     t.start()
     return True
+
 
 # ==================================================================
 # HOME / AUTH ROUTES
@@ -433,11 +711,15 @@ def signup():
             "phone": phone,
             "business_name": business_name,
             "business_type": business_type,
+            "website": "",
+            "address": "",
             "password": generate_password_hash(password),
             "status": "active",
             "email_verified": False,
             "plan": {"name": "Free", "credits": 100},
             "integrations": {},
+            "webhook_token": generate_webhook_token(),
+            "team_rr_index": 0,
             "created_at": datetime.utcnow(),
             "last_login": None,
         })
@@ -452,23 +734,38 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip().lower()
         password = request.form.get("password", "")
+
+        # Try account owner first
         user = users_col.find_one({"username": username, "type": "user"})
-        if not user or not check_password_hash(user["password"], password):
-            flash("Invalid username or password"); return redirect("/login")
-        session["user_id"] = str(user["_id"])
-        session["username"] = user["username"]
-        users_col.update_one({"_id": user["_id"]}, {"$set": {"last_login": datetime.utcnow()}})
-        return redirect("/dashboard")
+        if user and check_password_hash(user["password"], password):
+            session["user_id"]  = str(user["_id"])
+            session["actor_id"] = str(user["_id"])
+            session["username"] = user["username"]
+            session["role"]     = "owner"
+            users_col.update_one({"_id": user["_id"]}, {"$set": {"last_login": datetime.utcnow()}})
+            return redirect("/dashboard")
+
+        # Try team member (logs in with email as "username")
+        member = teams_col.find_one({"email": username})
+        if member and check_password_hash(member["password"], password) and member.get("status") == "active":
+            session["user_id"]  = member["owner_id"]           # data is scoped to the owner
+            session["actor_id"] = str(member["_id"])
+            session["username"] = member.get("name") or member["email"]
+            session["role"]     = "member"
+            teams_col.update_one({"_id": member["_id"]}, {"$set": {"last_login": datetime.utcnow()}})
+            return redirect("/dashboard")
+
+        flash("Invalid username or password"); return redirect("/login")
     return render_template("login.html")
 
 
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    user = users_col.find_one({"_id": ObjectId(session["user_id"])})
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
     if not user:
         session.clear(); return redirect("/login")
-    return render_template("dashboard.html", user=user)
+    return render_template("dashboard.html", user=user, role=session.get("role", "owner"), display_name=session.get("username"))
 
 
 @app.route("/logout")
@@ -477,15 +774,38 @@ def logout():
     return redirect("/login")
 
 
+@app.route("/api/me", methods=["GET"])
+@login_required
+def api_me():
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({
+        "role": session.get("role", "owner"),
+        "display_name": session.get("username"),
+        "business_name": user.get("business_name", ""),
+        "username": user.get("username", ""),
+    })
+
+
 # ==================================================================
-# LEADS API  (unchanged)
+# LEADS API
 # ==================================================================
+
+def _leads_scope_query():
+    """Owners see every lead in the account; team members only see leads
+    that have been assigned to them (e.g. via round-robin on reply)."""
+    query = {"owner_id": current_user_id()}
+    if not is_owner():
+        query["assigned_to"] = current_actor_id()
+    return query
+
 
 @app.route("/api/leads", methods=["GET"])
 @login_required
 def api_list_leads():
     q = request.args.get("q", "").strip()
-    query = {"owner_id": current_user_id()}
+    query = _leads_scope_query()
     if q:
         query["$or"] = [
             {"name": {"$regex": q, "$options": "i"}},
@@ -504,10 +824,12 @@ def api_create_lead():
     lead = clean_lead_payload(data)
     if not lead["name"]:
         return jsonify({"error": "Name is required"}), 400
-    lead["owner_id"]  = current_user_id()
-    lead["source"]    = "manual"
-    lead["created_at"] = datetime.utcnow()
-    lead["updated_at"] = datetime.utcnow()
+    lead["owner_id"]    = current_user_id()
+    lead["source"]      = "manual"
+    lead["status"]      = "cold"
+    lead["assigned_to"] = None
+    lead["created_at"]  = datetime.utcnow()
+    lead["updated_at"]  = datetime.utcnow()
     result = leads_col.insert_one(lead)
     saved  = leads_col.find_one({"_id": result.inserted_id})
     return jsonify({"lead": serialize_lead(saved)}), 201
@@ -534,10 +856,12 @@ def api_bulk_save_leads():
             if updated: saved_leads.append(serialize_lead(updated))
             else: skipped += 1
         else:
-            lead["owner_id"]   = current_user_id()
-            lead["source"]     = row.get("source", "manual")
-            lead["created_at"] = datetime.utcnow()
-            lead["updated_at"] = datetime.utcnow()
+            lead["owner_id"]    = current_user_id()
+            lead["source"]      = row.get("source", "manual")
+            lead["status"]      = "cold"
+            lead["assigned_to"] = None
+            lead["created_at"]  = datetime.utcnow()
+            lead["updated_at"]  = datetime.utcnow()
             result = leads_col.insert_one(lead)
             created = leads_col.find_one({"_id": result.inserted_id})
             saved_leads.append(serialize_lead(created))
@@ -557,6 +881,26 @@ def api_update_lead(lead_id):
     if result.matched_count == 0: return jsonify({"error": "Lead not found"}), 404
     updated = leads_col.find_one({"_id": oid})
     return jsonify({"lead": serialize_lead(updated)})
+
+
+@app.route("/api/leads/<lead_id>/status", methods=["PATCH"])
+@login_required
+def api_update_lead_status(lead_id):
+    """Lets the owner OR the assigned team member manually override a
+    lead's hot/warm/cold status from the sheet."""
+    try: oid = ObjectId(lead_id)
+    except InvalidId: return jsonify({"error": "Invalid lead id"}), 400
+    data = request.get_json(silent=True) or {}
+    status = (data.get("status") or "").strip().lower()
+    if status not in LEAD_STATUSES:
+        return jsonify({"error": "status must be cold, warm, or hot"}), 400
+    query = {"_id": oid, "owner_id": current_user_id()}
+    if not is_owner():
+        query["assigned_to"] = current_actor_id()
+    result = leads_col.update_one(query, {"$set": {"status": status, "updated_at": datetime.utcnow()}})
+    if result.matched_count == 0:
+        return jsonify({"error": "Lead not found"}), 404
+    return jsonify({"updated": True, "status": status})
 
 
 @app.route("/api/leads/<lead_id>", methods=["DELETE"])
@@ -602,6 +946,7 @@ def api_import_leads():
             "business_name": clean("business_name"), "email": clean("email").lower(),
             "phone": clean("phone"), "website": clean("website"),
             "description": clean("description"), "source": "import",
+            "status": "cold", "assigned_to": None, "ai_task_prompt": "",
             "created_at": now, "updated_at": now,
         })
         inserted += 1
@@ -612,12 +957,98 @@ def api_import_leads():
 @app.route("/api/leads/template", methods=["GET"])
 @login_required
 def api_leads_template():
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(LEAD_TEMPLATE_HEADERS)
-    writer.writerow(["Bhuvi Patel","Al Noor Spices Trading LLC","info@alnoorspices.ae","+971 50 123 4567","https://alnoorspices.ae","Importer looking for bulk basmati rice"])
-    return Response(buffer.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=pravaahai_leads_template.csv"})
+    """Downloadable starter template — as a real Excel file so it opens
+    nicely and keeps column formatting."""
+    df = pd.DataFrame(
+        [["Bhuvi Patel", "Al Noor Spices Trading LLC", "info@alnoorspices.ae",
+          "+971 50 123 4567", "https://alnoorspices.ae", "Importer looking for bulk basmati rice"]],
+        columns=LEAD_TEMPLATE_HEADERS,
+    )
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Leads")
+    buffer.seek(0)
+    return send_file(
+        buffer,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="pravaahai_leads_template.xlsx",
+    )
+
+
+@app.route("/api/leads/export", methods=["GET"])
+@login_required
+def api_leads_export():
+    """Export the current lead list (respecting the same scoping as the
+    leads list view) as an Excel file."""
+    leads = list(leads_col.find(_leads_scope_query()).sort("created_at", -1))
+    rows = [{
+        "Name": l.get("name", ""), "Business Name": l.get("business_name", ""),
+        "Email": l.get("email", ""), "Phone": l.get("phone", ""),
+        "Website": l.get("website", ""), "Description": l.get("description", ""),
+        "Status": l.get("status", "cold"),
+    } for l in leads]
+    df = pd.DataFrame(rows, columns=["Name", "Business Name", "Email", "Phone", "Website", "Description", "Status"])
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Leads")
+    buffer.seek(0)
+    return send_file(
+        buffer,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="pravaahai_leads_export.xlsx",
+    )
+
+
+@app.route("/api/leads/<lead_id>/messages", methods=["GET"])
+@login_required
+def api_lead_messages(lead_id):
+    try: oid = ObjectId(lead_id)
+    except InvalidId: return jsonify({"error": "Invalid lead id"}), 400
+    query = {"_id": oid, "owner_id": current_user_id()}
+    if not is_owner():
+        query["assigned_to"] = current_actor_id()
+    lead = leads_col.find_one(query)
+    if not lead: return jsonify({"error": "Lead not found"}), 404
+    msgs = list(messages_col.find({"owner_id": current_user_id(), "lead_id": lead_id}).sort("created_at", 1))
+    return jsonify({"messages": [serialize_message(m) for m in msgs]})
+
+
+@app.route("/api/leads/<lead_id>/send-whatsapp", methods=["POST"])
+@login_required
+def api_send_manual_whatsapp(lead_id):
+    """Lets the owner or the lead's assigned team member send a one-off
+    manual WhatsApp message from the lead detail view."""
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "Message text is required"}), 400
+    try: oid = ObjectId(lead_id)
+    except InvalidId: return jsonify({"error": "Invalid lead id"}), 400
+
+    query = {"_id": oid, "owner_id": current_user_id()}
+    if not is_owner():
+        query["assigned_to"] = current_actor_id()
+    lead = leads_col.find_one(query)
+    if not lead: return jsonify({"error": "Lead not found"}), 404
+    if not lead.get("phone"):
+        return jsonify({"error": "This lead has no phone number"}), 400
+
+    owner = users_col.find_one({"_id": ObjectId(current_user_id())})
+    evo_instance = (owner.get("integrations", {}) or {}).get("evo_instance", "") if owner else ""
+    if not evo_instance:
+        return jsonify({"error": "WhatsApp instance not configured in Settings"}), 400
+
+    result = send_whatsapp_message(evo_instance, lead["phone"], message)
+    if not result.get("success"):
+        return jsonify({"error": result.get("error", "Send failed")}), 400
+
+    messages_col.insert_one({
+        "owner_id": current_user_id(), "lead_id": lead_id, "direction": "out",
+        "channel": "whatsapp", "text": message, "created_at": datetime.utcnow(),
+    })
+    return jsonify({"sent": True})
 
 
 # ==================================================================
@@ -626,6 +1057,7 @@ def api_leads_template():
 
 @app.route("/api/campaigns", methods=["GET"])
 @login_required
+@owner_required
 def api_list_campaigns():
     campaigns = list(campaigns_col.find({"owner_id": current_user_id()}).sort("created_at", -1))
     return jsonify({"campaigns": [serialize_campaign(c) for c in campaigns]})
@@ -633,6 +1065,7 @@ def api_list_campaigns():
 
 @app.route("/api/campaigns", methods=["POST"])
 @login_required
+@owner_required
 def api_create_campaign():
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
@@ -657,6 +1090,7 @@ def api_create_campaign():
 
 @app.route("/api/campaigns/<campaign_id>", methods=["GET"])
 @login_required
+@owner_required
 def api_get_campaign(campaign_id):
     try: oid = ObjectId(campaign_id)
     except InvalidId: return jsonify({"error": "Invalid campaign id"}), 400
@@ -667,6 +1101,7 @@ def api_get_campaign(campaign_id):
 
 @app.route("/api/campaigns/<campaign_id>", methods=["PUT", "PATCH"])
 @login_required
+@owner_required
 def api_update_campaign(campaign_id):
     try: oid = ObjectId(campaign_id)
     except InvalidId: return jsonify({"error": "Invalid campaign id"}), 400
@@ -686,6 +1121,7 @@ def api_update_campaign(campaign_id):
 
 @app.route("/api/campaigns/<campaign_id>", methods=["DELETE"])
 @login_required
+@owner_required
 def api_delete_campaign(campaign_id):
     try: oid = ObjectId(campaign_id)
     except InvalidId: return jsonify({"error": "Invalid campaign id"}), 400
@@ -697,17 +1133,22 @@ def api_delete_campaign(campaign_id):
 
 @app.route("/api/campaigns/<campaign_id>/launch", methods=["POST"])
 @login_required
+@owner_required
 def api_launch_campaign(campaign_id):
     try: ObjectId(campaign_id)
     except InvalidId: return jsonify({"error": "Invalid campaign id"}), 400
     ok = launch_campaign(campaign_id, current_user_id())
     if not ok:
         return jsonify({"error": "Could not launch campaign. Check leads are attached and integrations are configured."}), 400
-    return jsonify({"launched": True})
+    return jsonify({
+        "launched": True,
+        "note": f"Sending in bursts of {CAMPAIGN_BATCH_SIZE} with a {CAMPAIGN_BATCH_WAIT_MIN}-{CAMPAIGN_BATCH_WAIT_MAX}s gap between bursts.",
+    })
 
 
 @app.route("/api/campaigns/<campaign_id>/logs", methods=["GET"])
 @login_required
+@owner_required
 def api_campaign_logs(campaign_id):
     logs = list(executions_col.find(
         {"campaign_id": campaign_id, "owner_id": current_user_id()}
@@ -716,14 +1157,22 @@ def api_campaign_logs(campaign_id):
 
 
 # ==================================================================
-# INTEGRATIONS / CREDENTIALS API
+# INTEGRATIONS / CREDENTIALS API  (owner only)
 # ==================================================================
 
 @app.route("/api/integrations", methods=["GET"])
 @login_required
+@owner_required
 def api_get_integrations():
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
     if not user: return jsonify({"error": "User not found"}), 404
+
+    # Self-heal: older accounts created before this feature won't have a token yet
+    webhook_token = user.get("webhook_token")
+    if not webhook_token:
+        webhook_token = generate_webhook_token()
+        users_col.update_one({"_id": user["_id"]}, {"$set": {"webhook_token": webhook_token}})
+
     creds = user.get("integrations", {})
     return jsonify({
         "evo_instance":        creds.get("evo_instance", ""),
@@ -736,11 +1185,13 @@ def api_get_integrations():
         "has_evo":     bool(creds.get("evo_instance")),
         "has_gmail":   bool(creds.get("gmail_app_password")),
         "has_resend":  bool(creds.get("resend_api_key")),
+        "webhook_url": request.host_url.rstrip("/") + "/webhook/" + webhook_token,
     })
 
 
 @app.route("/api/integrations", methods=["POST"])
 @login_required
+@owner_required
 def api_save_integrations():
     data = request.get_json(silent=True) or {}
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
@@ -757,19 +1208,22 @@ def api_save_integrations():
     maybe_update("resend_api_key")
     maybe_update("resend_from_address")
 
-    # AI prompts are plain text, not secrets — allow saving an empty string
-    # too, so the user can clear a prompt back to "use the default".
     if "ai_whatsapp_prompt" in data:
         existing["ai_whatsapp_prompt"] = (data.get("ai_whatsapp_prompt") or "").strip()
     if "ai_email_prompt" in data:
         existing["ai_email_prompt"] = (data.get("ai_email_prompt") or "").strip()
 
-    users_col.update_one({"_id": ObjectId(current_user_id())}, {"$set": {"integrations": existing}})
+    update = {"integrations": existing}
+    if not user.get("webhook_token"):
+        update["webhook_token"] = generate_webhook_token()
+
+    users_col.update_one({"_id": ObjectId(current_user_id())}, {"$set": update})
     return jsonify({"saved": True})
 
 
 @app.route("/api/integrations/test/whatsapp", methods=["POST"])
 @login_required
+@owner_required
 def api_test_whatsapp():
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
     creds = user.get("integrations", {}) if user else {}
@@ -779,6 +1233,7 @@ def api_test_whatsapp():
 
 @app.route("/api/integrations/test/resend", methods=["POST"])
 @login_required
+@owner_required
 def api_test_resend():
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
     creds = user.get("integrations", {}) if user else {}
@@ -786,7 +1241,158 @@ def api_test_resend():
     return jsonify(result)
 
 
-#Ai button
+# ==================================================================
+# PROFILE API
+# ==================================================================
+
+@app.route("/api/profile", methods=["GET"])
+@login_required
+def api_get_profile():
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    if not user: return jsonify({"error": "User not found"}), 404
+    return jsonify({
+        "username": user.get("username", ""),
+        "email": user.get("email", ""),
+        "phone": user.get("phone", ""),
+        "business_name": user.get("business_name", ""),
+        "business_type": user.get("business_type", ""),
+        "website": user.get("website", ""),
+        "address": user.get("address", ""),
+        "plan": user.get("plan", {}),
+        "editable": is_owner(),
+    })
+
+
+@app.route("/api/profile", methods=["POST"])
+@login_required
+@owner_required
+def api_save_profile():
+    data = request.get_json(silent=True) or {}
+    update = {}
+    for field in ("phone", "business_name", "business_type", "website", "address"):
+        if field in data:
+            update[field] = (data.get(field) or "").strip()
+    if "email" in data and data["email"]:
+        new_email = data["email"].strip().lower()
+        clash = users_col.find_one({"email": new_email, "type": "user", "_id": {"$ne": ObjectId(current_user_id())}})
+        if clash:
+            return jsonify({"error": "That email is already in use"}), 400
+        update["email"] = new_email
+    if data.get("new_password"):
+        update["password"] = generate_password_hash(data["new_password"])
+    users_col.update_one({"_id": ObjectId(current_user_id())}, {"$set": update})
+    return jsonify({"saved": True})
+
+
+# ==================================================================
+# TEAM MANAGEMENT API  (owner only)
+# ==================================================================
+
+@app.route("/api/team", methods=["GET"])
+@login_required
+@owner_required
+def api_list_team():
+    members = list(teams_col.find({"owner_id": current_user_id()}).sort("created_at", -1))
+    return jsonify({"members": [serialize_team_member(m) for m in members]})
+
+
+@app.route("/api/team", methods=["POST"])
+@login_required
+@owner_required
+def api_invite_team_member():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    name  = (data.get("name") or "").strip()
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+    if teams_col.find_one({"email": email}) or users_col.find_one({"email": email}):
+        return jsonify({"error": "That email is already registered"}), 400
+
+    temp_password = generate_temp_password()
+    owner = users_col.find_one({"_id": ObjectId(current_user_id())})
+    business_name = (owner.get("business_name") if owner else "") or "PravaahAI"
+
+    member_doc = {
+        "owner_id": current_user_id(),
+        "name": name or email.split("@")[0],
+        "email": email,
+        "password": generate_password_hash(temp_password),
+        "role": "member",
+        "status": "active",
+        "created_at": datetime.utcnow(),
+        "last_login": None,
+    }
+    result = teams_col.insert_one(member_doc)
+
+    # Send credentials using PravaahAI's own Resend account (not the user's),
+    # configured via .env — separate from the per-account Resend integration
+    # used for outreach campaigns.
+    platform_resend_key  = os.getenv("PLATFORM_RESEND_API_KEY", "")
+    platform_from_email  = os.getenv("PLATFORM_RESEND_FROM", "team@pravaahai.app")
+    login_url = request.host_url.rstrip("/") + "/login"
+
+    email_body = (
+        f"<p>Hi {member_doc['name']},</p>"
+        f"<p>You've been added as a team member on <strong>{business_name}</strong>'s PravaahAI account.</p>"
+        f"<p><strong>Login email:</strong> {email}<br/>"
+        f"<strong>Temporary password:</strong> {temp_password}</p>"
+        f"<p>Log in here: <a href=\"{login_url}\">{login_url}</a></p>"
+        f"<p>Please change your password after logging in.</p>"
+    )
+
+    email_sent = False
+    email_error = ""
+    if platform_resend_key:
+        try:
+            send_resend_email(platform_resend_key, platform_from_email, email, "Your PravaahAI team invite", email_body)
+            email_sent = True
+        except Exception as e:
+            email_error = str(e)
+    else:
+        email_error = "PLATFORM_RESEND_API_KEY not set in .env"
+
+    saved = teams_col.find_one({"_id": result.inserted_id})
+    resp = {"member": serialize_team_member(saved), "email_sent": email_sent}
+    if not email_sent:
+        # Still return the temp password so the owner can share it manually
+        resp["temp_password"] = temp_password
+        resp["email_error"] = email_error
+    return jsonify(resp), 201
+
+
+@app.route("/api/team/<member_id>", methods=["DELETE"])
+@login_required
+@owner_required
+def api_remove_team_member(member_id):
+    try: oid = ObjectId(member_id)
+    except InvalidId: return jsonify({"error": "Invalid member id"}), 400
+    result = teams_col.delete_one({"_id": oid, "owner_id": current_user_id()})
+    if result.deleted_count == 0:
+        return jsonify({"error": "Team member not found"}), 404
+    # Unassign their leads so they fall back into the pool
+    leads_col.update_many({"owner_id": current_user_id(), "assigned_to": member_id}, {"$set": {"assigned_to": None}})
+    return jsonify({"deleted": True})
+
+
+@app.route("/api/team/<member_id>/status", methods=["PATCH"])
+@login_required
+@owner_required
+def api_toggle_team_member(member_id):
+    try: oid = ObjectId(member_id)
+    except InvalidId: return jsonify({"error": "Invalid member id"}), 400
+    data = request.get_json(silent=True) or {}
+    status = data.get("status")
+    if status not in ("active", "disabled"):
+        return jsonify({"error": "status must be active or disabled"}), 400
+    result = teams_col.update_one({"_id": oid, "owner_id": current_user_id()}, {"$set": {"status": status}})
+    if result.matched_count == 0:
+        return jsonify({"error": "Team member not found"}), 404
+    return jsonify({"updated": True})
+
+
+# ==================================================================
+# AI GENERATE (manual button in flow builder)
+# ==================================================================
 
 @app.route("/api/ai/generate", methods=["POST"])
 @login_required
@@ -818,11 +1424,14 @@ def api_ai_generate():
 
     return jsonify(result)
 
-#test we campaign
 
+# ==================================================================
+# TEST CAMPAIGN WHATSAPP STEP
+# ==================================================================
 
 @app.route("/api/campaigns/<campaign_id>/test-whatsapp", methods=["POST"])
 @login_required
+@owner_required
 def api_test_campaign_whatsapp(campaign_id):
     data = request.get_json(silent=True) or {}
     step_index = data.get("step_index")
@@ -862,7 +1471,6 @@ def api_test_campaign_whatsapp(campaign_id):
     if not target_phone:
         return jsonify({"error": "That lead has no phone number"}), 400
 
-    # Build lead-like context for template vars / AI even when testing with a raw number
     lead_ctx = lead or {
         "name": "Test Lead", "business_name": "", "email": "",
         "phone": target_phone, "website": "", "description": "",
@@ -892,6 +1500,158 @@ def api_test_campaign_whatsapp(campaign_id):
     return jsonify({"sent": True, "to": target_phone, "message": message})
 
 
+# ==================================================================
+# WEBHOOK — receives inbound WhatsApp messages from Evolution API
+# Each user gets a unique URL: /webhook/<their_webhook_token>
+# ==================================================================
+
+def _extract_incoming_text(message_obj: dict) -> str:
+    if not message_obj:
+        return ""
+    return (
+        message_obj.get("conversation")
+        or (message_obj.get("extendedTextMessage") or {}).get("text")
+        or (message_obj.get("imageMessage") or {}).get("caption")
+        or ""
+    ).strip()
+
+
+def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
+    """Runs in a background thread so the webhook can respond to Evolution
+    API instantly. Logs the message, scores the lead, assigns a team member
+    on first reply, and sends back an AI-generated reply."""
+    try:
+        norm_phone = normalize_phone(phone_raw)
+        owner = users_col.find_one({"_id": ObjectId(owner_id)})
+        if not owner:
+            return
+
+        lead = leads_col.find_one({
+            "owner_id": owner_id,
+            "phone": {"$regex": re.escape(norm_phone[-9:])} if norm_phone else "$^",
+        }) if norm_phone else None
+
+        # Log the inbound message even if we can't match it to a lead yet,
+        # so nothing is silently lost.
+        lead_id = str(lead["_id"]) if lead else ""
+        messages_col.insert_one({
+            "owner_id": owner_id, "lead_id": lead_id, "direction": "in",
+            "channel": "whatsapp", "text": text, "created_at": datetime.utcnow(),
+        })
+
+        if not lead:
+            return  # unknown number — nothing further we can automate safely
+
+        history = list(messages_col.find({"owner_id": owner_id, "lead_id": lead_id}).sort("created_at", 1))
+
+        # 1. Score the lead's temperature based on the conversation so far
+        new_status = classify_lead_temperature(lead, text, history, lead.get("status", "cold"))
+
+        # 2. Assign to a team member on first-ever reply, round robin
+        update = {"status": new_status, "updated_at": datetime.utcnow()}
+        if not lead.get("assigned_to"):
+            assigned = assign_round_robin(owner_id)
+            if assigned:
+                update["assigned_to"] = assigned
+        leads_col.update_one({"_id": lead["_id"]}, {"$set": update})
+
+        # 3. Generate and send an AI auto-reply
+        creds = owner.get("integrations", {})
+        evo_instance = creds.get("evo_instance", "")
+        if not evo_instance:
+            return
+        reply = generate_chat_reply(
+            lead, text, history,
+            task_prompt=lead.get("ai_task_prompt", ""),
+            system_prompt=creds.get("ai_whatsapp_prompt", ""),
+        )
+        if reply.get("success") and reply.get("message"):
+            send_result = send_whatsapp_message(evo_instance, lead.get("phone", phone_raw), reply["message"])
+            if send_result.get("success"):
+                messages_col.insert_one({
+                    "owner_id": owner_id, "lead_id": lead_id, "direction": "out",
+                    "channel": "whatsapp", "text": reply["message"], "created_at": datetime.utcnow(),
+                })
+    except Exception:
+        # Never let a background webhook failure crash the app
+        pass
+
+
+@app.route("/webhook/<token>", methods=["POST"])
+def webhook_receive(token):
+    user = users_col.find_one({"webhook_token": token, "type": "user"})
+    if not user:
+        return jsonify({"error": "Invalid webhook token"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    data = payload.get("data", payload) or {}
+    key = data.get("key", {}) or {}
+
+    if key.get("fromMe"):
+        return jsonify({"ok": True}), 200  # ignore our own outgoing messages echoed back
+
+    remote_jid = key.get("remoteJid", "") or data.get("remoteJid", "")
+    phone = remote_jid.split("@")[0] if remote_jid else ""
+    text = _extract_incoming_text(data.get("message", {}))
+
+    if not phone or not text:
+        return jsonify({"ok": True}), 200
+
+    owner_id = str(user["_id"])
+    threading.Thread(target=_process_incoming_whatsapp, args=(owner_id, phone, text), daemon=True).start()
+    return jsonify({"received": True}), 200
+
+
+# ==================================================================
+# DASHBOARD STATS API
+# ==================================================================
+
+@app.route("/api/dashboard/stats", methods=["GET"])
+@login_required
+def api_dashboard_stats():
+    owner_id = current_user_id()
+    leads_query = _leads_scope_query()
+
+    total_leads = leads_col.count_documents(leads_query)
+    week_ago = datetime.utcnow() - timedelta(days=7)
+    new_this_week = leads_col.count_documents({**leads_query, "created_at": {"$gte": week_ago}})
+
+    status_counts = {"cold": 0, "warm": 0, "hot": 0}
+    for s in LEAD_STATUSES:
+        status_counts[s] = leads_col.count_documents({**leads_query, "status": s})
+
+    exec_query = {"owner_id": owner_id}
+    if not is_owner():
+        my_lead_ids = [str(l["_id"]) for l in leads_col.find(leads_query, {"_id": 1})]
+        exec_query["lead_id"] = {"$in": my_lead_ids}
+
+    messages_sent = executions_col.count_documents({**exec_query, "status": "sent"})
+    messages_failed = executions_col.count_documents({**exec_query, "status": "failed"})
+
+    # Last 14 days sent-message timeseries for the chart
+    since = datetime.utcnow() - timedelta(days=14)
+    daily = {}
+    for e in executions_col.find({**exec_query, "status": "sent", "executed_at": {"$gte": since}}, {"executed_at": 1}):
+        day = e["executed_at"].strftime("%Y-%m-%d")
+        daily[day] = daily.get(day, 0) + 1
+    timeseries = []
+    for i in range(13, -1, -1):
+        day = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
+        timeseries.append({"date": day, "sent": daily.get(day, 0)})
+
+    with_email = leads_col.count_documents({**leads_query, "email": {"$nin": ["", None]}})
+    with_website = leads_col.count_documents({**leads_query, "website": {"$nin": ["", None]}})
+
+    return jsonify({
+        "total_leads": total_leads,
+        "new_this_week": new_this_week,
+        "with_email": with_email,
+        "with_website": with_website,
+        "messages_sent": messages_sent,
+        "messages_failed": messages_failed,
+        "status_counts": status_counts,
+        "timeseries": timeseries,
+    })
 
 
 # ==================================================================

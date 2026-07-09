@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>PravaahAI – Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -61,7 +62,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   width: 3px; border-radius: 0 3px 3px 0; background: var(--accent-1);
 }
 .nav-icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
-.soon-badge { margin-left: auto; background: var(--bg-hover); color: var(--text-dim); font-size: 9.5px; font-weight: 600; padding: 2px 7px; border-radius: 99px; }
+.role-badge { margin-left: auto; background: var(--bg-hover); color: var(--accent-1); font-size: 9.5px; font-weight: 600; padding: 2px 7px; border-radius: 99px; }
 .sidebar-footer { padding: 14px 10px; border-top: 1px solid var(--border); }
 .user-row { display: flex; align-items: center; gap: 10px; padding: 6px 2px; }
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #000; flex-shrink: 0; }
@@ -102,6 +103,16 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
 .stat-icon { font-size: 18px; }
 .stat-label { font-size: 12px; color: var(--text-b); font-weight: 500; }
 .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -.5px; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.yellow { color: var(--yellow); }
+
+/* ─── DASHBOARD CHART GRID ────────────────────────── */
+.chart-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
+.chart-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.chart-card h3 { font-family: 'Space Grotesk', sans-serif; font-size: 14.5px; font-weight: 700; margin-bottom: 14px; }
+.chart-card canvas { max-height: 260px; }
+@media (max-width: 1000px) { .chart-grid { grid-template-columns: 1fr; } }
 
 /* ─── TOOLBAR / BUTTONS ───────────────────────────── */
 .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -128,10 +139,11 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
 /* ─── SHEET TABLE ─────────────────────────────────── */
 .sheet-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .sheet-scroll { overflow-x: auto; }
-table.sheet { width: 100%; border-collapse: collapse; min-width: 980px; }
+table.sheet { width: 100%; border-collapse: collapse; min-width: 1180px; }
 table.sheet thead th { font-size: 11.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; padding: 10px 4px; background: var(--bg-hover); text-align: left; position: sticky; top: 0; }
 table.sheet thead th.col-num { width: 36px; text-align: center; }
 table.sheet thead th.col-actions { width: 70px; text-align: center; }
+table.sheet thead th.col-status { width: 100px; }
 table.sheet tbody tr { border-top: 1px solid var(--border); }
 table.sheet tbody tr.is-dirty { background: rgba(0,212,255,.04); }
 table.sheet tbody tr.is-new   { background: rgba(34,197,94,.05); }
@@ -140,8 +152,17 @@ table.sheet td.row-num { text-align: center; font-size: 11.5px; color: var(--tex
 .cell-input { width: 100%; background: transparent; border: 1px solid transparent; outline: none; color: var(--text-h); font-size: 13px; font-family: inherit; padding: 11px 10px; border-radius: 0; }
 .cell-input:focus { border-color: var(--accent-1); background: var(--bg-hover); border-radius: 6px; }
 .cell-input::placeholder { color: var(--text-dim); }
-td.col-description .cell-input { min-width: 200px; }
-td.col-website .cell-input { min-width: 150px; }
+td.col-description .cell-input { min-width: 180px; }
+td.col-website .cell-input { min-width: 140px; }
+td.col-aitask .cell-input { min-width: 160px; }
+.status-select {
+  width: 100%; background: transparent; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-h); font-size: 12px; font-family: inherit; padding: 6px 8px; outline: none; cursor: pointer;
+}
+.status-select.cold { color: var(--accent-1); }
+.status-select.warm { color: var(--yellow); }
+.status-select.hot  { color: var(--red); }
+.assigned-tag { font-size: 11px; color: var(--text-b); padding: 8px 6px; display: block; }
 .row-actions { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 6px; }
 .row-act-btn { width: 26px; height: 26px; border-radius: 6px; background: var(--bg-hover); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; transition: background .15s; }
 .row-act-btn:hover { background: rgba(239,68,68,.18); }
@@ -160,9 +181,7 @@ td.col-website .cell-input { min-width: 150px; }
 .camp-name { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 700; }
 .camp-desc { font-size: 12.5px; color: var(--text-b); margin-bottom: 14px; line-height: 1.5; }
 .camp-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.badge {
-  font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px;
-}
+.badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
 .badge-draft     { background: rgba(75,90,116,.4);  color: var(--text-b); }
 .badge-active    { background: rgba(0,212,255,.15); color: var(--accent-1); }
 .badge-running   { background: rgba(245,158,11,.15); color: var(--yellow); }
@@ -175,8 +194,6 @@ td.col-website .cell-input { min-width: 150px; }
 
 /* ─── FLOW BUILDER ────────────────────────────────── */
 .flow-builder-wrap { display: flex; gap: 16px; height: calc(100vh - 180px); min-height: 600px; }
-
-/* Palette */
 .flow-palette {
   width: 200px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 14px; overflow-y: auto;
@@ -190,8 +207,6 @@ td.col-website .cell-input { min-width: 150px; }
 .palette-item:hover { border-color: var(--accent-1); }
 .palette-item:active { cursor: grabbing; }
 .pi-icon { font-size: 16px; flex-shrink: 0; }
-
-/* Canvas */
 .flow-canvas-wrap {
   flex: 1; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
   overflow-y: auto; padding: 20px; position: relative;
@@ -202,8 +217,6 @@ td.col-website .cell-input { min-width: 150px; }
   text-align: center; color: var(--text-dim); font-size: 13.5px;
 }
 .flow-canvas.drag-over .flow-drop-hint { border-color: var(--accent-1); color: var(--accent-1); }
-
-/* Flow steps */
 .flow-steps-list { display: flex; flex-direction: column; gap: 0; }
 .flow-connector {
   width: 2px; height: 24px; background: var(--border); margin: 0 auto;
@@ -215,8 +228,7 @@ td.col-website .cell-input { min-width: 150px; }
 }
 .flow-step {
   background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 14px 16px; position: relative; transition: border-color .2s;
-  cursor: default;
+  padding: 14px 16px; position: relative; transition: border-color .2s; cursor: default;
 }
 .flow-step:hover { border-color: rgba(0,212,255,.3); }
 .flow-step.dragging-step { opacity: .4; }
@@ -242,7 +254,6 @@ td.col-website .cell-input { min-width: 150px; }
 .ai-block { border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 4px; }
 .ai-toggle-label { font-size: 12px; color: var(--text-h); font-weight: 500; }
 .ai-toggle-label input { accent-color: var(--accent-1); }
-/* Step color accents */
 .flow-step[data-type="whatsapp"]    { border-left: 3px solid var(--green); }
 .flow-step[data-type="email"]       { border-left: 3px solid var(--accent-1); }
 .flow-step[data-type="wait"]        { border-left: 3px solid var(--yellow); }
@@ -260,6 +271,9 @@ td.col-website .cell-input { min-width: 150px; }
   padding: 9px 12px; color: var(--text-h); font-size: 13px; outline: none; font-family: inherit; width: 100%;
 }
 .form-input:focus { border-color: var(--accent-1); }
+.form-input[readonly] { color: var(--text-b); cursor: text; }
+.copy-row { display: flex; gap: 8px; }
+.copy-row .form-input { flex: 1; }
 .integration-status { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 0; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; }
 .status-dot.ok     { background: var(--green); box-shadow: 0 0 6px var(--green); }
@@ -267,7 +281,7 @@ td.col-website .cell-input { min-width: 150px; }
 .status-dot.error  { background: var(--red); }
 .settings-actions { display: flex; gap: 8px; margin-top: 6px; }
 
-/* ─── LOGS TABLE ─────────────────────────────────── */
+/* ─── LOGS / TEAM TABLE ───────────────────────────── */
 .logs-table-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 table.logs-table { width: 100%; border-collapse: collapse; }
 table.logs-table th { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; padding: 10px 14px; background: var(--bg-hover); text-align: left; }
@@ -286,8 +300,6 @@ table.logs-table td:first-child { color: var(--text-h); }
 .modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 700; margin-bottom: 4px; }
 .modal-sub { font-size: 12.5px; color: var(--text-b); margin-bottom: 18px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
-
-/* Lead selector in campaign modal */
 .lead-selector { max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .lead-sel-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px; transition: background .15s; }
 .lead-sel-item:last-child { border-bottom: none; }
@@ -295,6 +307,11 @@ table.logs-table td:first-child { color: var(--text-h); }
 .lead-sel-item input[type="checkbox"] { accent-color: var(--accent-1); }
 .lead-sel-name { font-weight: 500; }
 .lead-sel-meta { font-size: 11.5px; color: var(--text-b); margin-left: auto; }
+.chat-thread { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px; }
+.chat-bubble { max-width: 78%; padding: 8px 12px; border-radius: 12px; font-size: 12.5px; line-height: 1.45; }
+.chat-bubble.in  { align-self: flex-start; background: var(--bg-hover); border: 1px solid var(--border); }
+.chat-bubble.out { align-self: flex-end; background: rgba(0,212,255,.14); border: 1px solid rgba(0,212,255,.3); }
+.chat-time { font-size: 9.5px; color: var(--text-dim); margin-top: 3px; }
 
 /* ─── TOAST ──────────────────────────────────────── */
 #toast {
@@ -337,25 +354,36 @@ table.logs-table td:first-child { color: var(--text-h); }
     </div>
   </div>
   <div class="nav-section">
+    <div class="nav-label">Overview</div>
+    <a class="nav-item active" href="#" onclick="showPage('dashboard', this)">
+      <span class="nav-icon">📊</span> Dashboard
+    </a>
     <div class="nav-label">Leads</div>
-    <a class="nav-item active" href="#" onclick="showPage('leads', this)">
+    <a class="nav-item" href="#" onclick="showPage('leads', this)">
       <span class="nav-icon">👥</span> My Leads
     </a>
     <div class="nav-label">Campaigns</div>
-    <a class="nav-item" href="#" onclick="showPage('campaigns', this)">
+    <a class="nav-item" href="#" onclick="showPage('campaigns', this)" id="nav-campaigns">
       <span class="nav-icon">🚀</span> Campaigns
     </a>
-    <div class="nav-label">Settings</div>
-    <a class="nav-item" href="#" onclick="showPage('settings', this)">
+    <div class="nav-label">Team</div>
+    <a class="nav-item" href="#" onclick="showPage('team', this)" id="nav-team">
+      <span class="nav-icon">🧑‍🤝‍🧑</span> Team
+    </a>
+    <div class="nav-label">Account</div>
+    <a class="nav-item" href="#" onclick="showPage('profile', this)">
+      <span class="nav-icon">🪪</span> Profile
+    </a>
+    <a class="nav-item" href="#" onclick="showPage('settings', this)" id="nav-settings">
       <span class="nav-icon">⚙️</span> Integrations
     </a>
   </div>
   <div class="sidebar-footer">
     <div class="user-row">
-      <div class="avatar">{{ user.username[0]|upper if user.username else "U" }}</div>
+      <div class="avatar" id="sidebar-avatar">{{ (display_name or user.username or "U")[0]|upper }}</div>
       <div>
-        <div class="user-name">{{ user.username or "User" }}</div>
-        <div class="user-email">{{ user.email or "" }}</div>
+        <div class="user-name">{{ display_name or user.username or "User" }}</div>
+        <div class="user-email" id="sidebar-role-label">{{ "Owner" if role == "owner" else "Team Member" }}</div>
       </div>
       <a class="logout-link" href="/logout" title="Logout">⏻</a>
     </div>
@@ -371,25 +399,44 @@ table.logs-table td:first-child { color: var(--text-h); }
       <input type="text" id="global-search" placeholder="Search leads…" oninput="handleSearchInput()" />
     </div>
     <div class="topbar-right">
-      <div class="top-avatar">{{ user.username[0]|upper if user.username else "U" }}</div>
+      <div class="top-avatar">{{ (display_name or user.username or "U")[0]|upper }}</div>
     </div>
   </header>
 
   <main id="content">
 
-    <!-- ═══ PAGE: LEADS ═══ -->
-    <div class="page active" id="page-leads">
+    <!-- ═══ PAGE: DASHBOARD ═══ -->
+    <div class="page active" id="page-dashboard">
       <div class="page-header">
-        <h1>Welcome back, {{ user.username or "there" }} 👋</h1>
+        <h1>Welcome back, {{ display_name or user.username or "there" }} 👋</h1>
+        <p>Here's how your outreach is performing.</p>
+      </div>
+      <div class="stats-row" id="dash-stats-row"></div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>📈 Messages Sent — Last 14 Days</h3>
+          <canvas id="chart-timeseries"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>🌡️ Lead Temperature</h3>
+          <canvas id="chart-status"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PAGE: LEADS ═══ -->
+    <div class="page" id="page-leads">
+      <div class="page-header">
+        <h1>My Leads 👥</h1>
         <p>Manage and grow your lead list — add manually, edit inline, or import in bulk.</p>
       </div>
-      <div class="stats-row" id="stats-row"></div>
       <div class="toolbar">
         <button class="btn btn-primary" onclick="openAddModal()">＋ Add Lead</button>
         <button class="btn btn-ghost" onclick="addBlankRow()">＋ Add Row</button>
         <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">⬆ Import CSV / Excel</button>
         <input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportFile(event)" />
-        <a class="btn btn-ghost btn-sm" href="/api/leads/template">⬇ Template</a>
+        <a class="btn btn-ghost btn-sm" href="/api/leads/template">⬇ Template (Excel)</a>
+        <a class="btn btn-ghost btn-sm" href="/api/leads/export">⬇ Export My Leads</a>
         <div class="spacer"></div>
         <span class="dirty-note" id="dirty-note" style="display:none;">Unsaved changes</span>
         <button class="btn btn-primary" id="save-all-btn" onclick="saveAll()" disabled>💾 Save All</button>
@@ -400,7 +447,8 @@ table.logs-table td:first-child { color: var(--text-h); }
             <thead>
               <tr>
                 <th class="col-num">#</th>
-                <th>Name</th><th>Business Name</th><th>Email</th><th>Phone</th><th>Website</th><th>Description</th>
+                <th>Name</th><th>Business Name</th><th>Email</th><th>Phone</th><th>Website</th>
+                <th>Description</th><th>AI Task</th><th class="col-status">Status</th><th>Assigned</th>
                 <th class="col-actions">Actions</th>
               </tr>
             </thead>
@@ -447,7 +495,6 @@ table.logs-table td:first-child { color: var(--text-h); }
       </div>
 
       <div class="flow-builder-wrap">
-        <!-- Palette -->
         <div class="flow-palette">
           <div class="palette-title">Step Types</div>
           <div class="palette-item" draggable="true" data-step-type="whatsapp" ondragstart="paletteDragStart(event)">
@@ -464,7 +511,6 @@ table.logs-table td:first-child { color: var(--text-h); }
           </div>
         </div>
 
-        <!-- Canvas -->
         <div class="flow-canvas-wrap" id="flow-canvas-wrap"
              ondragover="canvasDragOver(event)" ondrop="canvasDrop(event)" ondragleave="canvasDragLeave(event)">
           <div class="flow-canvas" id="flow-canvas">
@@ -473,6 +519,50 @@ table.logs-table td:first-child { color: var(--text-h); }
             </div>
             <div class="flow-steps-list" id="flow-steps-list"></div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PAGE: TEAM ═══ -->
+    <div class="page" id="page-team">
+      <div class="page-header">
+        <h1>Team 🧑‍🤝‍🧑</h1>
+        <p>Invite teammates. When a lead replies, they're auto-assigned round-robin to your active team members.</p>
+      </div>
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="openInviteModal()">＋ Invite Team Member</button>
+      </div>
+      <div class="logs-table-wrap">
+        <table class="logs-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Assigned Leads</th><th>Joined</th><th></th></tr></thead>
+          <tbody id="team-tbody"><tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ PAGE: PROFILE ═══ -->
+    <div class="page" id="page-profile">
+      <div class="page-header">
+        <h1>Profile 🪪</h1>
+        <p>Your business details, used to personalize AI-generated outreach.</p>
+      </div>
+      <div class="settings-grid">
+        <div class="settings-card">
+          <div class="settings-card-title">🏢 Business Details</div>
+          <div class="settings-card-sub" id="profile-readonly-note" style="display:none;">Only the account owner can edit these details.</div>
+          <div class="form-row"><label>Business Name</label><input class="form-input" id="p-business-name" /></div>
+          <div class="form-row"><label>Business Type</label><input class="form-input" id="p-business-type" placeholder="e.g. Import/Export Trading" /></div>
+          <div class="form-row"><label>Website</label><input class="form-input" id="p-website" placeholder="https://…" /></div>
+          <div class="form-row"><label>Address</label><input class="form-input" id="p-address" /></div>
+          <div class="form-row"><label>Contact Phone</label><input class="form-input" id="p-phone" /></div>
+          <div class="settings-actions"><button class="btn btn-primary btn-sm" id="profile-save-btn" onclick="saveProfile()">Save</button></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">🔐 Account</div>
+          <div class="settings-card-sub">Your login email and password.</div>
+          <div class="form-row"><label>Email</label><input class="form-input" id="p-email" /></div>
+          <div class="form-row"><label>New Password <span style="color:var(--text-dim);font-size:11px;">(leave blank to keep current)</span></label><input class="form-input" type="password" id="p-password" placeholder="••••••••" /></div>
+          <div class="settings-actions"><button class="btn btn-primary btn-sm" id="account-save-btn" onclick="saveProfile()">Save</button></div>
         </div>
       </div>
     </div>
@@ -487,13 +577,20 @@ table.logs-table td:first-child { color: var(--text-h); }
         <!-- WhatsApp / Evolution -->
         <div class="settings-card">
           <div class="settings-card-title">💬 WhatsApp</div>
-          <div class="settings-card-sub">Just enter your Evolution instance name — the server URL and API key are managed for you.</div>
+          <div class="settings-card-sub">Enter your Evolution instance name — the server URL and API key are managed for you.</div>
           <div class="form-row">
             <label>Instance Name</label>
             <input class="form-input" id="s-evo-instance" placeholder="e.g. my-instance" />
           </div>
           <div class="integration-status" id="evo-status">
             <span class="status-dot off"></span> <span>Not configured</span>
+          </div>
+          <div class="form-row" style="margin-top:10px;">
+            <label>Your Unique Inbound Webhook <span style="color:var(--text-dim);font-size:11px;">(paste into Evolution API webhook settings)</span></label>
+            <div class="copy-row">
+              <input class="form-input" id="s-webhook-url" readonly />
+              <button class="btn btn-ghost btn-sm" onclick="copyWebhookUrl()">📋 Copy</button>
+            </div>
           </div>
           <div class="settings-actions">
             <button class="btn btn-ghost btn-sm" onclick="testWhatsApp()">🔌 Test Connection</button>
@@ -545,7 +642,7 @@ table.logs-table td:first-child { color: var(--text-h); }
         <!-- AI Prompts -->
         <div class="settings-card">
           <div class="settings-card-title">🤖 AI Prompts</div>
-          <div class="settings-card-sub">Write your own system prompt for how AI generates outreach. Leave blank to use PravaahAI's default style.</div>
+          <div class="settings-card-sub">System prompt for AI-generated outreach and auto-replies. Leave blank to use PravaahAI's default style. Use each lead's "AI Task" cell in the Leads sheet to steer what the bot pitches to that specific lead when it replies.</div>
           <div class="form-row">
             <label>💬 WhatsApp System Prompt</label>
             <textarea class="form-input" id="s-ai-wa-prompt" rows="4" style="resize:vertical;font-family:inherit;" placeholder="e.g. Write short, casual WhatsApp messages, mention our 20% first-order discount, always end with a question."></textarea>
@@ -577,6 +674,7 @@ table.logs-table td:first-child { color: var(--text-h); }
     <div class="form-row"><label>Phone</label><input class="form-input" id="m-phone" placeholder="+971 50 123 4567" /></div>
     <div class="form-row"><label>Website</label><input class="form-input" id="m-website" placeholder="https://..." /></div>
     <div class="form-row"><label>Description</label><input class="form-input" id="m-description" placeholder="What are they looking for?" /></div>
+    <div class="form-row"><label>AI Task <span style="color:var(--text-dim);font-size:11px;">(optional — goal for the auto-reply bot)</span></label><input class="form-input" id="m-aitask" placeholder="e.g. Push our bulk basmati rice offer" /></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
       <button class="btn btn-primary" onclick="submitAddModal()">Save Lead</button>
@@ -653,6 +751,38 @@ table.logs-table td:first-child { color: var(--text-h); }
   </div>
 </div>
 
+<!-- Invite Team Member -->
+<div class="modal-overlay" id="invite-modal">
+  <div class="modal-box">
+    <div class="modal-title">Invite a Team Member</div>
+    <div class="modal-sub">They'll get their login email + a temporary password sent by email. They won't see Integrations, and will only see leads assigned to them.</div>
+    <div class="form-row"><label>Name</label><input class="form-input" id="inv-name" placeholder="Jordan Lee" /></div>
+    <div class="form-row"><label>Email</label><input class="form-input" id="inv-email" placeholder="jordan@yourcompany.com" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('invite-modal')">Cancel</button>
+      <button class="btn btn-primary" id="invite-send-btn" onclick="sendInvite()">Send Invite</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lead Conversation / Manual Send -->
+<div class="modal-overlay" id="lead-chat-modal">
+  <div class="modal-box wide">
+    <div class="modal-title" id="chat-modal-title">Conversation</div>
+    <div class="modal-sub">Full message history with this lead, plus a manual send box.</div>
+    <div class="chat-thread" id="chat-thread"></div>
+    <div class="form-row" style="margin-top:12px;">
+      <label>Send a manual WhatsApp message</label>
+      <input class="form-input" id="chat-manual-msg" placeholder="Type a message…" />
+    </div>
+    <div class="modal-actions">
+      <a class="btn btn-ghost" id="chat-call-btn" href="tel:" target="_blank">📞 Call</a>
+      <button class="btn btn-ghost" onclick="closeModal('lead-chat-modal')">Close</button>
+      <button class="btn btn-primary" onclick="sendManualChatMessage()">Send</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -661,24 +791,44 @@ table.logs-table td:first-child { color: var(--text-h); }
 ════════════════════════════════════════════════ */
 let leads         = [];
 let campaigns     = [];
+let teamMembers   = [];
 let searchQuery   = "";
 let searchDebounce = null;
+let myRole        = "owner";
+let chatLeadId    = null;
+let timeseriesChart = null;
+let statusChart      = null;
 
 // Flow builder state
 let currentCampaignId   = null;
 let currentCampaignLeadIds = [];
-let flowSteps           = [];   // array of step objects
-let dragSrcPaletteType  = null; // dragging from palette
-let dragSrcStepIdx      = null; // dragging existing step to reorder
+let flowSteps           = [];
+let dragSrcPaletteType  = null;
+let dragSrcStepIdx      = null;
 
 /* ════════════════════════════════════════════════
    INIT
 ════════════════════════════════════════════════ */
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadMe();
   loadLeads();
-  loadCampaigns();
-  loadIntegrations();
+  loadDashboardStats();
+  if (myRole === "owner") { loadCampaigns(); loadTeam(); loadIntegrations(); }
+  loadProfile();
 });
+
+async function loadMe() {
+  try {
+    const res = await fetch("/api/me");
+    const data = await res.json();
+    myRole = data.role || "owner";
+    if (myRole !== "owner") {
+      document.getElementById("nav-team").style.display = "none";
+      document.getElementById("nav-settings").style.display = "none";
+      document.getElementById("sidebar-role-label").textContent = "Team Member";
+    }
+  } catch { /* default owner view */ }
+}
 
 /* ════════════════════════════════════════════════
    PAGE ROUTING
@@ -688,18 +838,78 @@ function showPage(name, navEl) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   if (navEl) navEl.classList.add('active');
-  // Hide search for non-leads pages
   document.querySelector('.search-wrap').style.opacity = (name === 'leads') ? '1' : '0.3';
-  if (name === 'campaigns') loadCampaigns(); // refresh stats each time
+  if (name === 'campaigns') loadCampaigns();
+  if (name === 'team') loadTeam();
+  if (name === 'dashboard') loadDashboardStats();
+  if (name === 'profile') loadProfile();
 }
 
 function backToCampaigns() {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-campaigns').classList.add('active');
-  const campNav = document.querySelector('[onclick*="campaigns"]');
+  const campNav = document.getElementById('nav-campaigns');
   if (campNav) campNav.classList.add('active');
   loadCampaigns();
+}
+
+/* ════════════════════════════════════════════════
+   DASHBOARD
+════════════════════════════════════════════════ */
+async function loadDashboardStats() {
+  try {
+    const res = await fetch("/api/dashboard/stats");
+    if (!res.ok) throw new Error();
+    const d = await res.json();
+    const stats = [
+      { icon: "👥", label: "Total Leads",     value: d.total_leads,   cls: "" },
+      { icon: "🆕", label: "New This Week",   value: d.new_this_week, cls: "" },
+      { icon: "✅", label: "Messages Sent",   value: d.messages_sent, cls: "green" },
+      { icon: "❌", label: "Failed Sends",    value: d.messages_failed, cls: "red" },
+    ];
+    document.getElementById("dash-stats-row").innerHTML = stats.map(s => `
+      <div class="stat-card">
+        <div class="stat-header"><span class="stat-icon">${s.icon}</span><span class="stat-label">${s.label}</span></div>
+        <div class="stat-value ${s.cls}">${s.value}</div>
+      </div>`).join("");
+
+    const ctx1 = document.getElementById("chart-timeseries").getContext("2d");
+    if (timeseriesChart) timeseriesChart.destroy();
+    timeseriesChart = new Chart(ctx1, {
+      type: "line",
+      data: {
+        labels: d.timeseries.map(p => p.date.slice(5)),
+        datasets: [{
+          label: "Messages Sent", data: d.timeseries.map(p => p.sent),
+          borderColor: "#00d4ff", backgroundColor: "rgba(0,212,255,0.12)",
+          fill: true, tension: 0.35, pointRadius: 2,
+        }]
+      },
+      options: {
+        responsive: true, plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" } },
+          y: { ticks: { color: "#94a3b8", precision: 0 }, grid: { color: "rgba(255,255,255,0.05)" } },
+        }
+      }
+    });
+
+    const ctx2 = document.getElementById("chart-status").getContext("2d");
+    if (statusChart) statusChart.destroy();
+    statusChart = new Chart(ctx2, {
+      type: "doughnut",
+      data: {
+        labels: ["Cold", "Warm", "Hot"],
+        datasets: [{
+          data: [d.status_counts.cold, d.status_counts.warm, d.status_counts.hot],
+          backgroundColor: ["#00d4ff", "#f59e0b", "#ef4444"],
+          borderWidth: 0,
+        }]
+      },
+      options: { responsive: true, plugins: { legend: { position: "bottom", labels: { color: "#94a3b8" } } } }
+    });
+  } catch { /* silent */ }
 }
 
 /* ════════════════════════════════════════════════
@@ -711,29 +921,8 @@ async function loadLeads() {
     if (!res.ok) throw new Error("Failed to load leads");
     const data = await res.json();
     leads = data.leads.map(l => ({ ...l, _dirty: false }));
-    renderAll();
+    renderSheet();
   } catch (err) { showToast("Could not load leads. " + err.message, "error"); }
-}
-
-function renderAll() { renderStats(); renderSheet(); }
-
-function renderStats() {
-  const total    = leads.length;
-  const weekAgo  = Date.now() - 7 * 86400000;
-  const thisWeek = leads.filter(l => l.created_at && new Date(l.created_at).getTime() >= weekAgo).length;
-  const withEmail   = leads.filter(l => l.email).length;
-  const withWebsite = leads.filter(l => l.website).length;
-  const stats = [
-    { icon: "👥", label: "Total Leads",     value: total },
-    { icon: "🆕", label: "Added This Week", value: thisWeek },
-    { icon: "✉️", label: "With Email",      value: withEmail },
-    { icon: "🌐", label: "With Website",    value: withWebsite },
-  ];
-  document.getElementById("stats-row").innerHTML = stats.map(s => `
-    <div class="stat-card">
-      <div class="stat-header"><span class="stat-icon">${s.icon}</span><span class="stat-label">${s.label}</span></div>
-      <div class="stat-value">${s.value}</div>
-    </div>`).join("");
 }
 
 function renderSheet() {
@@ -745,17 +934,35 @@ function renderSheet() {
   updateSaveButtonState();
 }
 
+function assignedLabel(lead) {
+  if (!lead.assigned_to) return "Unassigned";
+  const m = teamMembers.find(t => t._id === lead.assigned_to);
+  return m ? m.name : "Assigned";
+}
+
 function rowHtml(lead, idx) {
   const cls = lead._dirty ? (lead._id ? "is-dirty" : "is-new") : "";
   return `<tr data-idx="${idx}" class="${cls}">
     <td class="row-num">${idx+1}</td>
-    <td class="col-name"><input class="cell-input" value="${esc(lead.name)}" placeholder="Name" oninput="updateCell(${idx},'name',this.value)" /></td>
+    <td class="col-name"><input class="cell-input" value="${esc(lead.name)}" placeholder="Name" oninput="updateCell(${idx},'name',this.value)" onclick="event.stopPropagation()" /></td>
     <td class="col-business"><input class="cell-input" value="${esc(lead.business_name)}" placeholder="Business" oninput="updateCell(${idx},'business_name',this.value)" /></td>
     <td class="col-email"><input class="cell-input" value="${esc(lead.email)}" placeholder="Email" oninput="updateCell(${idx},'email',this.value)" /></td>
     <td class="col-phone"><input class="cell-input" value="${esc(lead.phone)}" placeholder="Phone" oninput="updateCell(${idx},'phone',this.value)" /></td>
     <td class="col-website"><input class="cell-input" value="${esc(lead.website)}" placeholder="Website" oninput="updateCell(${idx},'website',this.value)" /></td>
     <td class="col-description"><input class="cell-input" value="${esc(lead.description)}" placeholder="Description" oninput="updateCell(${idx},'description',this.value)" /></td>
-    <td class="col-actions"><div class="row-actions"><div class="row-act-btn" onclick="deleteRow(${idx})">🗑</div></div></td>
+    <td class="col-aitask"><input class="cell-input" value="${esc(lead.ai_task_prompt)}" placeholder="Bot goal for this lead" oninput="updateCell(${idx},'ai_task_prompt',this.value)" /></td>
+    <td class="col-status">
+      <select class="status-select ${lead.status||'cold'}" onchange="updateLeadStatus('${lead._id}',this.value)">
+        <option value="cold" ${lead.status==='cold'?'selected':''}>❄️ Cold</option>
+        <option value="warm" ${lead.status==='warm'?'selected':''}>🌤 Warm</option>
+        <option value="hot"  ${lead.status==='hot'?'selected':''}>🔥 Hot</option>
+      </select>
+    </td>
+    <td><span class="assigned-tag">${assignedLabel(lead)}</span></td>
+    <td class="col-actions"><div class="row-actions">
+      <div class="row-act-btn" title="Conversation" onclick="openLeadChat('${lead._id}','${esc(lead.name)}')">💬</div>
+      <div class="row-act-btn" title="Delete" onclick="deleteRow(${idx})">🗑</div>
+    </div></td>
   </tr>`;
 }
 
@@ -770,8 +977,19 @@ function updateCell(idx, field, value) {
   updateSaveButtonState();
 }
 
+async function updateLeadStatus(leadId, status) {
+  if (!leadId) return; // unsaved row — will be saved as "cold" until Save All
+  try {
+    const res = await fetch(`/api/leads/${leadId}/status`, {
+      method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({status})
+    });
+    if (!res.ok) throw new Error("Could not update status");
+    showToast("Status updated", "success");
+  } catch(err) { showToast(err.message, "error"); }
+}
+
 function addBlankRow() {
-  leads.unshift({_id:null,name:"",business_name:"",email:"",phone:"",website:"",description:"",_dirty:true});
+  leads.unshift({_id:null,name:"",business_name:"",email:"",phone:"",website:"",description:"",ai_task_prompt:"",status:"cold",assigned_to:null,_dirty:true});
   renderSheet();
   document.querySelector('tr[data-idx="0"] .col-name input')?.focus();
 }
@@ -783,7 +1001,7 @@ async function deleteRow(idx) {
   try {
     const res = await fetch(`/api/leads/${lead._id}`, {method:"DELETE"});
     if (!res.ok) throw new Error("Delete failed");
-    leads.splice(idx,1); renderAll(); showToast("Lead deleted");
+    leads.splice(idx,1); renderSheet(); showToast("Lead deleted");
   } catch(err) { showToast(err.message, "error"); }
 }
 
@@ -811,9 +1029,9 @@ async function saveAll() {
   finally { btn.textContent = "💾 Save All"; }
 }
 
-// Modal
+// Add-lead modal
 function openAddModal() {
-  ["m-name","m-business","m-email","m-phone","m-website","m-description"].forEach(id=>document.getElementById(id).value="");
+  ["m-name","m-business","m-email","m-phone","m-website","m-description","m-aitask"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("add-modal").classList.add("open");
 }
 function closeAddModal() { document.getElementById("add-modal").classList.remove("open"); }
@@ -826,6 +1044,7 @@ async function submitAddModal() {
     phone:         document.getElementById("m-phone").value.trim(),
     website:       document.getElementById("m-website").value.trim(),
     description:   document.getElementById("m-description").value.trim(),
+    ai_task_prompt: document.getElementById("m-aitask").value.trim(),
   };
   if (!payload.name) { showToast("Name is required.", "error"); return; }
   try {
@@ -855,10 +1074,52 @@ function handleSearchInput() {
   searchDebounce = setTimeout(loadLeads, 350);
 }
 
+/* ── Lead conversation / manual send ── */
+async function openLeadChat(leadId, name) {
+  chatLeadId = leadId;
+  document.getElementById("chat-modal-title").textContent = `Conversation — ${name}`;
+  document.getElementById("chat-manual-msg").value = "";
+  const lead = leads.find(l => l._id === leadId);
+  document.getElementById("chat-call-btn").href = lead && lead.phone ? `tel:${lead.phone}` : "#";
+  document.getElementById("chat-thread").innerHTML = `<div style="text-align:center;color:var(--text-dim);font-size:12.5px;">Loading…</div>`;
+  document.getElementById("lead-chat-modal").classList.add("open");
+  try {
+    const res = await fetch(`/api/leads/${leadId}/messages`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not load conversation");
+    if (!data.messages.length) {
+      document.getElementById("chat-thread").innerHTML = `<div style="text-align:center;color:var(--text-dim);font-size:12.5px;">No messages yet.</div>`;
+      return;
+    }
+    document.getElementById("chat-thread").innerHTML = data.messages.map(m => `
+      <div class="chat-bubble ${m.direction}">
+        ${esc(m.text)}
+        <div class="chat-time">${m.created_at ? new Date(m.created_at).toLocaleString() : ""}</div>
+      </div>`).join("");
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+async function sendManualChatMessage() {
+  const msg = document.getElementById("chat-manual-msg").value.trim();
+  if (!msg || !chatLeadId) return;
+  try {
+    const res = await fetch(`/api/leads/${chatLeadId}/send-whatsapp`, {
+      method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({message: msg})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Send failed");
+    document.getElementById("chat-manual-msg").value = "";
+    showToast("Message sent ✓", "success");
+    const name = document.getElementById("chat-modal-title").textContent.replace("Conversation — ","");
+    openLeadChat(chatLeadId, name);
+  } catch(err) { showToast(err.message, "error"); }
+}
+
 /* ════════════════════════════════════════════════
-   CAMPAIGNS
+   CAMPAIGNS  (owner only)
 ════════════════════════════════════════════════ */
 async function loadCampaigns() {
+  if (myRole !== "owner") return;
   try {
     const res = await fetch("/api/campaigns");
     if (!res.ok) throw new Error();
@@ -932,12 +1193,12 @@ async function deleteCampaign(id) {
 }
 
 async function quickLaunch(id) {
-  if (!confirm("Launch this campaign now? It will keep running on the server even if you close this tab.")) return;
+  if (!confirm("Launch this campaign now? It sends in throttled bursts and keeps running on the server even if you close this tab.")) return;
   try {
     const res = await fetch(`/api/campaigns/${id}/launch`,{method:"POST"});
     const data = await res.json();
     if (!res.ok) throw new Error(data.error||"Launch failed");
-    showToast("Campaign launched! 🚀 It will keep running in the background.", "success");
+    showToast(data.note ? `Campaign launched! 🚀 ${data.note}` : "Campaign launched! 🚀", "success");
     await loadCampaigns();
   } catch(err) { showToast(err.message, "error"); }
 }
@@ -972,16 +1233,12 @@ function channelBadge(ch) {
 }
 
 /* ════════════════════════════════════════════════
-   FLOW BUILDER
+   FLOW BUILDER  (owner only)
 ════════════════════════════════════════════════ */
 async function openFlowBuilder(campaignId) {
-  // Show the page
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-flow-builder').classList.add('active');
-
   currentCampaignId = campaignId;
-
-  // Load campaign data
   try {
     const res  = await fetch(`/api/campaigns/${campaignId}`);
     const data = await res.json();
@@ -1003,14 +1260,12 @@ function renderFlowCanvas() {
   const list = document.getElementById("flow-steps-list");
   const hint = document.getElementById("flow-drop-hint");
   hint.style.display = flowSteps.length ? "none" : "block";
-
   list.innerHTML = flowSteps.map((step, idx) => {
     const connector = idx > 0 ? `<div class="flow-connector"></div>` : "";
     return connector + stepHtml(step, idx);
   }).join("");
 }
 
-/* AI block shared by whatsapp + email steps */
 function aiBlockHtml(step, idx, kind) {
   const checked = step.use_ai ? "checked" : "";
   return `
@@ -1124,69 +1379,50 @@ function stepHtml(step, idx) {
   </div>`;
 }
 
-function updateStep(idx, key, value) {
-  flowSteps[idx][key] = value;
-}
+function updateStep(idx, key, value) { flowSteps[idx][key] = value; }
+function deleteStep(idx) { flowSteps.splice(idx, 1); renderFlowCanvas(); }
 
-function deleteStep(idx) {
-  flowSteps.splice(idx, 1);
-  renderFlowCanvas();
-}
-
-/* AI preview: fills in the step's fields using the first assigned lead */
 async function previewAIGenerate(idx, kind) {
   if (!currentCampaignLeadIds.length) { showToast("Assign at least one lead first.", "error"); return; }
   const leadId = currentCampaignLeadIds[0];
   showToast("Generating with AI…");
   try {
     const res = await fetch("/api/ai/generate", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
+      method: "POST", headers: {"Content-Type":"application/json"},
       body: JSON.stringify({ lead_id: leadId, type: kind, instructions: flowSteps[idx].ai_instructions || "" })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Generation failed");
-    if (kind === "whatsapp") {
-      flowSteps[idx].message = data.message;
-    } else {
-      flowSteps[idx].subject = data.subject;
-      flowSteps[idx].body    = data.body;
-    }
+    if (kind === "whatsapp") { flowSteps[idx].message = data.message; }
+    else { flowSteps[idx].subject = data.subject; flowSteps[idx].body = data.body; }
     renderFlowCanvas();
     showToast("Generated ✓ — edit as needed, then Save Flow.", "success");
   } catch(err) { showToast(err.message, "error"); }
 }
 
-/* ── Test WhatsApp send ── */
 let testStepIdx = null;
-
 async function openTestWhatsAppModal(idx) {
   testStepIdx = idx;
-  // Save current flow first so the backend sends the exact step you're editing
   await saveFlow();
   document.getElementById("test-wa-phone").value = "";
   renderTestLeadOptions();
   document.getElementById("test-whatsapp-modal").classList.add("open");
 }
-
 function renderTestLeadOptions() {
   const sel = document.getElementById("test-wa-lead");
   const assigned = leads.filter(l => currentCampaignLeadIds.includes(l._id));
   sel.innerHTML = `<option value="">— none, use phone number below —</option>` +
     assigned.map(l => `<option value="${l._id}">${esc(l.name)}${l.phone ? " (" + esc(l.phone) + ")" : " (no phone)"}</option>`).join("");
 }
-
 async function sendTestWhatsApp() {
   const phone  = document.getElementById("test-wa-phone").value.trim();
   const leadId = document.getElementById("test-wa-lead").value;
   if (!phone && !leadId) { showToast("Enter a phone number or pick a lead.", "error"); return; }
-
   const btn = document.getElementById("test-wa-send-btn");
   btn.disabled = true; btn.textContent = "Sending…";
   try {
     const res = await fetch(`/api/campaigns/${currentCampaignId}/test-whatsapp`, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
+      method: "POST", headers: {"Content-Type":"application/json"},
       body: JSON.stringify({ step_index: testStepIdx, phone, lead_id: leadId || null })
     });
     const data = await res.json();
@@ -1197,14 +1433,11 @@ async function sendTestWhatsApp() {
   finally { btn.disabled = false; btn.textContent = "🧪 Send Test"; }
 }
 
-/* Palette drag */
 function paletteDragStart(event) {
   dragSrcPaletteType = event.currentTarget.dataset.stepType;
   dragSrcStepIdx     = null;
   event.dataTransfer.effectAllowed = "copy";
 }
-
-/* Canvas drag-over / drop */
 function canvasDragOver(event) {
   event.preventDefault();
   event.dataTransfer.dropEffect = dragSrcPaletteType ? "copy" : "move";
@@ -1218,14 +1451,10 @@ function canvasDrop(event) {
   event.preventDefault();
   document.getElementById("flow-canvas").classList.remove("drag-over");
   if (dragSrcPaletteType) {
-    // Only add if dropped on canvas background (not on a step)
-    if (!event.target.closest('.flow-step')) {
-      addStep(dragSrcPaletteType);
-    }
+    if (!event.target.closest('.flow-step')) addStep(dragSrcPaletteType);
     dragSrcPaletteType = null;
   }
 }
-
 function addStep(type) {
   const defaults = {
     whatsapp: { type, message: "", use_ai: false, ai_instructions: "" },
@@ -1235,12 +1464,9 @@ function addStep(type) {
   };
   flowSteps.push(defaults[type] || { type });
   renderFlowCanvas();
-  // Scroll to bottom
   const wrap = document.getElementById("flow-canvas-wrap");
   wrap.scrollTop = wrap.scrollHeight;
 }
-
-/* Step drag-to-reorder */
 function stepDragStart(event, idx) {
   if (event.target.closest('.step-drag-handle') || event.currentTarget.draggable) {
     dragSrcStepIdx    = idx;
@@ -1252,22 +1478,17 @@ function stepDragStart(event, idx) {
 }
 function stepDragOver(event, idx) {
   if (dragSrcStepIdx === null) return;
-  event.preventDefault();
-  event.stopPropagation();
+  event.preventDefault(); event.stopPropagation();
   document.querySelectorAll('.flow-step').forEach(s => s.classList.remove("drop-target"));
   event.currentTarget.classList.add("drop-target");
 }
-function stepDragLeave(event) {
-  event.currentTarget.classList.remove("drop-target");
-}
+function stepDragLeave(event) { event.currentTarget.classList.remove("drop-target"); }
 function stepDrop(event, idx) {
-  event.preventDefault();
-  event.stopPropagation();
+  event.preventDefault(); event.stopPropagation();
   document.querySelectorAll('.flow-step').forEach(s => s.classList.remove("drop-target","dragging-step"));
   if (dragSrcStepIdx === null || dragSrcStepIdx === idx) { dragSrcStepIdx = null; return; }
   const moved = flowSteps.splice(dragSrcStepIdx, 1)[0];
-  const insertAt = idx > dragSrcStepIdx ? idx : idx;
-  flowSteps.splice(insertAt, 0, moved);
+  flowSteps.splice(idx, 0, moved);
   dragSrcStepIdx = null;
   renderFlowCanvas();
 }
@@ -1276,8 +1497,7 @@ async function saveFlow() {
   if (!currentCampaignId) return;
   try {
     const res = await fetch(`/api/campaigns/${currentCampaignId}`,{
-      method:"PATCH",
-      headers:{"Content-Type":"application/json"},
+      method:"PATCH", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({flow: flowSteps, lead_ids: currentCampaignLeadIds})
     });
     if (!res.ok) throw new Error("Save failed");
@@ -1288,30 +1508,25 @@ async function saveFlow() {
 async function launchCampaign() {
   if (!currentCampaignId) return;
   await saveFlow();
-  if (!confirm("Launch campaign now? This will start sending immediately and keep running on the server even if you close this tab.")) return;
+  if (!confirm("Launch campaign now? It sends in throttled bursts and keeps running on the server even if you close this tab.")) return;
   try {
     const res  = await fetch(`/api/campaigns/${currentCampaignId}/launch`,{method:"POST"});
     const data = await res.json();
     if (!res.ok) throw new Error(data.error||"Launch failed");
-    showToast("Campaign launched! 🚀", "success");
+    showToast(data.note ? `Campaign launched! 🚀 ${data.note}` : "Campaign launched! 🚀", "success");
     document.getElementById("launch-btn").textContent = "Running…";
   } catch(err) { showToast(err.message, "error"); }
 }
 
-/* ── Lead Selector ── */
 function openLeadSelector() {
   renderLeadSelectorList("");
   document.getElementById("lead-sel-search").value = "";
   document.getElementById("lead-selector-modal").classList.add("open");
   updateSelCount();
 }
-function filterLeadSelector() {
-  renderLeadSelectorList(document.getElementById("lead-sel-search").value.toLowerCase());
-}
+function filterLeadSelector() { renderLeadSelectorList(document.getElementById("lead-sel-search").value.toLowerCase()); }
 function renderLeadSelectorList(q) {
-  const filtered = leads.filter(l =>
-    !q || l.name.toLowerCase().includes(q) || (l.business_name||"").toLowerCase().includes(q)
-  );
+  const filtered = leads.filter(l => !q || l.name.toLowerCase().includes(q) || (l.business_name||"").toLowerCase().includes(q));
   document.getElementById("lead-selector-list").innerHTML = filtered.length
     ? filtered.map(l => `
       <label class="lead-sel-item">
@@ -1339,9 +1554,126 @@ function confirmLeadSelection() {
 }
 
 /* ════════════════════════════════════════════════
-   INTEGRATIONS / SETTINGS
+   TEAM  (owner only)
+════════════════════════════════════════════════ */
+async function loadTeam() {
+  if (myRole !== "owner") return;
+  try {
+    const res = await fetch("/api/team");
+    const data = await res.json();
+    teamMembers = data.members;
+    renderTeam();
+  } catch { showToast("Could not load team", "error"); }
+}
+function renderTeam() {
+  const tbody = document.getElementById("team-tbody");
+  if (!teamMembers.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">No team members yet. Invite your first one!</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = teamMembers.map(m => `
+    <tr>
+      <td>${esc(m.name)}</td>
+      <td>${esc(m.email)}</td>
+      <td><span class="log-status ${m.status==='active'?'log-sent':'log-failed'}">${m.status}</span></td>
+      <td>${m.leads_assigned}</td>
+      <td>${m.created_at ? new Date(m.created_at).toLocaleDateString() : "—"}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-ghost btn-sm" onclick="toggleMemberStatus('${m._id}','${m.status==='active'?'disabled':'active'}')">${m.status==='active'?'Disable':'Enable'}</button>
+        <button class="btn btn-danger btn-sm" onclick="removeMember('${m._id}')">Remove</button>
+      </td>
+    </tr>`).join("");
+}
+function openInviteModal() {
+  document.getElementById("inv-name").value = "";
+  document.getElementById("inv-email").value = "";
+  document.getElementById("invite-modal").classList.add("open");
+}
+async function sendInvite() {
+  const name = document.getElementById("inv-name").value.trim();
+  const email = document.getElementById("inv-email").value.trim();
+  if (!email) { showToast("Email is required", "error"); return; }
+  const btn = document.getElementById("invite-send-btn");
+  btn.disabled = true; btn.textContent = "Sending…";
+  try {
+    const res = await fetch("/api/team", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({name, email})});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Invite failed");
+    closeModal("invite-modal");
+    if (data.email_sent) {
+      showToast(`Invite emailed to ${email} ✓`, "success");
+    } else {
+      showToast(`Member added, but the invite email failed to send (${data.email_error||"unknown error"}). Temp password: ${data.temp_password}`, "error");
+    }
+    loadTeam();
+  } catch(err) { showToast(err.message, "error"); }
+  finally { btn.disabled = false; btn.textContent = "Send Invite"; }
+}
+async function toggleMemberStatus(id, status) {
+  try {
+    const res = await fetch(`/api/team/${id}/status`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({status})});
+    if (!res.ok) throw new Error("Could not update member");
+    loadTeam();
+  } catch(err) { showToast(err.message, "error"); }
+}
+async function removeMember(id) {
+  if (!confirm("Remove this team member? Their assigned leads will become unassigned.")) return;
+  try {
+    const res = await fetch(`/api/team/${id}`, {method:"DELETE"});
+    if (!res.ok) throw new Error("Could not remove member");
+    showToast("Team member removed");
+    loadTeam(); loadLeads();
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+/* ════════════════════════════════════════════════
+   PROFILE
+════════════════════════════════════════════════ */
+async function loadProfile() {
+  try {
+    const res = await fetch("/api/profile");
+    const data = await res.json();
+    document.getElementById("p-business-name").value = data.business_name || "";
+    document.getElementById("p-business-type").value = data.business_type || "";
+    document.getElementById("p-website").value        = data.website || "";
+    document.getElementById("p-address").value        = data.address || "";
+    document.getElementById("p-phone").value           = data.phone || "";
+    document.getElementById("p-email").value           = data.email || "";
+    document.getElementById("p-password").value        = "";
+    const editable = data.editable;
+    ["p-business-name","p-business-type","p-website","p-address","p-phone","p-email","p-password"].forEach(id => {
+      document.getElementById(id).disabled = !editable;
+    });
+    document.getElementById("profile-readonly-note").style.display = editable ? "none" : "block";
+    document.getElementById("profile-save-btn").style.display = editable ? "inline-flex" : "none";
+    document.getElementById("account-save-btn").style.display = editable ? "inline-flex" : "none";
+  } catch { showToast("Could not load profile", "error"); }
+}
+async function saveProfile() {
+  const payload = {
+    business_name: document.getElementById("p-business-name").value.trim(),
+    business_type: document.getElementById("p-business-type").value.trim(),
+    website: document.getElementById("p-website").value.trim(),
+    address: document.getElementById("p-address").value.trim(),
+    phone: document.getElementById("p-phone").value.trim(),
+    email: document.getElementById("p-email").value.trim(),
+  };
+  const newPass = document.getElementById("p-password").value;
+  if (newPass) payload.new_password = newPass;
+  try {
+    const res = await fetch("/api/profile", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Save failed");
+    showToast("Profile saved ✓", "success");
+    document.getElementById("p-password").value = "";
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+/* ════════════════════════════════════════════════
+   INTEGRATIONS / SETTINGS  (owner only)
 ════════════════════════════════════════════════ */
 async function loadIntegrations() {
+  if (myRole !== "owner") return;
   try {
     const res  = await fetch("/api/integrations");
     const data = await res.json();
@@ -1352,18 +1684,17 @@ async function loadIntegrations() {
     document.getElementById("s-resend-from").value  = data.resend_from_address || "";
     document.getElementById("s-ai-wa-prompt").value    = data.ai_whatsapp_prompt || "";
     document.getElementById("s-ai-email-prompt").value = data.ai_email_prompt || "";
+    document.getElementById("s-webhook-url").value     = data.webhook_url || "";
     setStatus("evo-status",    data.has_evo    ? "ok" : "off", data.has_evo    ? "Configured" : "Not configured");
     setStatus("gmail-status",  data.has_gmail  ? "ok" : "off", data.has_gmail  ? "Configured" : "Not configured");
     setStatus("resend-status", data.has_resend ? "ok" : "off", data.has_resend ? "Configured" : "Not configured");
   } catch { /* silent */ }
 }
-
 function setStatus(elId, state, label) {
   const el = document.getElementById(elId);
   el.querySelector(".status-dot").className = `status-dot ${state}`;
   el.querySelector("span:last-child").textContent = label;
 }
-
 async function saveIntegrations() {
   const payload = {
     evo_instance:        document.getElementById("s-evo-instance").value.trim(),
@@ -1381,7 +1712,11 @@ async function saveIntegrations() {
     loadIntegrations();
   } catch(err) { showToast(err.message, "error"); }
 }
-
+function copyWebhookUrl() {
+  const input = document.getElementById("s-webhook-url");
+  input.select(); document.execCommand("copy");
+  showToast("Webhook URL copied ✓", "success");
+}
 async function testWhatsApp() {
   setStatus("evo-status", "off", "Testing…");
   try {
@@ -1391,7 +1726,6 @@ async function testWhatsApp() {
     else setStatus("evo-status","error", data.error||"Connection failed");
   } catch { setStatus("evo-status","error","Request failed"); }
 }
-
 async function testResend() {
   setStatus("resend-status", "off", "Testing…");
   try {
@@ -1406,7 +1740,6 @@ async function testResend() {
    UTILITIES
 ════════════════════════════════════════════════ */
 function closeModal(id) { document.getElementById(id).classList.remove("open"); }
-
 function timeAgo(iso) {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff/60000);
@@ -1416,7 +1749,6 @@ function timeAgo(iso) {
   if (hrs < 24)   return `${hrs}h ago`;
   return `${Math.floor(hrs/24)}d ago`;
 }
-
 function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebar-overlay').classList.add('open'); }
 function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
 
@@ -1429,11 +1761,8 @@ function showToast(msg, type="") {
   toastTimeout = setTimeout(() => toast.className = "", 3800);
 }
 
-// Close modals on overlay click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) overlay.classList.remove('open');
-  });
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
 });
 </script>
 </body>
