@@ -1,0 +1,284 @@
+Wirebase Webhook & API Integration Guide
+Wirebase is a WhatsApp API platform built on Baileys that manages WhatsApp instances and messages. Here's everything you need to know:
+
+1. Incoming Webhook JSON Body Format
+When a message arrives on WhatsApp, Wirebase will POST to your webhook URL with this JSON structure:
+
+JSON
+{
+  "instanceId": "507f1f77bcf86cd799439011",
+  "instanceName": "my-whatsapp-instance",
+  "number": "919876543210",
+  "isLid": false,
+  "message": "Hello, this is a test message",
+  "isGroup": false,
+  "groupId": null,
+  "pushName": "John Doe",
+  "timestamp": "2026-07-24T10:30:45.000Z",
+  "messageId": "WAF45A6D8B7C9E1F2G3H4I5J6K7L"
+}
+Field Explanations:
+
+instanceId: MongoDB ObjectId of the Wirebase instance
+instanceName: Human-readable name of the instance
+number: Sender's phone number (format: country code + number, e.g., 919876543210)
+isLid: true if the number is a WhatsApp LID (privacy feature), not a real phone number yet
+message: The actual message text
+isGroup: true if message came from a group chat
+groupId: Group JID if isGroup is true, else null
+pushName: Sender's display name in WhatsApp
+timestamp: ISO 8601 timestamp when the message was received
+messageId: WhatsApp message ID for deduplication
+2. Webhook Authentication Header
+Every webhook POST includes a signing secret for verification:
+
+Code
+X-Webhook-Secret: <webhook-secret-value>
+How to verify in Flask:
+
+Python
+import hmac
+import hashlib
+
+def verify_webhook_secret(received_secret, stored_secret):
+    """Verify the webhook secret from Wirebase"""
+    return hmac.compare_digest(received_secret, stored_secret)
+
+@app.route('/webhook/whatsapp', methods=['POST'])
+def handle_webhook():
+    received_secret = request.headers.get('X-Webhook-Secret', '')
+    stored_secret = 'YOUR_WEBHOOK_SECRET_FROM_WIREBASE'
+    
+    if not verify_webhook_secret(received_secret, stored_secret):
+        return {'error': 'Unauthorized'}, 401
+    
+    data = request.get_json()
+    # Process the message
+    return {'success': True}, 200
+3. Python Flask Webhook Implementation
+Python
+from flask import Flask, request, jsonify
+import logging
+
+app = Flask(__name__)
+
+# Store your Wirebase webhook secret
+WIREBASE_WEBHOOK_SECRET = 'YOUR_SECRET_FROM_WIREBASE_UI'
+
+logger = logging.getLogger(__name__)
+
+@app.route('/webhook/whatsapp', methods=['POST'])
+def handle_whatsapp_webhook():
+    """
+    Receives incoming WhatsApp messages from Wirebase
+    """
+    try:
+        # Verify the webhook secret
+        received_secret = request.headers.get('X-Webhook-Secret', '')
+        if received_secret != WIREBASE_WEBHOOK_SECRET:
+            logger.warning('Webhook secret verification failed')
+            return {'error': 'Unauthorized'}, 401
+        
+        data = request.get_json()
+        
+        # Extract message details
+        instance_name = data.get('instanceName')
+        sender_number = data.get('number')
+        message_text = data.get('message')
+        is_group = data.get('isGroup')
+        push_name = data.get('pushName')
+        timestamp = data.get('timestamp')
+        
+        logger.info(f"Received message from {sender_number} ({push_name}): {message_text}")
+        
+        # Process the message in your CRM
+        # Examples:
+        # 1. Save to database
+        # 2. Create a lead or contact
+        # 3. Log to CRM activity
+        # 4. Trigger automations
+        
+        save_message_to_crm(
+            phone=sender_number,
+            name=push_name,
+            message=message_text,
+            is_group=is_group,
+            timestamp=timestamp
+        )
+        
+        return {'success': True, 'status': 'processed'}, 200
+        
+    except Exception as e:
+        logger.error(f"Webhook error: {str(e)}")
+        return {'error': str(e)}, 500
+
+def save_message_to_crm(phone, name, message, is_group, timestamp):
+    """
+    Save incoming message to your CRM database
+    Adjust based on your ORM (SQLAlchemy, etc.)
+    """
+    # Example pseudocode:
+    # contact = Contact.get_or_create(phone_number=phone, name=name)
+    # message = Message(contact=contact, text=message, timestamp=timestamp)
+    # db.session.add(message)
+    # db.session.commit()
+    pass
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
+4. Sending Outgoing Messages via API
+To send WhatsApp messages from your CRM to Wirebase, use the public send endpoint:
+
+Endpoint: POST https://your-wirebase-domain.com/api/public/send
+
+Authentication: Include your API Key
+
+Code
+X-API-Key: your-api-key-here
+Request Body (Text Message):
+
+JSON
+{
+  "instanceName": "my-whatsapp-instance",
+  "to": "919876543210",
+  "type": "text",
+  "message": "Hello from CRM!"
+}
+Request Body (Media Message - Image):
+
+JSON
+{
+  "instanceName": "my-whatsapp-instance",
+  "to": "919876543210",
+  "type": "image",
+  "url": "https://example.com/image.jpg",
+  "caption": "Check this out!"
+}
+Supported Media Types:
+
+image - requires url and optional caption
+video - requires url and optional caption
+audio - requires url and optional mimetype
+document - requires url, optional caption, filename, mimetype
+5. Python Flask Example - Send Message to Wirebase
+Python
+import requests
+import logging
+
+WIREBASE_BASE_URL = 'https://your-wirebase-domain.com'
+WIREBASE_API_KEY = 'your-api-key-here'
+
+logger = logging.getLogger(__name__)
+
+def send_whatsapp_message(instance_name, phone_number, message_text):
+    """
+    Send a WhatsApp message via Wirebase API
+    """
+    url = f'{WIREBASE_BASE_URL}/api/public/send'
+    
+    headers = {
+        'X-API-Key': WIREBASE_API_KEY,
+        'Content-Type': 'application/json'
+    }
+    
+    payload = {
+        'instanceName': instance_name,
+        'to': phone_number,
+        'type': 'text',
+        'message': message_text
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+        result = response.json()
+        
+        logger.info(f"Message sent to {phone_number}: {result}")
+        return result
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to send message: {str(e)}")
+        raise
+
+def send_whatsapp_media(instance_name, phone_number, media_type, url, caption=None):
+    """
+    Send media (image, video, document) via WhatsApp
+    """
+    api_url = f'{WIREBASE_BASE_URL}/api/public/send'
+    
+    headers = {
+        'X-API-Key': WIREBASE_API_KEY,
+        'Content-Type': 'application/json'
+    }
+    
+    payload = {
+        'instanceName': instance_name,
+        'to': phone_number,
+        'type': media_type,  # 'image', 'video', 'document', etc.
+        'url': url,
+    }
+    
+    if caption:
+        payload['caption'] = caption
+    
+    if media_type == 'document':
+        payload['filename'] = 'document.pdf'
+        payload['mimetype'] = 'application/pdf'
+    
+    try:
+        response = requests.post(api_url, json=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to send media: {str(e)}")
+        raise
+
+# Usage in your CRM routes:
+@app.route('/crm/send-message', methods=['POST'])
+def send_crm_message():
+    data = request.get_json()
+    phone = data.get('phone')
+    message = data.get('message')
+    instance = data.get('instance_name', 'default-instance')
+    
+    try:
+        result = send_whatsapp_message(instance, phone, message)
+        return {'success': True, 'data': result}, 200
+    except Exception as e:
+        return {'error': str(e)}, 500
+6. Complete Integration Flow Diagram
+Code
+Your Flask CRM
+    ↓
+    ├── [Incoming] ← POST /webhook/whatsapp ← Wirebase (when message arrives)
+    │   ├── Verify X-Webhook-Secret header
+    │   ├── Save to database
+    │   └── Trigger automations
+    │
+    └── [Outgoing] → POST /api/public/send → Wirebase (to send messages)
+        ├── Include X-API-Key header
+        ├── Specify instance, recipient, message
+        └── Receive confirmation
+7. Setup Steps in Wirebase UI
+Create Instance → Connect WhatsApp number via QR code
+Configure Webhook:
+Go to Instance page
+Enter your webhook URL: https://your-crm-domain.com/webhook/whatsapp
+Copy the Webhook Secret (use in your Flask app)
+Check "Also forward group messages" if needed
+Generate API Key:
+Go to API Keys page
+Create new key
+Use for outgoing message sends
+Test → Send a test message through Wirebase UI
+8. Key Points to Remember
+Aspect	Detail
+Webhook URL	Must be HTTPS with valid certificate
+Webhook Secret	Verify every request with the X-Webhook-Secret header
+API Key	Keep secure, never commit to version control
+Phone Format	Use E.164 format: country code + number (e.g., 919876543210)
+Instance Status	Messages only send if instance status: 'connected'
+Message Types	text, image, video, audio, document
+Timeout	Webhook has 10-second timeout, respond quickly
+This setup gives you a fully integrated WhatsApp-to-CRM pipeline! Let me know if you need clarification on any part.
+

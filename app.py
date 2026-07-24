@@ -82,6 +82,7 @@ try:
     users_col.create_index("username", unique=True)
     users_col.create_index("email", unique=True)
     users_col.create_index("webhook_token", unique=True, sparse=True)
+    users_col.create_index("wirebase_webhook_token", unique=True, sparse=True)
     leads_col.create_index("owner_id")
     leads_col.create_index([("owner_id", 1), ("created_at", -1)])
     leads_col.create_index([("owner_id", 1), ("phone", 1)])
@@ -492,6 +493,47 @@ def assign_round_robin(owner_id: str):
 
 
 # ----------------------------------
+# Wirebase sender + provider dispatch
+# ----------------------------------
+
+def send_whatsapp_via_wirebase(base_url: str, api_key: str, instance_name: str, phone: str, message: str) -> dict:
+    if not (base_url and api_key and instance_name):
+        return {"success": False, "error": "Wirebase is not fully configured in Settings"}
+    try:
+        resp = requests.post(
+            f"{base_url.rstrip('/')}/api/public/send",
+            headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+            json={"instanceName": instance_name, "to": phone, "type": "text", "message": message},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return {"success": True, "raw": resp.json()}
+    except requests.exceptions.RequestException as e:
+        return {"success": False, "error": str(e)}
+
+
+def send_whatsapp_dispatch(user: dict, phone: str, message: str) -> dict:
+    """Single entry point for every outbound WhatsApp send in the app.
+    Routes through Evolution API or Wirebase depending on the user's
+    integrations.active_provider toggle."""
+    creds = user.get("integrations", {}) or {}
+    provider = creds.get("active_provider", "evo")
+
+    if provider == "wirebase":
+        return send_whatsapp_via_wirebase(
+            creds.get("wirebase_base_url", ""),
+            creds.get("wirebase_api_key", ""),
+            creds.get("wirebase_instance_name", ""),
+            phone, message,
+        )
+
+    evo_instance = creds.get("evo_instance", "")
+    if not evo_instance:
+        return {"success": False, "error": "WhatsApp instance not configured in Settings"}
+    return send_whatsapp_message(evo_instance, phone, message)
+
+
+# ----------------------------------
 # Campaign Flow Execution Engine
 # ----------------------------------
 
@@ -501,7 +543,6 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
     lead_id = str(lead["_id"])
 
     creds = user.get("integrations", {})
-    evo_instance = creds.get("evo_instance", "")
     gmail_addr   = creds.get("gmail_address", "")
     gmail_pass   = creds.get("gmail_app_password", "")
     resend_key   = creds.get("resend_api_key", "")
@@ -554,15 +595,16 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
 
             message = render_template_vars(message, lead)
 
-            if not evo_instance or not phone:
-                _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "failed", "whatsapp", "Missing WhatsApp instance or phone number")
+            if not phone:
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "failed", "whatsapp", "Lead has no phone number")
                 _bump_campaign_stat(campaign["_id"], "failed")
             else:
-                send_result = send_whatsapp_message(evo_instance, phone, message)
+                send_result = send_whatsapp_dispatch(user, phone, message)
                 if send_result.get("success"):
+                    channel = creds.get("active_provider", "evo")
                     messages_col.insert_one({
                         "owner_id": owner_id, "lead_id": lead_id, "direction": "out",
-                        "channel": "whatsapp", "text": message, "created_at": datetime.utcnow(),
+                        "channel": channel, "text": message, "created_at": datetime.utcnow(),
                     })
                     _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "sent", "whatsapp")
                     _bump_campaign_stat(campaign["_id"], "sent")
@@ -719,6 +761,7 @@ def signup():
             "plan": {"name": "Free", "credits": 100},
             "integrations": {},
             "webhook_token": generate_webhook_token(),
+            "wirebase_webhook_token": generate_webhook_token(),
             "team_rr_index": 0,
             "created_at": datetime.utcnow(),
             "last_login": None,
@@ -1036,17 +1079,17 @@ def api_send_manual_whatsapp(lead_id):
         return jsonify({"error": "This lead has no phone number"}), 400
 
     owner = users_col.find_one({"_id": ObjectId(current_user_id())})
-    evo_instance = (owner.get("integrations", {}) or {}).get("evo_instance", "") if owner else ""
-    if not evo_instance:
-        return jsonify({"error": "WhatsApp instance not configured in Settings"}), 400
+    if not owner:
+        return jsonify({"error": "User not found"}), 404
 
-    result = send_whatsapp_message(evo_instance, lead["phone"], message)
+    result = send_whatsapp_dispatch(owner, lead["phone"], message)
     if not result.get("success"):
         return jsonify({"error": result.get("error", "Send failed")}), 400
 
+    channel = (owner.get("integrations", {}) or {}).get("active_provider", "evo")
     messages_col.insert_one({
         "owner_id": current_user_id(), "lead_id": lead_id, "direction": "out",
-        "channel": "whatsapp", "text": message, "created_at": datetime.utcnow(),
+        "channel": channel, "text": message, "created_at": datetime.utcnow(),
     })
     return jsonify({"sent": True})
 
@@ -1167,11 +1210,16 @@ def api_get_integrations():
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
     if not user: return jsonify({"error": "User not found"}), 404
 
-    # Self-heal: older accounts created before this feature won't have a token yet
+    # Self-heal tokens for accounts created before these features existed
     webhook_token = user.get("webhook_token")
     if not webhook_token:
         webhook_token = generate_webhook_token()
         users_col.update_one({"_id": user["_id"]}, {"$set": {"webhook_token": webhook_token}})
+
+    wirebase_token = user.get("wirebase_webhook_token")
+    if not wirebase_token:
+        wirebase_token = generate_webhook_token()
+        users_col.update_one({"_id": user["_id"]}, {"$set": {"wirebase_webhook_token": wirebase_token}})
 
     creds = user.get("integrations", {})
     return jsonify({
@@ -1186,6 +1234,13 @@ def api_get_integrations():
         "has_gmail":   bool(creds.get("gmail_app_password")),
         "has_resend":  bool(creds.get("resend_api_key")),
         "webhook_url": request.host_url.rstrip("/") + "/webhook/" + webhook_token,
+        # Wirebase
+        "wirebase_base_url":      creds.get("wirebase_base_url", ""),
+        "wirebase_instance_name": creds.get("wirebase_instance_name", ""),
+        "wirebase_api_key":       "●●●●●●●●" if creds.get("wirebase_api_key") else "",
+        "has_wirebase":           bool(creds.get("wirebase_api_key")),
+        "wirebase_webhook_url":   request.host_url.rstrip("/") + "/webhook/wirebase/" + wirebase_token,
+        "active_provider":        creds.get("active_provider", "evo"),
     })
 
 
@@ -1207,15 +1262,22 @@ def api_save_integrations():
     maybe_update("gmail_app_password")
     maybe_update("resend_api_key")
     maybe_update("resend_from_address")
+    maybe_update("wirebase_base_url")
+    maybe_update("wirebase_instance_name")
+    maybe_update("wirebase_api_key")
 
     if "ai_whatsapp_prompt" in data:
         existing["ai_whatsapp_prompt"] = (data.get("ai_whatsapp_prompt") or "").strip()
     if "ai_email_prompt" in data:
         existing["ai_email_prompt"] = (data.get("ai_email_prompt") or "").strip()
+    if data.get("active_provider") in ("evo", "wirebase"):
+        existing["active_provider"] = data["active_provider"]
 
     update = {"integrations": existing}
     if not user.get("webhook_token"):
         update["webhook_token"] = generate_webhook_token()
+    if not user.get("wirebase_webhook_token"):
+        update["wirebase_webhook_token"] = generate_webhook_token()
 
     users_col.update_one({"_id": ObjectId(current_user_id())}, {"$set": update})
     return jsonify({"saved": True})
@@ -1239,6 +1301,104 @@ def api_test_resend():
     creds = user.get("integrations", {}) if user else {}
     result = verify_resend_key(creds.get("resend_api_key", ""))
     return jsonify(result)
+
+
+@app.route("/api/integrations/test/wirebase", methods=["POST"])
+@login_required
+@owner_required
+def api_test_wirebase():
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    creds = user.get("integrations", {}) if user else {}
+    base_url  = creds.get("wirebase_base_url", "")
+    instance  = creds.get("wirebase_instance_name")
+    api_key   = creds.get("wirebase_api_key")
+    if not (base_url and instance and api_key):
+        return jsonify({"success": False, "error": "Fill in Base URL, Instance Name and API Key first"})
+    try:
+        # NOTE: adjust this path if your Wirebase instance exposes a different status endpoint.
+        resp = requests.get(
+            f"{base_url.rstrip('/')}/api/public/instance/{instance}/status",
+            headers={"X-API-Key": api_key}, timeout=10,
+        )
+        resp.raise_for_status()
+        return jsonify({"success": True, "state": resp.json().get("status", "connected")})
+    except requests.exceptions.RequestException as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+# ==================================================================
+# WHATSAPP BOT (AI auto-reply) SETTINGS + INBOX  (owner + team)
+# ==================================================================
+
+@app.route("/api/whatsapp-bot", methods=["GET"])
+@login_required
+@owner_required
+def api_get_whatsapp_bot():
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    creds = user.get("integrations", {}) if user else {}
+    return jsonify({
+        "ai_bot_enabled": bool(creds.get("ai_bot_enabled", False)),
+        "ai_bot_system_prompt": creds.get("ai_bot_system_prompt", ""),
+        "active_provider": creds.get("active_provider", "evo"),
+    })
+
+
+@app.route("/api/whatsapp-bot", methods=["POST"])
+@login_required
+@owner_required
+def api_save_whatsapp_bot():
+    data = request.get_json(silent=True) or {}
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    existing = user.get("integrations", {}) if user else {}
+    existing["ai_bot_enabled"] = bool(data.get("ai_bot_enabled"))
+    existing["ai_bot_system_prompt"] = (data.get("ai_bot_system_prompt") or "").strip()
+    users_col.update_one({"_id": ObjectId(current_user_id())}, {"$set": {"integrations": existing}})
+    return jsonify({"saved": True})
+
+
+@app.route("/api/whatsapp-bot/inbox", methods=["GET"])
+@login_required
+def api_whatsapp_inbox():
+    """Latest message per lead conversation, most-recent first.
+    Team members only see conversations for leads assigned to them."""
+    match = {"owner_id": current_user_id()}
+    if not is_owner():
+        my_lead_ids = [str(l["_id"]) for l in leads_col.find(_leads_scope_query(), {"_id": 1})]
+        match["lead_id"] = {"$in": my_lead_ids}
+
+    pipeline = [
+        {"$match": match},
+        {"$sort": {"created_at": -1}},
+        {"$group": {
+            "_id": "$lead_id",
+            "last_text": {"$first": "$text"},
+            "last_at": {"$first": "$created_at"},
+            "last_direction": {"$first": "$direction"},
+            "last_channel": {"$first": "$channel"},
+        }},
+        {"$sort": {"last_at": -1}},
+    ]
+    convos = list(messages_col.aggregate(pipeline))
+    lead_oids = []
+    for c in convos:
+        try: lead_oids.append(ObjectId(c["_id"]))
+        except (InvalidId, TypeError): pass
+    leads_map = {str(l["_id"]): l for l in leads_col.find({"_id": {"$in": lead_oids}})}
+
+    result = []
+    for c in convos:
+        lead = leads_map.get(c["_id"])
+        if not lead: continue
+        result.append({
+            "lead_id": c["_id"],
+            "name": lead.get("name", ""),
+            "phone": lead.get("phone", ""),
+            "last_text": c["last_text"],
+            "last_at": c["last_at"].isoformat() if c.get("last_at") else None,
+            "last_direction": c["last_direction"],
+            "last_channel": c.get("last_channel", ""),
+        })
+    return jsonify({"conversations": result})
 
 
 # ==================================================================
@@ -1478,9 +1638,6 @@ def api_test_campaign_whatsapp(campaign_id):
 
     user  = users_col.find_one({"_id": ObjectId(current_user_id())})
     creds = user.get("integrations", {}) if user else {}
-    evo_instance = creds.get("evo_instance", "")
-    if not evo_instance:
-        return jsonify({"error": "WhatsApp instance not configured in Settings"}), 400
 
     message = step.get("message", "")
     if step.get("use_ai"):
@@ -1493,7 +1650,7 @@ def api_test_campaign_whatsapp(campaign_id):
     message = render_template_vars(message, lead_ctx)
     message = f"[TEST] {message}"
 
-    result = send_whatsapp_message(evo_instance, target_phone, message)
+    result = send_whatsapp_dispatch(user, target_phone, message)
     if not result.get("success"):
         return jsonify({"error": result.get("error", "Send failed")}), 400
 
@@ -1555,23 +1712,26 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
                 update["assigned_to"] = assigned
         leads_col.update_one({"_id": lead["_id"]}, {"$set": update})
 
-        # 3. Generate and send an AI auto-reply
+        # 3. Generate and send an AI auto-reply — only if the AI Bot toggle is on
         creds = owner.get("integrations", {})
-        evo_instance = creds.get("evo_instance", "")
-        if not evo_instance:
+        if not creds.get("ai_bot_enabled"):
             return
+
         reply = generate_chat_reply(
             lead, text, history,
             task_prompt=lead.get("ai_task_prompt", ""),
-            system_prompt=creds.get("ai_whatsapp_prompt", ""),
+            system_prompt=creds.get("ai_bot_system_prompt") or creds.get("ai_whatsapp_prompt", ""),
         )
         if reply.get("success") and reply.get("message"):
-            send_result = send_whatsapp_message(evo_instance, lead.get("phone", phone_raw), reply["message"])
+            send_result = send_whatsapp_dispatch(owner, lead.get("phone", phone_raw), reply["message"])
             if send_result.get("success"):
                 messages_col.insert_one({
                     "owner_id": owner_id, "lead_id": lead_id, "direction": "out",
-                    "channel": "whatsapp", "text": reply["message"], "created_at": datetime.utcnow(),
+                    "channel": creds.get("active_provider", "evo"), "text": reply["message"],
+                    "ai_generated": True, "created_at": datetime.utcnow(),
                 })
+            # if the send fails, we intentionally do NOT log the reply —
+            # DB only reflects messages that were actually delivered
     except Exception:
         # Never let a background webhook failure crash the app
         pass
@@ -1599,6 +1759,104 @@ def webhook_receive(token):
 
     owner_id = str(user["_id"])
     threading.Thread(target=_process_incoming_whatsapp, args=(owner_id, phone, text), daemon=True).start()
+    return jsonify({"received": True}), 200
+
+
+# ==================================================================
+# WEBHOOK — receives inbound WhatsApp messages from Wirebase
+# Each user gets a unique URL: /webhook/wirebase/<their_wirebase_webhook_token>
+# ==================================================================
+
+def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_name: str = "", wa_msg_id: str = ""):
+    """Runs in a background thread. Saves the inbound message (auto-creating
+    the lead if it's a brand new number, so it shows up in the inbox right
+    away), scores + assigns it, then sends an AI reply if the bot is on."""
+    try:
+        owner = users_col.find_one({"_id": ObjectId(owner_id)})
+        if not owner:
+            return
+
+        norm_phone = normalize_phone(phone_raw)
+        lead = leads_col.find_one({
+            "owner_id": owner_id,
+            "phone": {"$regex": re.escape(norm_phone[-9:])} if norm_phone else "$^",
+        }) if norm_phone else None
+
+        if not lead:
+            now = datetime.utcnow()
+            new_lead = {
+                "owner_id": owner_id, "name": push_name or phone_raw, "business_name": "",
+                "email": "", "phone": phone_raw, "website": "", "description": "",
+                "source": "wirebase", "status": "warm", "assigned_to": None,
+                "ai_task_prompt": "", "created_at": now, "updated_at": now,
+            }
+            inserted = leads_col.insert_one(new_lead)
+            lead = leads_col.find_one({"_id": inserted.inserted_id})
+
+        lead_id = str(lead["_id"])
+
+        # 1. Always save the inbound message — this is what makes it show up in the inbox
+        messages_col.insert_one({
+            "owner_id": owner_id, "lead_id": lead_id, "direction": "in",
+            "channel": "wirebase", "text": text, "created_at": datetime.utcnow(),
+        })
+
+        history = list(messages_col.find({"owner_id": owner_id, "lead_id": lead_id}).sort("created_at", 1))
+
+        # 2. Score + round-robin assign on first-ever reply (same as the Evolution flow)
+        new_status = classify_lead_temperature(lead, text, history, lead.get("status", "cold"))
+        update = {"status": new_status, "updated_at": datetime.utcnow()}
+        if not lead.get("assigned_to"):
+            assigned = assign_round_robin(owner_id)
+            if assigned:
+                update["assigned_to"] = assigned
+        leads_col.update_one({"_id": lead["_id"]}, {"$set": update})
+
+        # 3. AI auto-reply, only if the bot toggle is on
+        creds = owner.get("integrations", {}) or {}
+        if not creds.get("ai_bot_enabled"):
+            return
+
+        reply = generate_chat_reply(
+            lead, text, history,
+            task_prompt=lead.get("ai_task_prompt", ""),
+            system_prompt=creds.get("ai_bot_system_prompt") or creds.get("ai_whatsapp_prompt", ""),
+        )
+        if reply.get("success") and reply.get("message"):
+            send_result = send_whatsapp_dispatch(owner, lead.get("phone", phone_raw), reply["message"])
+            if send_result.get("success"):
+                messages_col.insert_one({
+                    "owner_id": owner_id, "lead_id": lead_id, "direction": "out",
+                    "channel": creds.get("active_provider", "evo"), "text": reply["message"],
+                    "ai_generated": True, "created_at": datetime.utcnow(),
+                })
+            # send failed → nothing saved, per spec
+    except Exception:
+        pass
+
+
+@app.route("/webhook/wirebase/<token>", methods=["POST"])
+def wirebase_webhook_receive(token):
+    user = users_col.find_one({"wirebase_webhook_token": token, "type": "user"})
+    if not user:
+        return jsonify({"error": "Invalid webhook token"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    phone_raw = (payload.get("number") or "").strip()
+    text      = (payload.get("message") or "").strip()
+    is_group  = payload.get("isGroup", False)
+    push_name = payload.get("pushName") or ""
+    wa_msg_id = payload.get("messageId")
+
+    if is_group or not phone_raw or not text:
+        return jsonify({"ok": True}), 200
+
+    owner_id = str(user["_id"])
+    threading.Thread(
+        target=_process_incoming_wirebase,
+        args=(owner_id, phone_raw, text, push_name, wa_msg_id),
+        daemon=True,
+    ).start()
     return jsonify({"received": True}), 200
 
 
