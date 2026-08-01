@@ -506,9 +506,32 @@
     </div>
     <div class="field">
       <label>Leads to call</label>
-      <div class="hint" style="margin-bottom:8px;">Leave all unchecked and launch with "Call all leads", or pick specific ones below.</div>
+      <div class="hint" style="margin-bottom:8px;">Leave all unchecked to call every lead, or pick specific ones below.</div>
       <div class="lead-picker" id="leadPicker"></div>
     </div>
+
+    <div class="field">
+      <label>When should this run?</label>
+      <div style="display:flex; gap:16px; margin-bottom:10px;">
+        <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:13px;">
+          <input type="radio" name="campaignSchedule" value="now" checked onchange="toggleScheduleFields()"> Run now
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:13px;">
+          <input type="radio" name="campaignSchedule" value="schedule" onchange="toggleScheduleFields()"> Schedule for later
+        </label>
+      </div>
+      <div class="two-col" id="scheduleFields" style="display:none;">
+        <div class="field" style="margin-bottom:0;">
+          <label>Date</label>
+          <input type="date" id="campaignDate">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Time</label>
+          <input type="time" id="campaignTime">
+        </div>
+      </div>
+    </div>
+
     <button class="btn btn-primary" style="width:100%;" onclick="createCampaign()">Create campaign</button>
   </div>
 </div>
@@ -742,15 +765,22 @@ async function loadCampaigns(){
     const s = c.stats || {total:0, completed:0, failed:0, pending:0};
     const el = document.createElement('div');
     el.className = 'card';
+    const scheduledLine = c.status === 'scheduled' && c.scheduled_at
+      ? `<div class="meta" style="margin-top:6px;">⏰ Scheduled for ${new Date(c.scheduled_at).toLocaleString()}</div>`
+      : '';
     el.innerHTML = `
       <h3>${escapeHtml(c.name)}</h3>
       <span class="status-pill status-${c.status}">${c.status}</span>
+      ${scheduledLine}
       <div class="meta" style="margin-top:8px;">
         ${s.total} leads · ${s.completed} done · ${s.failed} failed · ${s.pending} pending
       </div>
       <div class="card-actions">
         <button class="btn btn-coral" onclick="launchCampaign('${c._id}', 'all')" ${c.status==='running'?'disabled':''}>Call all leads</button>
         <button class="btn btn-ghost" onclick="viewCampaignLogs('${c._id}')">View logs</button>
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-danger" style="flex:1;" onclick="deleteCampaign('${c._id}')" ${c.status==='running'?'disabled':''}>Delete campaign</button>
       </div>`;
     grid.appendChild(el);
   });
@@ -759,7 +789,16 @@ async function loadCampaigns(){
 function openCampaignModal(){
   if (!AGENTS.length){ toast('Create a voice agent first'); return; }
   renderLeadPicker();
+  document.querySelector('input[name="campaignSchedule"][value="now"]').checked = true;
+  document.getElementById('scheduleFields').style.display = 'none';
+  document.getElementById('campaignDate').value = '';
+  document.getElementById('campaignTime').value = '';
   openModal('campaignModal');
+}
+
+function toggleScheduleFields(){
+  const isSchedule = document.querySelector('input[name="campaignSchedule"]:checked').value === 'schedule';
+  document.getElementById('scheduleFields').style.display = isSchedule ? 'grid' : 'none';
 }
 
 async function loadLeads(){
@@ -782,10 +821,36 @@ async function createCampaign(){
   const agent_id = document.getElementById('campaignAgent').value;
   if(!name || !agent_id){ toast('Name and agent are required'); return; }
   const lead_ids = Array.from(document.querySelectorAll('.lead-check:checked')).map(c => c.value);
+
+  const scheduleType = document.querySelector('input[name="campaignSchedule"]:checked').value;
+  let scheduled_at = null;
+  if (scheduleType === 'schedule'){
+    const dateVal = document.getElementById('campaignDate').value;
+    const timeVal = document.getElementById('campaignTime').value;
+    if (!dateVal || !timeVal){ toast('Pick a date and time to schedule'); return; }
+    const local = new Date(`${dateVal}T${timeVal}`);
+    if (isNaN(local.getTime()) || local <= new Date()){ toast('Scheduled time must be in the future'); return; }
+    scheduled_at = local.toISOString();
+  }
+
   try{
-    await api('/api/call-campaigns', {method:'POST', body: JSON.stringify({name, agent_id, lead_ids})});
+    const d = await api('/api/call-campaigns', {method:'POST', body: JSON.stringify({
+      name, agent_id, lead_ids,
+      schedule_type: scheduleType,
+      scheduled_at,
+    })});
     closeModal('campaignModal');
-    toast('Campaign created');
+    if (d.launch_error) toast(`Campaign created, but couldn't start: ${d.launch_error}`);
+    else toast(scheduleType === 'schedule' ? 'Campaign scheduled' : 'Campaign created — calling now');
+    await loadCampaigns();
+  }catch(e){ toast(e.message); }
+}
+
+async function deleteCampaign(id){
+  if(!confirm('Delete this campaign? This cannot be undone.')) return;
+  try{
+    await api('/api/call-campaigns/' + id, {method:'DELETE'});
+    toast('Campaign deleted');
     await loadCampaigns();
   }catch(e){ toast(e.message); }
 }

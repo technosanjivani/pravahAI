@@ -2100,6 +2100,25 @@ def init_eva(app, db, users_col, leads_col):
     calls_col.create_index("owner_id")
     calls_col.create_index("campaign_id")
     calls_col.create_index([("followup_required", 1), ("followup_done", 1), ("followup_at", 1)])
+    campaigns_col.create_index([("status", 1), ("scheduled_at", 1)])
+
+    def _parse_iso_utc(s):
+        """Parses an ISO datetime string (with or without trailing Z / ms) into
+        a naive UTC datetime, matching how the rest of this file stores time."""
+        if not s:
+            return None
+        s = s.strip()
+        if s.endswith("Z"):
+            s = s[:-1]
+        try:
+            return datetime.fromisoformat(s)
+        except ValueError:
+            for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"):
+                try:
+                    return datetime.strptime(s, fmt)
+                except ValueError:
+                    continue
+        return None
  
     def current_user_id():
         return session.get("user_id")
@@ -2136,6 +2155,7 @@ def init_eva(app, db, users_col, leads_col):
             "stats": c.get("stats", {"total": 0, "completed": 0, "failed": 0, "pending": 0}),
             "created_at": c.get("created_at").isoformat() if c.get("created_at") else None,
             "last_run_at": c.get("last_run_at").isoformat() if c.get("last_run_at") else None,
+            "scheduled_at": c.get("scheduled_at").isoformat() if c.get("scheduled_at") else None,
         }
  
     def serialize_call(c):
@@ -2277,15 +2297,49 @@ def init_eva(app, db, users_col, leads_col):
         agent_id = data.get("agent_id")
         if not name or not agent_id:
             return jsonify({"error": "name and agent_id are required"}), 400
+
+        schedule_type = data.get("schedule_type", "now")  # "now" | "schedule"
+        scheduled_at = None
+        if schedule_type == "schedule":
+            scheduled_at = _parse_iso_utc(data.get("scheduled_at", ""))
+            if not scheduled_at:
+                return jsonify({"error": "A valid scheduled date/time is required"}), 400
+            if scheduled_at <= datetime.utcnow():
+                return jsonify({"error": "Scheduled time must be in the future"}), 400
+
         doc = {
             "owner_id": current_user_id(), "name": name, "agent_id": agent_id,
-            "lead_ids": data.get("lead_ids", []), "status": "draft",
+            "lead_ids": data.get("lead_ids", []),
+            "status": "scheduled" if schedule_type == "schedule" else "draft",
+            "scheduled_at": scheduled_at,
             "stats": {"total": 0, "completed": 0, "failed": 0, "pending": 0},
             "created_at": datetime.utcnow(), "updated_at": datetime.utcnow(), "last_run_at": None,
         }
         result = campaigns_col.insert_one(doc)
+        campaign_id = str(result.inserted_id)
+
+        if schedule_type == "now":
+            ok, payload = launch_call_campaign_now(campaign_id, current_user_id(), doc["lead_ids"] or "all")
+            if not ok:
+                # Campaign still exists as a draft so the user can retry/fix and launch manually
+                return jsonify({
+                    "campaign": serialize_campaign(campaigns_col.find_one({"_id": result.inserted_id})),
+                    "launch_error": payload.get("error"),
+                }), 201
+
         return jsonify({"campaign": serialize_campaign(campaigns_col.find_one({"_id": result.inserted_id}))}), 201
- 
+
+    @app.route("/api/call-campaigns/<campaign_id>", methods=["DELETE"])
+    @login_required
+    def api_delete_call_campaign(campaign_id):
+        try:
+            oid = ObjectId(campaign_id)
+        except InvalidId:
+            return jsonify({"error": "Invalid campaign id"}), 400
+        result = campaigns_col.delete_one({"_id": oid, "owner_id": current_user_id()})
+        if result.deleted_count == 0:
+            return jsonify({"error": "Campaign not found"}), 404
+        return jsonify({"deleted": True})
     @app.route("/api/call-campaigns/<campaign_id>", methods=["GET"])
     @login_required
     def api_get_call_campaign(campaign_id):
@@ -2304,49 +2358,50 @@ def init_eva(app, db, users_col, leads_col):
         calls = list(calls_col.find({"campaign_id": campaign_id, "owner_id": current_user_id()}).sort("created_at", -1))
         return jsonify({"calls": [serialize_call(c) for c in calls]})
  
-    @app.route("/api/call-campaigns/<campaign_id>/launch", methods=["POST"])
-    @login_required
-    def api_call_launch_campaign(campaign_id):
+    def launch_call_campaign_now(campaign_id, owner_id, lead_ids_target=None):
+        """Core launch logic, callable from the launch endpoint, from
+        'run now' on creation, and from the scheduler thread alike.
+        Returns (ok: bool, payload: dict)."""
         try:
             oid = ObjectId(campaign_id)
         except InvalidId:
-            return jsonify({"error": "Invalid campaign id"}), 400
-        campaign = campaigns_col.find_one({"_id": oid, "owner_id": current_user_id()})
+            return False, {"error": "Invalid campaign id"}
+
+        campaign = campaigns_col.find_one({"_id": oid, "owner_id": owner_id})
         if not campaign:
-            return jsonify({"error": "Campaign not found"}), 404
-        agent = agents_col.find_one({"_id": ObjectId(campaign["agent_id"]), "owner_id": current_user_id()})
+            return False, {"error": "Campaign not found"}
+
+        agent = agents_col.find_one({"_id": ObjectId(campaign["agent_id"]), "owner_id": owner_id})
         if not agent:
-            return jsonify({"error": "Campaign's agent no longer exists"}), 400
-        voip = voip_col.find_one({"owner_id": current_user_id()})
+            return False, {"error": "Campaign's agent no longer exists"}
+
+        voip = voip_col.find_one({"owner_id": owner_id})
         if not voip or not (voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number")):
-            return jsonify({"error": "Add your Twilio/VOIP credentials in Settings before launching calls"}), 400
- 
-        data = request.get_json(silent=True) or {}
-        target = data.get("lead_ids", "all")
-        if target == "all":
-            lead_ids = [str(l["_id"]) for l in leads_col.find({"owner_id": current_user_id()}, {"_id": 1})]
+            return False, {"error": "Add your Twilio/VOIP credentials in Settings before launching calls"}
+
+        target = lead_ids_target if lead_ids_target is not None else (campaign.get("lead_ids") or "all")
+        if target == "all" or not target:
+            lead_ids = [str(l["_id"]) for l in leads_col.find({"owner_id": owner_id}, {"_id": 1})]
         else:
-            lead_ids = target or campaign.get("lead_ids", [])
- 
+            lead_ids = target
+
         leads = list(leads_col.find({
             "_id": {"$in": [ObjectId(lid) for lid in lead_ids if ObjectId.is_valid(lid)]},
-            "owner_id": current_user_id(),
+            "owner_id": owner_id,
         }))
         leads = [l for l in leads if l.get("phone")]
         if not leads:
-            return jsonify({"error": "No leads with phone numbers to call"}), 400
- 
-        user = users_col.find_one({"_id": ObjectId(current_user_id())})
+            return False, {"error": "No leads with phone numbers to call"}
+
+        user = users_col.find_one({"_id": ObjectId(owner_id)})
         if get_remaining_minutes(user) <= 0:
-            return jsonify({"error": "You are out of Eva minutes. Top up to launch calls."}), 400
- 
+            return False, {"error": "You are out of Eva minutes. Top up to launch calls."}
+
         campaigns_col.update_one({"_id": campaign["_id"]}, {"$set": {
             "status": "running", "last_run_at": datetime.utcnow(),
             "stats": {"total": len(leads), "completed": 0, "failed": 0, "pending": len(leads)},
         }})
- 
-        owner_id = current_user_id()
- 
+
         def run():
             for lead in leads:
                 fresh_user = users_col.find_one({"_id": ObjectId(owner_id)})
@@ -2361,10 +2416,17 @@ def init_eva(app, db, users_col, leads_col):
             })
             if remaining_running == 0:
                 campaigns_col.update_one({"_id": campaign["_id"]}, {"$set": {"status": "completed"}})
- 
+
         threading.Thread(target=run, daemon=True, name=f"Campaign-{campaign_id}").start()
-        return jsonify({"launched": True, "leads_queued": len(leads)})
- 
+        return True, {"launched": True, "leads_queued": len(leads)}
+
+    @app.route("/api/call-campaigns/<campaign_id>/launch", methods=["POST"])
+    @login_required
+    def api_call_launch_campaign(campaign_id):
+        data = request.get_json(silent=True) or {}
+        ok, payload = launch_call_campaign_now(campaign_id, current_user_id(), data.get("lead_ids", "all"))
+        return jsonify(payload), (200 if ok else 400)
+    
     # ---------------- calls ----------------
     @app.route("/api/calls", methods=["GET"])
     @login_required
@@ -2555,7 +2617,29 @@ def init_eva(app, db, users_col, leads_col):
                 place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, campaign_id=call_doc.get("campaign_id"))
  
     threading.Thread(target=_followup_scanner, daemon=True, name="PravaahEvaFollowupScanner").start()
- 
+
+    # ---------------- background campaign scheduler ----------------
+    def _campaign_scheduler():
+        while True:
+            time.sleep(30)  # check twice a minute so scheduled campaigns fire promptly
+            try:
+                due = list(campaigns_col.find({
+                    "status": "scheduled",
+                    "scheduled_at": {"$lte": datetime.utcnow()},
+                }))
+            except Exception as e:
+                log("SCHEDULER", f"scan error: {e}")
+                continue
+            for c in due:
+                campaign_id = str(c["_id"])
+                owner_id = c.get("owner_id")
+                ok, payload = launch_call_campaign_now(campaign_id, owner_id, c.get("lead_ids") or "all")
+                if not ok:
+                    log("SCHEDULER", f"{campaign_id} failed to launch: {payload.get('error')}")
+                    campaigns_col.update_one({"_id": c["_id"]}, {"$set": {"status": "draft"}})
+
+    threading.Thread(target=_campaign_scheduler, daemon=True, name="PravaahEvaCampaignScheduler").start()
+
     log("INIT", "PravaahAI Eva-dashboard routes registered.")
 
 init_eva(app, db, users_col, leads_col)
