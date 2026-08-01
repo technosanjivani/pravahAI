@@ -181,6 +181,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="agents">Voice Agents</button>
     <button class="tab-btn" data-tab="campaigns">Campaigns</button>
+    <button class="tab-btn" data-tab="testcall">Test Call</button>
     <button class="tab-btn" data-tab="calls">Call Logs</button>
     <button class="tab-btn" data-tab="voip">Calling Settings</button>
   </div>
@@ -210,6 +211,38 @@
     <div class="grid" id="campaignsGrid"></div>
     <div class="empty" id="campaignsEmpty" style="display:none;">No campaigns yet.</div>
   </div>
+
+  <div class="grid" id="campaignsGrid"></div>
+    <div class="empty" id="campaignsEmpty" style="display:none;">No campaigns yet.</div>
+  </div>
+
+  <!-- ===================== TEST CALL ===================== -->
+  <div class="tab-panel" id="panel-testcall">
+    <div class="row">
+      <div>
+        <h2>Test call</h2>
+        <div class="sub">Have Eva call a single number right now, using any agent — no lead needed.</div>
+      </div>
+    </div>
+    <form class="panel-form" id="testCallForm" onsubmit="sendTestCall(event)" style="max-width:520px;">
+      <div class="field">
+        <label>Agent</label>
+        <select id="testCallAgent"></select>
+      </div>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="testCallName" placeholder="e.g. Rahul">
+      </div>
+      <div class="field">
+        <label>Phone number</label>
+        <input type="text" id="testCallPhone" placeholder="+971501234567">
+      </div>
+      <button class="btn btn-coral" type="submit">Call now</button>
+      <span class="hint" id="testCallStatus" style="margin-left:10px;"></span>
+    </form>
+  </div>
+
+  <!-- ===================== CALL LOGS ===================== -->
 
   <!-- ===================== CALL LOGS ===================== -->
   <div class="tab-panel" id="panel-calls">
@@ -432,6 +465,9 @@ async function loadAgents(){
   });
   const sel = document.getElementById('campaignAgent');
   sel.innerHTML = AGENTS.map(a => `<option value="${a._id}">${escapeHtml(a.name)}</option>`).join('') || '<option disabled>Create an agent first</option>';
+
+  const testSel = document.getElementById('testCallAgent');
+  testSel.innerHTML = AGENTS.map(a => `<option value="${a._id}">${escapeHtml(a.name)}</option>`).join('') || '<option disabled>Create an agent first</option>';
 }
 
 function openAgentModal(){ openModal('agentModal'); }
@@ -529,6 +565,27 @@ async function launchCampaign(id, target){
     toast(`Calling ${d.leads_queued} leads`);
     await loadCampaigns();
   }catch(e){ toast(e.message); }
+}
+
+
+async function sendTestCall(e){
+  e.preventDefault();
+  const agent_id = document.getElementById('testCallAgent').value;
+  const name = document.getElementById('testCallName').value.trim();
+  const phone = document.getElementById('testCallPhone').value.trim();
+  if(!agent_id){ toast('Create a voice agent first'); return; }
+  if(!phone){ toast('Phone number is required'); return; }
+  const statusEl = document.getElementById('testCallStatus');
+  statusEl.textContent = 'Calling…';
+  try{
+    await api('/api/test-call', {method:'POST', body: JSON.stringify({agent_id, name, phone})});
+    statusEl.textContent = 'Call placed ✓ — check Call Logs';
+    toast('Call placed');
+    setTimeout(() => statusEl.textContent = '', 4000);
+  }catch(err){
+    statusEl.textContent = '';
+    toast(err.message);
+  }
 }
 
 async function viewCampaignLogs(id){

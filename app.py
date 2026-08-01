@@ -2413,6 +2413,44 @@ def init_eva(app, db, users_col, leads_col):
             return jsonify({"error": result.get("error", "Could not place call")}), 400
         return jsonify({"call_id": result["call_id"]})
  
+    @app.route("/api/test-call", methods=["POST"])
+    @login_required
+    def api_test_call():
+        """Ad-hoc test call: no lead needs to exist in the DB — just an
+        agent, a name, and a phone number, typed straight from the dashboard."""
+        data = request.get_json(silent=True) or {}
+        agent_id = data.get("agent_id")
+        phone = (data.get("phone") or "").strip()
+        name = (data.get("name") or "").strip() or "Test Lead"
+
+        if not agent_id or not phone:
+            return jsonify({"error": "agent_id and phone are required"}), 400
+
+        try:
+            agent = agents_col.find_one({"_id": ObjectId(agent_id), "owner_id": current_user_id()})
+        except InvalidId:
+            return jsonify({"error": "Invalid agent id"}), 400
+        if not agent:
+            return jsonify({"error": "Agent not found"}), 400
+
+        voip = voip_col.find_one({"owner_id": current_user_id()})
+        if not voip or not (voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number")):
+            return jsonify({"error": "Add your Twilio/VOIP credentials in Settings first"}), 400
+
+        user = users_col.find_one({"_id": ObjectId(current_user_id())})
+        if get_remaining_minutes(user) <= 0:
+            return jsonify({"error": "You are out of Eva minutes"}), 400
+
+        test_lead = {
+            "_id": ObjectId(), "name": name, "business_name": "", "email": "",
+            "phone": phone, "website": "", "description": "",
+        }
+        result = place_outbound_call(current_user_id(), test_lead, agent, voip, campaigns_col, calls_col, campaign_id=None)
+        if not result.get("success"):
+            return jsonify({"error": result.get("error", "Could not place call")}), 400
+        return jsonify({"call_id": result["call_id"]})
+
+    
     # ---------------- webhook FROM Eva ----------------
     @app.route("/api/eva-webhook/call-result", methods=["POST"])
     def api_eva_webhook_call_result():
