@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eva Voice — PravaahAI</title>
+<style>
+  :root{
+    --ink:#1A2233;
+    --paper:#F5F7FA;
+    --panel:#FFFFFF;
+    --line:#E2E6ED;
+    --muted:#6B7688;
+    --blue:#2454E8;
+    --blue-deep:#1B3FC0;
+    --blue-soft:#EEF2FF;
+    --good:#0F9D58;
+    --good-soft:#E7F6ED;
+    --warn:#B9770E;
+    --warn-soft:#FEF3E2;
+    --bad:#D93025;
+    --bad-soft:#FCEAE9;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size:14px;
+  }
+  h1,h2,h3{font-family:inherit; font-weight:600; letter-spacing:-.01em; color:var(--ink);}
+  a{color:inherit;}
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 32px; background:var(--panel); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:20;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand .mark{
+    width:32px; height:32px; border-radius:8px;
+    background:var(--blue);
+    display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:14px;
+  }
+  .brand-text h1{font-size:16px; margin:0; line-height:1.2; font-weight:600;}
+  .brand-text span{font-size:12px; color:var(--muted);}
+  .topbar-right{display:flex; align-items:center; gap:14px;}
+  .back-link{font-size:13px; color:var(--muted); text-decoration:none; border:1px solid var(--line); padding:7px 14px; border-radius:8px; background:#fff;}
+  .back-link:hover{border-color:var(--blue); color:var(--blue);}
+
+  .minutes-pill{
+    display:flex; align-items:center; gap:10px; background:var(--blue-soft); color:var(--blue-deep);
+    padding:7px 14px; border-radius:8px; font-size:12.5px; border:1px solid #D6E0FB;
+  }
+  .minutes-pill b{font-size:14px; font-weight:700;}
+  .minutes-bar{width:60px; height:5px; border-radius:3px; background:#D6E0FB; overflow:hidden;}
+  .minutes-bar i{display:block; height:100%; background:var(--blue);}
+
+  .shell{max-width:1180px; margin:0 auto; padding:28px 32px 80px;}
+
+  .tabs{display:flex; gap:2px; margin-bottom:22px; border-bottom:1px solid var(--line);}
+  .tab-btn{
+    background:none; border:none; padding:11px 16px; font-size:13.5px; cursor:pointer;
+    color:var(--muted); border-bottom:2px solid transparent; font-weight:600;
+  }
+  .tab-btn.active{color:var(--blue); border-bottom-color:var(--blue);}
+  .tab-btn:hover{color:var(--ink);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .row{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:12px; flex-wrap:wrap;}
+  .row h2{font-size:18px; margin:0; font-weight:600;}
+  .sub{color:var(--muted); font-size:12.5px; margin-top:3px;}
+
+  .btn{
+    border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600;
+    cursor:pointer; display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn-primary{background:var(--blue); color:#fff;}
+  .btn-primary:hover{background:var(--blue-deep);}
+  .btn-coral{background:var(--ink); color:#fff;}
+  .btn-coral:hover{background:#000;}
+  .btn-ghost{background:#fff; border:1px solid var(--line); color:var(--ink);}
+  .btn-ghost:hover{border-color:var(--blue); color:var(--blue);}
+  .btn-danger{background:var(--bad-soft); color:var(--bad);}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px;}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px 18px; box-shadow:var(--shadow);
+  }
+  .card h3{font-size:14.5px; margin:0 0 6px; font-weight:600;}
+  .card .meta{font-size:12px; color:var(--muted); line-height:1.6;}
+  .card .tag{
+    display:inline-block; font-size:11px; padding:2px 8px; border-radius:5px;
+    background:var(--blue-soft); color:var(--blue-deep); margin-right:6px; font-weight:600;
+  }
+  .card-actions{display:flex; gap:8px; margin-top:14px;}
+  .card-actions button{flex:1; font-size:12.5px; padding:7px 10px;}
+
+  .empty{
+    border:1px dashed var(--line); border-radius:var(--radius); padding:36px 20px;
+    text-align:center; color:var(--muted); font-size:13.5px; background:#fff;
+  }
+
+  form.panel-form{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow);}
+  .field{margin-bottom:15px;}
+  .field label{display:block; font-size:12.5px; font-weight:600; margin-bottom:6px; color:var(--ink);}
+  .field .hint{font-size:11.5px; color:var(--muted); margin-top:4px;}
+  input[type=text], input[type=number], input[type=password], textarea, select{
+    width:100%; border:1px solid var(--line); border-radius:7px; padding:9px 11px;
+    font-size:13px; font-family:inherit; background:#fff; color:var(--ink);
+  }
+  input:focus, textarea:focus, select:focus{outline:2px solid #C7D6FB; outline-offset:0; border-color:var(--blue);}
+  textarea{resize:vertical; min-height:80px;}
+  .two-col{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .three-col{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;}
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(26,34,51,.4);
+    align-items:flex-start; justify-content:center; padding:60px 20px; z-index:50; overflow:auto;
+  }
+  .modal-overlay.active{display:flex;}
+  .modal{background:#fff; border-radius:12px; padding:24px; width:100%; max-width:560px; box-shadow:0 8px 30px rgba(16,24,40,.15);}
+  .modal h3{margin-top:0; font-size:16px;}
+  .modal-close{float:right; background:none; border:none; font-size:16px; cursor:pointer; color:var(--muted);}
+
+  table{width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);}
+  thead th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:11px 14px; border-bottom:1px solid var(--line); background:#FAFBFC;}
+  tbody td{padding:11px 14px; font-size:13px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#FAFBFC; cursor:pointer;}
+
+  .status-pill{font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:5px; text-transform:capitalize;}
+  .status-completed{background:var(--good-soft); color:var(--good);}
+  .status-in-progress, .status-queued, .status-initiating, .status-ringing{background:var(--warn-soft); color:var(--warn);}
+  .status-failed{background:var(--bad-soft); color:var(--bad);}
+  .status-draft{background:var(--blue-soft); color:var(--blue-deep);}
+  .status-running{background:var(--warn-soft); color:var(--warn);}
+
+  .lead-picker{max-height:220px; overflow:auto; border:1px solid var(--line); border-radius:7px; padding:10px;}
+  .lead-picker label{display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400; padding:5px 2px;}
+
+  .transcript-line{padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .transcript-line:last-child{border-bottom:none;}
+  .transcript-line b{color:var(--blue);}
+  .transcript-line.lead b{color:var(--ink);}
+
+  .toast{
+    position:fixed; bottom:24px; right:24px; background:var(--ink); color:#fff;
+    padding:11px 16px; border-radius:8px; font-size:13px; z-index:100; opacity:0;
+    transform:translateY(8px); transition:all .25s ease; box-shadow:0 4px 14px rgba(16,24,40,.2);
+  }
+  .toast.show{opacity:1; transform:translateY(0);}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="mark">E</div>
+    <div class="brand-text">
+      <h1>Eva Voice</h1>
+      <span>AI calling for your PravaahAI leads</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="minutes-pill" id="minutesPill">
+      <span>Eva minutes</span>
+      <b id="minutesRemaining">–</b>
+      <div class="minutes-bar"><i id="minutesBarFill" style="width:0%"></i></div>
+    </div>
+    <a class="back-link" href="/dashboard">← Back to dashboard</a>
+  </div>
+</div>
+
+<div class="shell">
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="agents">Voice Agents</button>
+    <button class="tab-btn" data-tab="campaigns">Campaigns</button>
+    <button class="tab-btn" data-tab="calls">Call Logs</button>
+    <button class="tab-btn" data-tab="voip">Calling Settings</button>
+  </div>
+
+  <!-- ===================== AGENTS ===================== -->
+  <div class="tab-panel active" id="panel-agents">
+    <div class="row">
+      <div>
+        <h2>Voice agents</h2>
+        <div class="sub">Each agent is a persona Eva speaks as — its own name, prompt, voice and call limits.</div>
+      </div>
+      <button class="btn btn-primary" onclick="openAgentModal()">+ New agent</button>
+    </div>
+    <div class="grid" id="agentsGrid"></div>
+    <div class="empty" id="agentsEmpty" style="display:none;">No agents yet. Create one to start calling leads.</div>
+  </div>
+
+  <!-- ===================== CAMPAIGNS ===================== -->
+  <div class="tab-panel" id="panel-campaigns">
+    <div class="row">
+      <div>
+        <h2>Call campaigns</h2>
+        <div class="sub">Send one agent calling through a batch of leads. Eva calls, transcribes, and schedules follow-ups automatically.</div>
+      </div>
+      <button class="btn btn-primary" onclick="openCampaignModal()">+ New campaign</button>
+    </div>
+    <div class="grid" id="campaignsGrid"></div>
+    <div class="empty" id="campaignsEmpty" style="display:none;">No campaigns yet.</div>
+  </div>
+
+  <!-- ===================== CALL LOGS ===================== -->
+  <div class="tab-panel" id="panel-calls">
+    <div class="row">
+      <div>
+        <h2>Call logs</h2>
+        <div class="sub">Every call Eva has placed, with transcript and AI summary.</div>
+      </div>
+      <button class="btn btn-ghost" onclick="loadCalls()">Refresh</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Lead</th><th>Agent</th><th>Status</th><th>Outcome</th><th>Duration</th><th>Follow-up</th><th>When</th>
+      </tr></thead>
+      <tbody id="callsTableBody"></tbody>
+    </table>
+    <div class="empty" id="callsEmpty" style="display:none;">No calls yet.</div>
+  </div>
+
+  <!-- ===================== VOIP SETTINGS ===================== -->
+  <div class="tab-panel" id="panel-voip">
+    <div class="row">
+      <div>
+        <h2>Calling settings</h2>
+        <div class="sub">Connect the phone line Eva dials out from. These are your own provider credentials.</div>
+      </div>
+    </div>
+    <form class="panel-form" id="voipForm" onsubmit="saveVoip(event)" style="max-width:520px;">
+      <div class="field">
+        <label>Provider</label>
+        <select id="voipProvider">
+          <option value="twilio">Twilio</option>
+          <option value="tatatele">Tata Tele</option>
+          <option value="other">Other (Twilio-compatible)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Account SID</label>
+        <input type="text" id="voipSid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+      </div>
+      <div class="field">
+        <label>Auth Token</label>
+        <input type="password" id="voipToken" placeholder="Leave blank to keep current token">
+      </div>
+      <div class="field">
+        <label>Calling number</label>
+        <input type="text" id="voipFrom" placeholder="+971501234567">
+        <div class="hint">This is the number leads will see Eva calling from.</div>
+      </div>
+      <button class="btn btn-primary" type="submit">Save calling settings</button>
+      <span class="hint" id="voipStatus" style="margin-left:10px;"></span>
+    </form>
+  </div>
+
+</div>
+
+<!-- ===================== AGENT MODAL ===================== -->
+<div class="modal-overlay" id="agentModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('agentModal')">✕</button>
+    <h3>New voice agent</h3>
+    <div class="field">
+      <label>Agent name</label>
+      <input type="text" id="agentName" placeholder="e.g. Riya — Outbound Sales">
+    </div>
+    <div class="two-col">
+      <div class="field">
+        <label>Voice gender</label>
+        <select id="agentGender">
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Language</label>
+        <select id="agentLanguage">
+          <option value="auto">Auto-detect (mirror the lead)</option>
+          <option value="en">English only</option>
+          <option value="hi">Hinglish only</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Opening line</label>
+      <input type="text" id="agentOpening" placeholder="Hi {{name}}, this is calling from our team, got a minute?">
+      <div class="hint">Use {{name}}, {{business_name}} etc. — same merge tags as your WhatsApp/email templates.</div>
+    </div>
+
+
+    <div class="field">
+  <label>WhatsApp info Eva can send</label>
+  <textarea id="agentWhatsapp" placeholder="Pricing, catalog link, brochure text, etc. Eva will draft a WhatsApp message from this if the lead asks for details during the call."></textarea>
+</div>
+
+    <div class="field">
+      <label>System prompt</label>
+      <textarea id="agentPrompt" placeholder="You are a warm, concise outbound sales agent for..."></textarea>
+    </div>
+    <div class="two-col">
+      <div class="field">
+        <label>Wait for reply (seconds)</label>
+        <input type="number" id="agentMinDuration" value="20">
+        <div class="hint">If the lead says nothing by this point, Eva hangs up as "no response".</div>
+      </div>
+      <div class="field">
+        <label>Max call length (seconds)</label>
+        <input type="number" id="agentMaxDuration" value="180">
+        <div class="hint">Hard cap on how long Eva stays on any single call.</div>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;" onclick="createAgent()">Create agent</button>
+  </div>
+</div>
+
+<!-- ===================== CAMPAIGN MODAL ===================== -->
+<div class="modal-overlay" id="campaignModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('campaignModal')">✕</button>
+    <h3>New campaign</h3>
+    <div class="field">
+      <label>Campaign name</label>
+      <input type="text" id="campaignName" placeholder="e.g. July cold list — round 1">
+    </div>
+    <div class="field">
+      <label>Agent</label>
+      <select id="campaignAgent"></select>
+    </div>
+    <div class="field">
+      <label>Leads to call</label>
+      <div class="hint" style="margin-bottom:8px;">Leave all unchecked and launch with "Call all leads", or pick specific ones below.</div>
+      <div class="lead-picker" id="leadPicker"></div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;" onclick="createCampaign()">Create campaign</button>
+  </div>
+</div>
+
+<!-- ===================== CALL DETAIL MODAL ===================== -->
+<div class="modal-overlay" id="callModal">
+  <div class="modal" style="max-width:640px;">
+    <button class="modal-close" onclick="closeModal('callModal')">✕</button>
+    <h3 id="callModalTitle">Call detail</h3>
+    <div class="meta" id="callModalMeta" style="margin-bottom:14px;"></div>
+    <div style="background:#FAF9FD; border-radius:10px; padding:12px 16px; margin-bottom:16px;">
+      <b style="font-size:12.5px; color:var(--muted); text-transform:uppercase;">AI summary</b>
+      <p id="callModalSummary" style="margin:6px 0 0; font-size:13.5px;"></p>
+    </div>
+    <b style="font-size:12.5px; color:var(--muted); text-transform:uppercase;">Transcript</b>
+    <div id="callModalTranscript" style="margin-top:8px; max-height:320px; overflow:auto;"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let AGENTS = [];
+let CAMPAIGNS = [];
+let LEADS = [];
+
+// ---------------- tabs ----------------
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function openModal(id){ document.getElementById(id).classList.add('active'); }
+function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+
+async function api(path, opts={}){
+  const res = await fetch(path, {
+    headers: {'Content-Type': 'application/json'},
+    ...opts,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// ---------------- minutes ----------------
+async function loadMinutes(){
+  try{
+    const d = await api('/api/eva-minutes');
+    document.getElementById('minutesRemaining').textContent = d.remaining;
+    const pct = d.total > 0 ? Math.max(0, Math.min(100, (d.remaining / d.total) * 100)) : 0;
+    document.getElementById('minutesBarFill').style.width = pct + '%';
+  }catch(e){ /* silent */ }
+}
+
+// ---------------- agents ----------------
+async function loadAgents(){
+  const d = await api('/api/agents');
+  AGENTS = d.agents;
+  const grid = document.getElementById('agentsGrid');
+  const empty = document.getElementById('agentsEmpty');
+  grid.innerHTML = '';
+  empty.style.display = AGENTS.length ? 'none' : 'block';
+  AGENTS.forEach(a => {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = `
+      <h3>${escapeHtml(a.name)}</h3>
+      <div class="meta">
+        <span class="tag">${a.gender}</span><span class="tag">${a.language}</span><br>
+        Waits ${a.min_duration_secs}s for reply · caps at ${a.max_duration_secs}s
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-ghost" onclick="deleteAgent('${a._id}')">Delete</button>
+      </div>`;
+    grid.appendChild(el);
+  });
+  const sel = document.getElementById('campaignAgent');
+  sel.innerHTML = AGENTS.map(a => `<option value="${a._id}">${escapeHtml(a.name)}</option>`).join('') || '<option disabled>Create an agent first</option>';
+}
+
+function openAgentModal(){ openModal('agentModal'); }
+
+async function createAgent(){
+  const name = document.getElementById('agentName').value.trim();
+  if(!name){ toast('Agent name is required'); return; }
+  try{
+    await api('/api/agents', {method:'POST', body: JSON.stringify({
+      name,
+      gender: document.getElementById('agentGender').value,
+      language: document.getElementById('agentLanguage').value,
+      opening_line: document.getElementById('agentOpening').value.trim(),
+      system_prompt: document.getElementById('agentPrompt').value.trim(),
+      whatsapp_details: document.getElementById('agentWhatsapp').value.trim(),
+      min_duration_secs: parseInt(document.getElementById('agentMinDuration').value || '20'),
+      max_duration_secs: parseInt(document.getElementById('agentMaxDuration').value || '180'),
+    })});
+    closeModal('agentModal');
+    toast('Agent created');
+    await loadAgents();
+  }catch(e){ toast(e.message); }
+}
+
+async function deleteAgent(id){
+  if(!confirm('Delete this agent?')) return;
+  try{ await api('/api/agents/' + id, {method:'DELETE'}); await loadAgents(); }
+  catch(e){ toast(e.message); }
+}
+
+// ---------------- campaigns ----------------
+async function loadCampaigns(){
+  const d = await api('/api/call-campaigns');
+  CAMPAIGNS = d.campaigns;
+  const grid = document.getElementById('campaignsGrid');
+  const empty = document.getElementById('campaignsEmpty');
+  grid.innerHTML = '';
+  empty.style.display = CAMPAIGNS.length ? 'none' : 'block';
+  CAMPAIGNS.forEach(c => {
+    const s = c.stats || {total:0, completed:0, failed:0, pending:0};
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = `
+      <h3>${escapeHtml(c.name)}</h3>
+      <span class="status-pill status-${c.status}">${c.status}</span>
+      <div class="meta" style="margin-top:8px;">
+        ${s.total} leads · ${s.completed} done · ${s.failed} failed · ${s.pending} pending
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-coral" onclick="launchCampaign('${c._id}', 'all')" ${c.status==='running'?'disabled':''}>Call all leads</button>
+        <button class="btn btn-ghost" onclick="viewCampaignLogs('${c._id}')">View logs</button>
+      </div>`;
+    grid.appendChild(el);
+  });
+}
+
+function openCampaignModal(){
+  if (!AGENTS.length){ toast('Create a voice agent first'); return; }
+  renderLeadPicker();
+  openModal('campaignModal');
+}
+
+async function loadLeads(){
+  try{
+    const d = await api('/api/leads');
+    LEADS = (d.leads || []).filter(l => l.phone);
+  }catch(e){ LEADS = []; }
+}
+
+function renderLeadPicker(){
+  const box = document.getElementById('leadPicker');
+  if (!LEADS.length){ box.innerHTML = '<div class="hint">No leads with phone numbers found.</div>'; return; }
+  box.innerHTML = LEADS.map(l => `
+    <label><input type="checkbox" class="lead-check" value="${l._id}"> ${escapeHtml(l.name)} — ${escapeHtml(l.phone)}</label>
+  `).join('');
+}
+
+async function createCampaign(){
+  const name = document.getElementById('campaignName').value.trim();
+  const agent_id = document.getElementById('campaignAgent').value;
+  if(!name || !agent_id){ toast('Name and agent are required'); return; }
+  const lead_ids = Array.from(document.querySelectorAll('.lead-check:checked')).map(c => c.value);
+  try{
+    await api('/api/call-campaigns', {method:'POST', body: JSON.stringify({name, agent_id, lead_ids})});
+    closeModal('campaignModal');
+    toast('Campaign created');
+    await loadCampaigns();
+  }catch(e){ toast(e.message); }
+}
+
+async function launchCampaign(id, target){
+  if(!confirm('Start calling now? This will use Eva minutes as calls complete.')) return;
+  try{
+    const d = await api(`/api/call-campaigns/${id}/launch`, {method:'POST', body: JSON.stringify({lead_ids: target})});
+    toast(`Calling ${d.leads_queued} leads`);
+    await loadCampaigns();
+  }catch(e){ toast(e.message); }
+}
+
+async function viewCampaignLogs(id){
+  document.querySelector('.tab-btn[data-tab="calls"]').click();
+  await loadCalls(id);
+}
+
+// ---------------- calls ----------------
+async function loadCalls(campaignId){
+  const q = campaignId ? `?campaign_id=${campaignId}` : '';
+  const d = await api('/api/calls' + q);
+  const body = document.getElementById('callsTableBody');
+  const empty = document.getElementById('callsEmpty');
+  body.innerHTML = '';
+  empty.style.display = d.calls.length ? 'none' : 'block';
+  d.calls.forEach(c => {
+    const tr = document.createElement('tr');
+    tr.onclick = () => showCallDetail(c);
+    tr.innerHTML = `
+      <td>${escapeHtml(c.lead_name || '—')}</td>
+      <td>${escapeHtml(c.agent_name || '—')}</td>
+      <td><span class="status-pill status-${c.status}">${c.status}</span></td>
+      <td>${escapeHtml(c.outcome || '—')}</td>
+      <td>${c.duration_secs ? Math.round(c.duration_secs) + 's' : '—'}</td>
+      <td>${c.followup_required ? (c.followup_done ? 'sent' : 'scheduled') : '—'}</td>
+      <td>${c.created_at ? new Date(c.created_at).toLocaleString() : '—'}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+function showCallDetail(c){
+  document.getElementById('callModalTitle').textContent = `${c.lead_name || 'Lead'} — ${c.agent_name || ''}`;
+  document.getElementById('callModalMeta').textContent =
+    `${c.status} · ${c.outcome || 'no outcome yet'} · ${c.duration_secs ? Math.round(c.duration_secs)+'s' : '—'}`;
+  document.getElementById('callModalSummary').textContent = c.summary || 'No summary yet.';
+  const t = document.getElementById('callModalTranscript');
+  t.innerHTML = (c.transcript || []).map(line => `
+    <div class="transcript-line ${line.role === 'lead' ? 'lead' : ''}">
+      <b>${line.role === 'lead' ? 'Lead' : 'Eva'}:</b> ${escapeHtml(line.text)}
+    </div>`).join('') || '<div class="hint">No speech captured.</div>';
+  openModal('callModal');
+}
+
+// ---------------- voip ----------------
+async function loadVoip(){
+  const d = await api('/api/voip');
+  document.getElementById('voipProvider').value = d.provider || 'twilio';
+  document.getElementById('voipSid').value = d.account_sid || '';
+  document.getElementById('voipFrom').value = d.from_number || '';
+  document.getElementById('voipToken').placeholder = d.configured ? 'Saved — leave blank to keep it' : 'Enter auth token';
+}
+
+async function saveVoip(e){
+  e.preventDefault();
+  try{
+    await api('/api/voip', {method:'POST', body: JSON.stringify({
+      provider: document.getElementById('voipProvider').value,
+      account_sid: document.getElementById('voipSid').value.trim(),
+      auth_token: document.getElementById('voipToken').value.trim(),
+      from_number: document.getElementById('voipFrom').value.trim(),
+    })});
+    document.getElementById('voipStatus').textContent = 'Saved ✓';
+    document.getElementById('voipToken').value = '';
+    setTimeout(() => document.getElementById('voipStatus').textContent = '', 2500);
+  }catch(e){ toast(e.message); }
+}
+
+function escapeHtml(s){
+  return (s || '').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// ---------------- init ----------------
+(async function init(){
+  await Promise.all([loadMinutes(), loadAgents(), loadCampaigns(), loadCalls(), loadVoip(), loadLeads()]);
+  setInterval(loadMinutes, 20000);
+})();
+</script>
+</body>
+</html>

@@ -34,6 +34,7 @@ import random
 import string
 import threading
 import time
+import json
 
 import pandas as pd
 
@@ -231,6 +232,7 @@ def serialize_lead(lead):
         "ai_task_prompt": lead.get("ai_task_prompt", ""),
         "created_at": lead.get("created_at").isoformat() if lead.get("created_at") else None,
         "updated_at": lead.get("updated_at").isoformat() if lead.get("updated_at") else None,
+        "ai_score": lead.get("ai_score", 0),
     }
 
 
@@ -1913,8 +1915,611 @@ def api_dashboard_stats():
 
 
 # ==================================================================
-# RUN
+# AI RUN
 # ==================================================================
 
+ 
+EVA_API_BASE_URL = os.environ.get("EVA_API_BASE_URL", "").rstrip("/")
+EVA_API_SECRET = os.environ.get("EVA_API_SECRET", "")
+PRAVAAH_PUBLIC_BASE_URL = os.environ.get("PRAVAAH_PUBLIC_BASE_URL", "").rstrip("/")
+MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY")            # reused, already in .env
+MISTRAL_MODEL = os.environ.get("MISTRAL_MODEL", "mistral-small-latest")
+ 
+FOLLOWUP_SCAN_INTERVAL_SECS = 60
+ 
+ 
+def log(stage, msg):
+    print(f"[{time.strftime('%H:%M:%S')}] [PRAVAAH-EVA] [{stage}] {msg}", flush=True)
+ 
+ 
+def _e164(num):
+    num = (num or "").strip().replace(" ", "").replace("-", "")
+    if num and not num.startswith("+"):
+        num = "+" + num
+    return num
+ 
+ 
+def _mistral_chat(system_prompt, user_prompt, force_json=False):
+    if not MISTRAL_API_KEY:
+        return {"success": False, "error": "MISTRAL_API_KEY not configured"}
+    try:
+        resp = requests.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {MISTRAL_API_KEY}", "Content-Type": "application/json"},
+            json={"model": MISTRAL_MODEL, "temperature": 0.7, "messages": [
+                {"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt},
+            ]},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        text = resp.json()["choices"][0]["message"]["content"].strip()
+        if force_json:
+            cleaned = text.strip().strip("```json").strip("```").strip()
+            return {"success": True, "data": json.loads(cleaned)}
+        return {"success": True, "text": text}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+ 
+ 
+def summarize_call(transcript, lead, agent=None):
+    convo = "\n".join(f"{t.get('role')}: {t.get('text')}" for t in (transcript or []))
+    whatsapp_details = (agent or {}).get("whatsapp_details", "").strip()
+    system = (
+        "You are analyzing a phone call transcript between a sales voice agent and a lead. "
+        "Return ONLY valid JSON, no markdown fences, in this exact shape: "
+        '{"summary": "2-3 sentence summary of what was discussed", '
+        '"outcome": "interested|not_interested|no_response|callback_requested|unclear", '
+        '"lead_status": "hot|warm|cold", '
+        '"ai_score": integer 0-100 rating how sales-ready this lead is, '
+        '"followup_required": true or false, '
+        '"followup_hours": number of hours from now to retry (use 24 if unsure), '
+        '"send_whatsapp": true or false — true only if the lead explicitly asked to receive '
+        'information/details/pricing over WhatsApp, '
+        '"whatsapp_message": "" or a short WhatsApp-ready message with the requested details}'
+    )
+    user_prompt = (
+        f"Lead: {lead.get('name','')} ({lead.get('business_name','')})\n\n"
+        f"Transcript:\n{convo or '(no speech captured)'}\n\n"
+        f"Information you're allowed to send over WhatsApp if the lead asked for it "
+        f"(leave whatsapp_message empty if none applies):\n{whatsapp_details or '(none configured)'}"
+    )
+    result = _mistral_chat(system, user_prompt, force_json=True)
+    if not result.get("success"):
+        return {
+            "summary": "Summary unavailable.", "outcome": "unclear",
+            "lead_status": lead.get("status", "cold"), "ai_score": 0,
+            "followup_required": False, "followup_hours": 24,
+            "send_whatsapp": False, "whatsapp_message": "",
+        }
+    d = result["data"]
+    lead_status = d.get("lead_status", "cold")
+    if lead_status not in ("hot", "warm", "cold"):
+        lead_status = "cold"
+    try:
+        ai_score = max(0, min(100, int(d.get("ai_score", 0))))
+    except (TypeError, ValueError):
+        ai_score = 0
+    return {
+        "summary": d.get("summary", ""), "outcome": d.get("outcome", "unclear"),
+        "lead_status": lead_status, "ai_score": ai_score,
+        "followup_required": bool(d.get("followup_required", False)),
+        "followup_hours": float(d.get("followup_hours", 24) or 24),
+        "send_whatsapp": bool(d.get("send_whatsapp", False)),
+        "whatsapp_message": (d.get("whatsapp_message") or "").strip(),
+    } 
+ 
+def request_call_from_eva(call_id, to_number, twilio_creds, agent, lead):
+    """The ONE place this file talks to Eva's separate service."""
+    if not EVA_API_BASE_URL:
+        return {"success": False, "error": "EVA_API_BASE_URL not set in PravaahAI's .env"}
+    if not PRAVAAH_PUBLIC_BASE_URL:
+        return {"success": False, "error": "PRAVAAH_PUBLIC_BASE_URL not set in PravaahAI's .env"}
+    try:
+        resp = requests.post(
+            f"{EVA_API_BASE_URL}/api/calls",
+            headers={"X-Eva-Secret": EVA_API_SECRET, "Content-Type": "application/json"},
+            json={
+                "call_id": call_id,
+                "to_number": to_number,
+                "twilio": {
+                    "account_sid": twilio_creds.get("account_sid"),
+                    "auth_token": twilio_creds.get("auth_token"),
+                    "from_number": twilio_creds.get("from_number"),
+                },
+                "agent": {
+                    "name": agent.get("name", ""),
+                    "system_prompt": agent.get("system_prompt", ""),
+                    "gender": agent.get("gender", "female"),
+                    "language": agent.get("language", "auto"),
+                    "speaker": agent.get("speaker", ""),
+                    "opening_line": agent.get("opening_line", ""),
+                    "min_duration_secs": agent.get("min_duration_secs", 20),
+                    "max_duration_secs": agent.get("max_duration_secs", 180),
+                },
+                "lead": {
+                    "name": lead.get("name", ""), "business_name": lead.get("business_name", ""),
+                    "email": lead.get("email", ""), "phone": lead.get("phone", ""),
+                    "website": lead.get("website", ""), "description": lead.get("description", ""),
+                },
+                "callback_url": f"{PRAVAAH_PUBLIC_BASE_URL}/api/eva-webhook/call-result",
+            },
+            timeout=20,
+        )
+        data = resp.json()
+        if resp.status_code >= 400:
+            return {"success": False, "error": data.get("error", "Eva rejected the call request")}
+        return {"success": True, "call_sid": data.get("call_sid")}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+ 
+ 
+def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, campaign_id=None):
+    to_number = _e164(lead.get("phone", ""))
+    from_number = _e164(voip.get("from_number", ""))
+    if not to_number or not from_number:
+        return {"success": False, "error": "Missing phone number"}
+ 
+    call_doc = {
+        "owner_id": owner_id, "campaign_id": campaign_id,
+        "lead_id": str(lead["_id"]), "lead_name": lead.get("name", ""),
+        "agent_id": str(agent["_id"]), "agent_name": agent.get("name", ""),
+        "status": "initiating", "call_sid": None, "created_at": datetime.utcnow(),
+    }
+    inserted = calls_col.insert_one(call_doc)
+    call_id = str(inserted.inserted_id)
+ 
+    result = request_call_from_eva(
+        call_id=call_id, to_number=to_number,
+        twilio_creds={**voip, "from_number": from_number}, agent=agent, lead=lead,
+    )
+    if result.get("success"):
+        calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
+            "status": "queued", "call_sid": result.get("call_sid"),
+        }})
+        return {"success": True, "call_id": call_id}
+    else:
+        calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
+            "status": "failed", "hangup_reason": result.get("error", "Eva request failed"),
+            "ended_at": datetime.utcnow(),
+        }})
+        return {"success": False, "error": result.get("error"), "call_id": call_id}
+ 
+ 
+# ==================================================================
+# Route registration
+# ==================================================================
+def init_eva(app, db, users_col, leads_col):
+    agents_col = db["pravah-agents"]
+    voip_col = db["pravah-voip"]
+    campaigns_col = db["pravah-call-campaigns"]
+    calls_col = db["pravah-calls"]
+ 
+    agents_col.create_index("owner_id")
+    voip_col.create_index("owner_id", unique=True)
+    campaigns_col.create_index("owner_id")
+    calls_col.create_index("owner_id")
+    calls_col.create_index("campaign_id")
+    calls_col.create_index([("followup_required", 1), ("followup_done", 1), ("followup_at", 1)])
+ 
+    def current_user_id():
+        return session.get("user_id")
+ 
+    def login_required(view):
+        from functools import wraps
+ 
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if "user_id" not in session:
+                return jsonify({"error": "Not authenticated"}), 401
+            return view(*args, **kwargs)
+        return wrapped
+ 
+    def get_remaining_minutes(user):
+        total = float(user.get("eva_minutes", 0) or 0)
+        used = float(user.get("eva_minutes_used", 0) or 0)
+        return max(0.0, total - used)
+ 
+    def serialize_agent(a):
+        return {
+            "_id": str(a["_id"]), "name": a.get("name", ""), "system_prompt": a.get("system_prompt", ""),
+            "gender": a.get("gender", "female"), "language": a.get("language", "auto"),
+            "speaker": a.get("speaker", ""), "opening_line": a.get("opening_line", ""),
+            "whatsapp_details": a.get("whatsapp_details", ""),
+            "min_duration_secs": a.get("min_duration_secs", 20), "max_duration_secs": a.get("max_duration_secs", 180),
+            "created_at": a.get("created_at").isoformat() if a.get("created_at") else None,
+        }
+ 
+    def serialize_campaign(c):
+        return {
+            "_id": str(c["_id"]), "name": c.get("name", ""), "agent_id": c.get("agent_id", ""),
+            "lead_ids": c.get("lead_ids", []), "status": c.get("status", "draft"),
+            "stats": c.get("stats", {"total": 0, "completed": 0, "failed": 0, "pending": 0}),
+            "created_at": c.get("created_at").isoformat() if c.get("created_at") else None,
+            "last_run_at": c.get("last_run_at").isoformat() if c.get("last_run_at") else None,
+        }
+ 
+    def serialize_call(c):
+        return {
+            "_id": str(c["_id"]), "campaign_id": c.get("campaign_id", ""), "lead_id": c.get("lead_id", ""),
+            "lead_name": c.get("lead_name", ""), "agent_name": c.get("agent_name", ""),
+            "status": c.get("status", "queued"), "call_sid": c.get("call_sid", ""),
+            "duration_secs": c.get("duration_secs", 0), "minutes_used": c.get("minutes_used", 0),
+            "transcript": c.get("transcript", []), "summary": c.get("summary", ""), "outcome": c.get("outcome", ""),
+            "followup_required": c.get("followup_required", False),
+            "followup_at": c.get("followup_at").isoformat() if c.get("followup_at") else None,
+            "followup_done": c.get("followup_done", False),
+            "created_at": c.get("created_at").isoformat() if c.get("created_at") else None,
+            "ended_at": c.get("ended_at").isoformat() if c.get("ended_at") else None,
+        }
+ 
+    # ---------------- dashboard page ----------------
+    @app.route("/eva")
+    @login_required
+    def eva_dashboard_page():
+        user = users_col.find_one({"_id": ObjectId(current_user_id())})
+        return render_template("eva_dashboard.html", user=user)
+ 
+    # ---------------- agents ----------------
+    @app.route("/api/agents", methods=["GET"])
+    @login_required
+    def api_list_agents():
+        return jsonify({"agents": [serialize_agent(a) for a in agents_col.find({"owner_id": current_user_id()}).sort("created_at", -1)]})
+ 
+    @app.route("/api/agents", methods=["POST"])
+    @login_required
+    def api_create_agent():
+        data = request.get_json(silent=True) or {}
+        name = (data.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "Agent name is required"}), 400
+        doc = {
+            "owner_id": current_user_id(), "name": name,
+            "system_prompt": (data.get("system_prompt") or "").strip(),
+            "gender": data.get("gender") if data.get("gender") in ("male", "female") else "female",
+            "language": data.get("language") if data.get("language") in ("en", "hi", "auto") else "auto",
+            "speaker": (data.get("speaker") or "").strip(),
+            "opening_line": (data.get("opening_line") or "Hi {{name}}, do you have a quick minute?").strip(),
+            "min_duration_secs": int(data.get("min_duration_secs", 20) or 20),
+            "max_duration_secs": int(data.get("max_duration_secs", 180) or 180),
+            "whatsapp_details": (data.get("whatsapp_details") or "").strip(),
+            "created_at": datetime.utcnow(), "updated_at": datetime.utcnow(),
+        }
+        result = agents_col.insert_one(doc)
+        return jsonify({"agent": serialize_agent(agents_col.find_one({"_id": result.inserted_id}))}), 201
+ 
+    @app.route("/api/agents/<agent_id>", methods=["PUT", "PATCH"])
+    @login_required
+    def api_update_agent(agent_id):
+        try:
+            oid = ObjectId(agent_id)
+        except InvalidId:
+            return jsonify({"error": "Invalid agent id"}), 400
+        data = request.get_json(silent=True) or {}
+        update = {"updated_at": datetime.utcnow()}
+        for f in ("name", "system_prompt", "speaker", "opening_line", "whatsapp_details"):
+            if f in data:
+                update[f] = (data.get(f) or "").strip()
+        if data.get("gender") in ("male", "female"):
+            update["gender"] = data["gender"]
+        if data.get("language") in ("en", "hi", "auto"):
+            update["language"] = data["language"]
+        if "min_duration_secs" in data:
+            update["min_duration_secs"] = int(data["min_duration_secs"] or 20)
+        if "max_duration_secs" in data:
+            update["max_duration_secs"] = int(data["max_duration_secs"] or 180)
+        result = agents_col.update_one({"_id": oid, "owner_id": current_user_id()}, {"$set": update})
+        if result.matched_count == 0:
+            return jsonify({"error": "Agent not found"}), 404
+        return jsonify({"agent": serialize_agent(agents_col.find_one({"_id": oid}))})
+ 
+    @app.route("/api/agents/<agent_id>", methods=["DELETE"])
+    @login_required
+    def api_delete_agent(agent_id):
+        try:
+            oid = ObjectId(agent_id)
+        except InvalidId:
+            return jsonify({"error": "Invalid agent id"}), 400
+        result = agents_col.delete_one({"_id": oid, "owner_id": current_user_id()})
+        if result.deleted_count == 0:
+            return jsonify({"error": "Agent not found"}), 404
+        return jsonify({"deleted": True})
+ 
+    # ---------------- VOIP creds ----------------
+    @app.route("/api/voip", methods=["GET"])
+    @login_required
+    def api_get_voip():
+        doc = voip_col.find_one({"owner_id": current_user_id()}) or {}
+        return jsonify({
+            "provider": doc.get("provider", "twilio"), "account_sid": doc.get("account_sid", ""),
+            "auth_token": "\u25cf" * 8 if doc.get("auth_token") else "",
+            "from_number": doc.get("from_number", ""),
+            "configured": bool(doc.get("account_sid") and doc.get("auth_token") and doc.get("from_number")),
+        })
+ 
+    @app.route("/api/voip", methods=["POST"])
+    @login_required
+    def api_save_voip():
+        data = request.get_json(silent=True) or {}
+        existing = voip_col.find_one({"owner_id": current_user_id()}) or {}
+        update = {
+            "owner_id": current_user_id(),
+            "provider": data.get("provider", existing.get("provider", "twilio")),
+            "from_number": (data.get("from_number") or existing.get("from_number", "")).strip(),
+            "account_sid": (data.get("account_sid") or existing.get("account_sid", "")).strip(),
+        }
+        if data.get("auth_token") and data["auth_token"] != "\u25cf" * 8:
+            update["auth_token"] = data["auth_token"].strip()
+        else:
+            update["auth_token"] = existing.get("auth_token", "")
+        voip_col.update_one({"owner_id": current_user_id()}, {"$set": update}, upsert=True)
+        return jsonify({"saved": True})
+ 
+    # ---------------- minutes ----------------
+    @app.route("/api/eva-minutes", methods=["GET"])
+    @login_required
+    def api_eva_minutes():
+        user = users_col.find_one({"_id": ObjectId(current_user_id())})
+        total = float(user.get("eva_minutes", 0) or 0)
+        used = float(user.get("eva_minutes_used", 0) or 0)
+        return jsonify({"total": total, "used": round(used, 2), "remaining": round(max(0.0, total - used), 2)})
+ 
+    # ---------------- campaigns ----------------
+    @app.route("/api/call-campaigns", methods=["GET"])
+    @login_required
+    def api_list_call_campaigns():
+        return jsonify({"campaigns": [serialize_campaign(c) for c in campaigns_col.find({"owner_id": current_user_id()}).sort("created_at", -1)]})
+ 
+    @app.route("/api/call-campaigns", methods=["POST"])
+    @login_required
+    def api_create_call_campaign():
+        data = request.get_json(silent=True) or {}
+        name = (data.get("name") or "").strip()
+        agent_id = data.get("agent_id")
+        if not name or not agent_id:
+            return jsonify({"error": "name and agent_id are required"}), 400
+        doc = {
+            "owner_id": current_user_id(), "name": name, "agent_id": agent_id,
+            "lead_ids": data.get("lead_ids", []), "status": "draft",
+            "stats": {"total": 0, "completed": 0, "failed": 0, "pending": 0},
+            "created_at": datetime.utcnow(), "updated_at": datetime.utcnow(), "last_run_at": None,
+        }
+        result = campaigns_col.insert_one(doc)
+        return jsonify({"campaign": serialize_campaign(campaigns_col.find_one({"_id": result.inserted_id}))}), 201
+ 
+    @app.route("/api/call-campaigns/<campaign_id>", methods=["GET"])
+    @login_required
+    def api_get_call_campaign(campaign_id):
+        try:
+            oid = ObjectId(campaign_id)
+        except InvalidId:
+            return jsonify({"error": "Invalid campaign id"}), 400
+        c = campaigns_col.find_one({"_id": oid, "owner_id": current_user_id()})
+        if not c:
+            return jsonify({"error": "Campaign not found"}), 404
+        return jsonify({"campaign": serialize_campaign(c)})
+ 
+    @app.route("/api/call-campaigns/<campaign_id>/logs", methods=["GET"])
+    @login_required
+    def api_call_campaign_logs(campaign_id):
+        calls = list(calls_col.find({"campaign_id": campaign_id, "owner_id": current_user_id()}).sort("created_at", -1))
+        return jsonify({"calls": [serialize_call(c) for c in calls]})
+ 
+    @app.route("/api/call-campaigns/<campaign_id>/launch", methods=["POST"])
+    @login_required
+    def api_call_launch_campaign(campaign_id):
+        try:
+            oid = ObjectId(campaign_id)
+        except InvalidId:
+            return jsonify({"error": "Invalid campaign id"}), 400
+        campaign = campaigns_col.find_one({"_id": oid, "owner_id": current_user_id()})
+        if not campaign:
+            return jsonify({"error": "Campaign not found"}), 404
+        agent = agents_col.find_one({"_id": ObjectId(campaign["agent_id"]), "owner_id": current_user_id()})
+        if not agent:
+            return jsonify({"error": "Campaign's agent no longer exists"}), 400
+        voip = voip_col.find_one({"owner_id": current_user_id()})
+        if not voip or not (voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number")):
+            return jsonify({"error": "Add your Twilio/VOIP credentials in Settings before launching calls"}), 400
+ 
+        data = request.get_json(silent=True) or {}
+        target = data.get("lead_ids", "all")
+        if target == "all":
+            lead_ids = [str(l["_id"]) for l in leads_col.find({"owner_id": current_user_id()}, {"_id": 1})]
+        else:
+            lead_ids = target or campaign.get("lead_ids", [])
+ 
+        leads = list(leads_col.find({
+            "_id": {"$in": [ObjectId(lid) for lid in lead_ids if ObjectId.is_valid(lid)]},
+            "owner_id": current_user_id(),
+        }))
+        leads = [l for l in leads if l.get("phone")]
+        if not leads:
+            return jsonify({"error": "No leads with phone numbers to call"}), 400
+ 
+        user = users_col.find_one({"_id": ObjectId(current_user_id())})
+        if get_remaining_minutes(user) <= 0:
+            return jsonify({"error": "You are out of Eva minutes. Top up to launch calls."}), 400
+ 
+        campaigns_col.update_one({"_id": campaign["_id"]}, {"$set": {
+            "status": "running", "last_run_at": datetime.utcnow(),
+            "stats": {"total": len(leads), "completed": 0, "failed": 0, "pending": len(leads)},
+        }})
+ 
+        owner_id = current_user_id()
+ 
+        def run():
+            for lead in leads:
+                fresh_user = users_col.find_one({"_id": ObjectId(owner_id)})
+                if get_remaining_minutes(fresh_user) <= 0:
+                    log("CAMPAIGN", f"{campaign_id}: out of minutes, stopping")
+                    break
+                place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, campaign_id=str(campaign["_id"]))
+                time.sleep(3)
+            remaining_running = calls_col.count_documents({
+                "campaign_id": str(campaign["_id"]),
+                "status": {"$in": ["queued", "initiating", "in-progress", "ringing"]},
+            })
+            if remaining_running == 0:
+                campaigns_col.update_one({"_id": campaign["_id"]}, {"$set": {"status": "completed"}})
+ 
+        threading.Thread(target=run, daemon=True, name=f"Campaign-{campaign_id}").start()
+        return jsonify({"launched": True, "leads_queued": len(leads)})
+ 
+    # ---------------- calls ----------------
+    @app.route("/api/calls", methods=["GET"])
+    @login_required
+    def api_list_calls():
+        campaign_id = request.args.get("campaign_id")
+        query = {"owner_id": current_user_id()}
+        if campaign_id:
+            query["campaign_id"] = campaign_id
+        return jsonify({"calls": [serialize_call(c) for c in calls_col.find(query).sort("created_at", -1).limit(300)]})
+ 
+    @app.route("/api/calls/<call_id>", methods=["GET"])
+    @login_required
+    def api_get_call(call_id):
+        try:
+            oid = ObjectId(call_id)
+        except InvalidId:
+            return jsonify({"error": "Invalid call id"}), 400
+        c = calls_col.find_one({"_id": oid, "owner_id": current_user_id()})
+        if not c:
+            return jsonify({"error": "Call not found"}), 404
+        return jsonify({"call": serialize_call(c)})
+ 
+    @app.route("/api/leads/<lead_id>/call-now", methods=["POST"])
+    @login_required
+    def api_call_now(lead_id):
+        data = request.get_json(silent=True) or {}
+        agent_id = data.get("agent_id")
+        try:
+            lead = leads_col.find_one({"_id": ObjectId(lead_id), "owner_id": current_user_id()})
+            agent = agents_col.find_one({"_id": ObjectId(agent_id), "owner_id": current_user_id()})
+        except InvalidId:
+            return jsonify({"error": "Invalid id"}), 400
+        if not lead or not lead.get("phone"):
+            return jsonify({"error": "Lead not found or has no phone number"}), 400
+        if not agent:
+            return jsonify({"error": "Agent not found"}), 400
+        voip = voip_col.find_one({"owner_id": current_user_id()})
+        if not voip or not (voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number")):
+            return jsonify({"error": "Add your Twilio/VOIP credentials in Settings first"}), 400
+        user = users_col.find_one({"_id": ObjectId(current_user_id())})
+        if get_remaining_minutes(user) <= 0:
+            return jsonify({"error": "You are out of Eva minutes"}), 400
+ 
+        result = place_outbound_call(current_user_id(), lead, agent, voip, campaigns_col, calls_col, campaign_id=None)
+        if not result.get("success"):
+            return jsonify({"error": result.get("error", "Could not place call")}), 400
+        return jsonify({"call_id": result["call_id"]})
+ 
+    # ---------------- webhook FROM Eva ----------------
+    @app.route("/api/eva-webhook/call-result", methods=["POST"])
+    def api_eva_webhook_call_result():
+        if not EVA_API_SECRET or request.headers.get("X-Eva-Secret") != EVA_API_SECRET:
+            return jsonify({"error": "Invalid or missing X-Eva-Secret"}), 401
+ 
+        data = request.get_json(silent=True) or {}
+        call_id = data.get("call_id")
+        try:
+            oid = ObjectId(call_id)
+        except (InvalidId, TypeError):
+            return jsonify({"error": "Invalid call_id"}), 400
+ 
+        call_doc = calls_col.find_one({"_id": oid})
+        if not call_doc:
+            return jsonify({"error": "Unknown call_id"}), 404
+ 
+        status = data.get("status", "completed")
+        transcript = data.get("transcript", [])
+        duration_secs = float(data.get("duration_secs", 0) or 0)
+        minutes_used = round(duration_secs / 60.0, 3)
+ 
+        lead = leads_col.find_one({"_id": ObjectId(call_doc["lead_id"])}) or {"name": call_doc.get("lead_name", "")}
+        agent = agents_col.find_one({"_id": ObjectId(call_doc["agent_id"])}) if call_doc.get("agent_id") else None
+        summary = summarize_call(transcript, lead, agent) if status == "completed" else {
+            "summary": "", "outcome": "no_response", "lead_status": lead.get("status", "cold"),
+            "ai_score": 0, "followup_required": False, "followup_hours": 24,
+            "send_whatsapp": False, "whatsapp_message": "",
+        }
+ 
+        update = {
+            "status": status, "hangup_reason": data.get("hangup_reason", status),
+            "duration_secs": duration_secs, "minutes_used": minutes_used, "transcript": transcript,
+            "summary": summary["summary"], "outcome": summary["outcome"],
+            "followup_required": summary["followup_required"], "followup_done": False,
+            "ended_at": datetime.utcnow(),
+        }
+        if summary["followup_required"]:
+            update["followup_at"] = datetime.utcnow() + timedelta(hours=summary["followup_hours"])
+ 
+        calls_col.update_one({"_id": oid}, {"$set": update})
+ 
+        if lead.get("_id"):
+            leads_col.update_one({"_id": lead["_id"]}, {"$set": {
+                "status": summary["lead_status"], "ai_score": summary["ai_score"],
+                "updated_at": datetime.utcnow(),
+            }})
+
+        if summary["send_whatsapp"] and summary["whatsapp_message"] and lead.get("phone"):
+            owner = users_col.find_one({"_id": ObjectId(call_doc["owner_id"])})
+            if owner:
+                send_result = send_whatsapp_dispatch(owner, lead["phone"], summary["whatsapp_message"])
+                if send_result.get("success"):
+                    messages_col.insert_one({
+                        "owner_id": call_doc["owner_id"], "lead_id": str(lead["_id"]), "direction": "out",
+                        "channel": (owner.get("integrations", {}) or {}).get("active_provider", "evo"),
+                        "text": summary["whatsapp_message"], "ai_generated": True,
+                        "created_at": datetime.utcnow(),
+                    })
+ 
+        if minutes_used > 0:
+            users_col.update_one({"_id": ObjectId(call_doc["owner_id"])}, {"$inc": {"eva_minutes_used": minutes_used}})
+ 
+        if call_doc.get("campaign_id"):
+            bump_field = "stats.completed" if status == "completed" else "stats.failed"
+            try:
+                campaigns_col.update_one(
+                    {"_id": ObjectId(call_doc["campaign_id"])},
+                    {"$inc": {bump_field: 1, "stats.pending": -1}},
+                )
+            except Exception:
+                pass
+ 
+        return jsonify({"received": True})
+ 
+    # ---------------- background follow-up scheduler ----------------
+    def _followup_scanner():
+        while True:
+            time.sleep(FOLLOWUP_SCAN_INTERVAL_SECS)
+            try:
+                due = list(calls_col.find({
+                    "followup_required": True, "followup_done": {"$ne": True},
+                    "followup_at": {"$lte": datetime.utcnow()},
+                }))
+            except Exception as e:
+                log("FOLLOWUP", f"scan error: {e}")
+                continue
+            for call_doc in due:
+                calls_col.update_one({"_id": call_doc["_id"]}, {"$set": {"followup_done": True}})
+                owner_id = call_doc.get("owner_id")
+                user = users_col.find_one({"_id": ObjectId(owner_id)}) if owner_id else None
+                if not user or get_remaining_minutes(user) <= 0:
+                    continue
+                try:
+                    lead = leads_col.find_one({"_id": ObjectId(call_doc["lead_id"])})
+                    agent = agents_col.find_one({"_id": ObjectId(call_doc["agent_id"])})
+                    voip = voip_col.find_one({"owner_id": owner_id})
+                except Exception:
+                    continue
+                if not (lead and agent and voip):
+                    continue
+                place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, campaign_id=call_doc.get("campaign_id"))
+ 
+    threading.Thread(target=_followup_scanner, daemon=True, name="PravaahEvaFollowupScanner").start()
+ 
+    log("INIT", "PravaahAI Eva-dashboard routes registered.")
+
+init_eva(app, db, users_col, leads_col)
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5400, debug=True)
