@@ -6,78 +6,98 @@
 <title>Eva Voice — PravaahAI</title>
 <style>
   :root{
-    --ink:#1A2233;
-    --paper:#F5F7FA;
+    --ink:#131B2E;
+    --ink-soft:#3A4256;
+    --paper:#F3F5F9;
     --panel:#FFFFFF;
-    --line:#E2E6ED;
+    --line:#E6E9F0;
+    --line-soft:#EEF1F6;
     --muted:#6B7688;
     --blue:#2454E8;
     --blue-deep:#1B3FC0;
     --blue-soft:#EEF2FF;
+    --blue-glow:rgba(36,84,232,.14);
+    --violet:#6C4CE0;
+    --violet-soft:#F1EDFC;
     --good:#0F9D58;
     --good-soft:#E7F6ED;
     --warn:#B9770E;
     --warn-soft:#FEF3E2;
     --bad:#D93025;
     --bad-soft:#FCEAE9;
-    --radius:10px;
-    --shadow:0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    --hot:#D93025;
+    --hot-soft:#FCEAE9;
+    --warm:#B9770E;
+    --warm-soft:#FEF3E2;
+    --cold:#2454E8;
+    --cold-soft:#EEF2FF;
+    --radius:12px;
+    --radius-lg:16px;
+    --shadow-sm:0 1px 2px rgba(19,27,46,.05), 0 1px 3px rgba(19,27,46,.06);
+    --shadow-md:0 4px 14px rgba(19,27,46,.07), 0 1px 3px rgba(19,27,46,.05);
+    --shadow-lg:0 12px 34px rgba(19,27,46,.10);
   }
   *{box-sizing:border-box;}
   body{
     margin:0; background:var(--paper); color:var(--ink);
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size:14px;
+    -webkit-font-smoothing:antialiased;
   }
-  h1,h2,h3{font-family:inherit; font-weight:600; letter-spacing:-.01em; color:var(--ink);}
+  h1,h2,h3{font-family:inherit; font-weight:650; letter-spacing:-.015em; color:var(--ink);}
   a{color:inherit;}
 
+  /* ---------------- topbar ---------------- */
   .topbar{
     display:flex; align-items:center; justify-content:space-between;
     padding:14px 32px; background:var(--panel); border-bottom:1px solid var(--line);
     position:sticky; top:0; z-index:20;
   }
-  .brand{display:flex; align-items:center; gap:10px;}
+  .brand{display:flex; align-items:center; gap:11px;}
   .brand .mark{
-    width:32px; height:32px; border-radius:8px;
-    background:var(--blue);
-    display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:14px;
+    width:34px; height:34px; border-radius:9px;
+    background:linear-gradient(135deg, var(--blue), var(--violet));
+    display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:15px;
+    box-shadow:0 3px 10px var(--blue-glow);
   }
-  .brand-text h1{font-size:16px; margin:0; line-height:1.2; font-weight:600;}
+  .brand-text h1{font-size:16px; margin:0; line-height:1.2; font-weight:650;}
   .brand-text span{font-size:12px; color:var(--muted);}
   .topbar-right{display:flex; align-items:center; gap:14px;}
-  .back-link{font-size:13px; color:var(--muted); text-decoration:none; border:1px solid var(--line); padding:7px 14px; border-radius:8px; background:#fff;}
+  .back-link{font-size:13px; color:var(--muted); text-decoration:none; border:1px solid var(--line); padding:7px 14px; border-radius:8px; background:#fff; transition:all .15s;}
   .back-link:hover{border-color:var(--blue); color:var(--blue);}
 
   .minutes-pill{
     display:flex; align-items:center; gap:10px; background:var(--blue-soft); color:var(--blue-deep);
-    padding:7px 14px; border-radius:8px; font-size:12.5px; border:1px solid #D6E0FB;
+    padding:7px 14px; border-radius:9px; font-size:12.5px; border:1px solid #D6E0FB;
   }
   .minutes-pill b{font-size:14px; font-weight:700;}
   .minutes-bar{width:60px; height:5px; border-radius:3px; background:#D6E0FB; overflow:hidden;}
-  .minutes-bar i{display:block; height:100%; background:var(--blue);}
+  .minutes-bar i{display:block; height:100%; background:linear-gradient(90deg, var(--blue), var(--violet));}
 
-  .shell{max-width:1180px; margin:0 auto; padding:28px 32px 80px;}
+  .shell{max-width:1220px; margin:0 auto; padding:28px 32px 80px;}
 
-  .tabs{display:flex; gap:2px; margin-bottom:22px; border-bottom:1px solid var(--line);}
+  /* ---------------- tabs ---------------- */
+  .tabs{display:flex; gap:4px; margin-bottom:24px; border-bottom:1px solid var(--line);}
   .tab-btn{
     background:none; border:none; padding:11px 16px; font-size:13.5px; cursor:pointer;
     color:var(--muted); border-bottom:2px solid transparent; font-weight:600;
+    display:flex; align-items:center; gap:7px; transition:color .15s;
   }
   .tab-btn.active{color:var(--blue); border-bottom-color:var(--blue);}
   .tab-btn:hover{color:var(--ink);}
   .tab-panel{display:none;}
-  .tab-panel.active{display:block;}
+  .tab-panel.active{display:block; animation:fadeIn .2s ease;}
+  @keyframes fadeIn{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
 
-  .row{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:12px; flex-wrap:wrap;}
-  .row h2{font-size:18px; margin:0; font-weight:600;}
+  .row{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; gap:12px; flex-wrap:wrap;}
+  .row h2{font-size:19px; margin:0; font-weight:650;}
   .sub{color:var(--muted); font-size:12.5px; margin-top:3px;}
 
   .btn{
-    border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600;
-    cursor:pointer; display:inline-flex; align-items:center; gap:6px;
+    border:none; border-radius:9px; padding:9px 16px; font-size:13px; font-weight:600;
+    cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all .15s;
   }
-  .btn-primary{background:var(--blue); color:#fff;}
+  .btn-primary{background:var(--blue); color:#fff; box-shadow:0 2px 8px var(--blue-glow);}
   .btn-primary:hover{background:var(--blue-deep);}
   .btn-coral{background:var(--ink); color:#fff;}
   .btn-coral:hover{background:#000;}
@@ -86,32 +106,83 @@
   .btn-danger{background:var(--bad-soft); color:var(--bad);}
   .btn:disabled{opacity:.45; cursor:not-allowed;}
 
-  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px;}
-  .card{
-    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
-    padding:16px 18px; box-shadow:var(--shadow);
+  /* ---------------- dashboard stat tiles ---------------- */
+  .stat-grid{display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; margin-bottom:16px;}
+  .stat-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg);
+    padding:18px 20px; box-shadow:var(--shadow-sm); position:relative; overflow:hidden;
   }
-  .card h3{font-size:14.5px; margin:0 0 6px; font-weight:600;}
-  .card .meta{font-size:12px; color:var(--muted); line-height:1.6;}
+  .stat-card .stat-icon{
+    width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    font-size:16px; margin-bottom:12px;
+  }
+  .stat-card .stat-label{font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.03em;}
+  .stat-card .stat-value{font-size:26px; font-weight:700; margin-top:4px; letter-spacing:-.02em;}
+  .stat-card .stat-foot{font-size:11.5px; color:var(--muted); margin-top:6px;}
+  .icon-blue{background:var(--blue-soft); color:var(--blue-deep);}
+  .icon-violet{background:var(--violet-soft); color:var(--violet);}
+  .icon-warn{background:var(--warn-soft); color:var(--warn);}
+  .icon-good{background:var(--good-soft); color:var(--good);}
+
+  .temp-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin:20px 0;}
+  .temp-card{
+    border-radius:var(--radius-lg); padding:18px 20px; box-shadow:var(--shadow-sm); border:1px solid transparent;
+  }
+  .temp-card.hot{background:linear-gradient(160deg, var(--hot-soft), #fff); border-color:#F6D4D1;}
+  .temp-card.warm{background:linear-gradient(160deg, var(--warm-soft), #fff); border-color:#F6E3C1;}
+  .temp-card.cold{background:linear-gradient(160deg, var(--cold-soft), #fff); border-color:#D6E0FB;}
+  .temp-card .temp-top{display:flex; align-items:center; justify-content:space-between;}
+  .temp-card .temp-dot{width:9px; height:9px; border-radius:50%;}
+  .temp-card.hot .temp-dot{background:var(--hot);}
+  .temp-card.warm .temp-dot{background:var(--warm);}
+  .temp-card.cold .temp-dot{background:var(--cold);}
+  .temp-card .temp-label{font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;}
+  .temp-card.hot .temp-label{color:var(--hot);}
+  .temp-card.warm .temp-label{color:var(--warm);}
+  .temp-card.cold .temp-label{color:var(--cold);}
+  .temp-card .temp-value{font-size:30px; font-weight:750; margin-top:10px; letter-spacing:-.02em;}
+  .temp-card .temp-sub{font-size:12px; color:var(--muted); margin-top:4px;}
+
+  .panel-block{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); padding:20px 22px; margin-bottom:16px;}
+  .panel-block h3{font-size:14.5px; margin:0 0 14px; font-weight:650;}
+  .queue-row{display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line-soft); font-size:13px;}
+  .queue-row:last-child{border-bottom:none;}
+  .queue-row .qname{font-weight:600;}
+  .queue-row .qmeta{color:var(--muted); font-size:12px; margin-top:2px;}
+  .mini-bar{width:100%; height:6px; border-radius:3px; background:var(--line-soft); overflow:hidden; margin-top:6px;}
+  .mini-bar i{display:block; height:100%; background:linear-gradient(90deg, var(--blue), var(--violet));}
+
+  .dash-grid{display:grid; grid-template-columns:1.3fr 1fr; gap:16px; align-items:start;}
+  @media (max-width:900px){ .dash-grid{grid-template-columns:1fr;} .stat-grid, .temp-grid{grid-template-columns:1fr 1fr;} }
+
+  /* ---------------- generic grids/cards ---------------- */
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(270px,1fr)); gap:14px;}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg);
+    padding:18px 20px; box-shadow:var(--shadow-sm); transition:box-shadow .15s, transform .15s;
+  }
+  .card:hover{box-shadow:var(--shadow-md); transform:translateY(-1px);}
+  .card h3{font-size:14.5px; margin:0 0 8px; font-weight:650;}
+  .card .meta{font-size:12px; color:var(--muted); line-height:1.7;}
   .card .tag{
-    display:inline-block; font-size:11px; padding:2px 8px; border-radius:5px;
+    display:inline-block; font-size:11px; padding:3px 9px; border-radius:6px;
     background:var(--blue-soft); color:var(--blue-deep); margin-right:6px; font-weight:600;
   }
   .card-actions{display:flex; gap:8px; margin-top:14px;}
-  .card-actions button{flex:1; font-size:12.5px; padding:7px 10px;}
+  .card-actions button{flex:1; font-size:12.5px; padding:8px 10px;}
 
   .empty{
-    border:1px dashed var(--line); border-radius:var(--radius); padding:36px 20px;
+    border:1px dashed var(--line); border-radius:var(--radius-lg); padding:40px 20px;
     text-align:center; color:var(--muted); font-size:13.5px; background:#fff;
   }
 
-  form.panel-form{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow);}
-  .field{margin-bottom:15px;}
-  .field label{display:block; font-size:12.5px; font-weight:600; margin-bottom:6px; color:var(--ink);}
+  form.panel-form{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg); padding:24px; box-shadow:var(--shadow-sm);}
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-size:12.5px; font-weight:650; margin-bottom:6px; color:var(--ink);}
   .field .hint{font-size:11.5px; color:var(--muted); margin-top:4px;}
   input[type=text], input[type=number], input[type=password], textarea, select{
-    width:100%; border:1px solid var(--line); border-radius:7px; padding:9px 11px;
-    font-size:13px; font-family:inherit; background:#fff; color:var(--ink);
+    width:100%; border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+    font-size:13px; font-family:inherit; background:#fff; color:var(--ink); transition:border-color .15s;
   }
   input:focus, textarea:focus, select:focus{outline:2px solid #C7D6FB; outline-offset:0; border-color:var(--blue);}
   textarea{resize:vertical; min-height:80px;}
@@ -119,28 +190,28 @@
   .three-col{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;}
 
   .modal-overlay{
-    display:none; position:fixed; inset:0; background:rgba(26,34,51,.4);
+    display:none; position:fixed; inset:0; background:rgba(19,27,46,.45); backdrop-filter:blur(2px);
     align-items:flex-start; justify-content:center; padding:60px 20px; z-index:50; overflow:auto;
   }
   .modal-overlay.active{display:flex;}
-  .modal{background:#fff; border-radius:12px; padding:24px; width:100%; max-width:560px; box-shadow:0 8px 30px rgba(16,24,40,.15);}
-  .modal h3{margin-top:0; font-size:16px;}
+  .modal{background:#fff; border-radius:14px; padding:26px; width:100%; max-width:560px; box-shadow:var(--shadow-lg);}
+  .modal h3{margin-top:0; font-size:16.5px;}
   .modal-close{float:right; background:none; border:none; font-size:16px; cursor:pointer; color:var(--muted);}
 
-  table{width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);}
-  thead th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:11px 14px; border-bottom:1px solid var(--line); background:#FAFBFC;}
-  tbody td{padding:11px 14px; font-size:13px; border-bottom:1px solid var(--line); vertical-align:top;}
+  table{width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow-sm);}
+  thead th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:12px 14px; border-bottom:1px solid var(--line); background:#FAFBFC;}
+  tbody td{padding:12px 14px; font-size:13px; border-bottom:1px solid var(--line); vertical-align:top;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:#FAFBFC; cursor:pointer;}
 
-  .status-pill{font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:5px; text-transform:capitalize;}
+  .status-pill{font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:6px; text-transform:capitalize;}
   .status-completed{background:var(--good-soft); color:var(--good);}
   .status-in-progress, .status-queued, .status-initiating, .status-ringing{background:var(--warn-soft); color:var(--warn);}
   .status-failed{background:var(--bad-soft); color:var(--bad);}
   .status-draft{background:var(--blue-soft); color:var(--blue-deep);}
   .status-running{background:var(--warn-soft); color:var(--warn);}
 
-  .lead-picker{max-height:220px; overflow:auto; border:1px solid var(--line); border-radius:7px; padding:10px;}
+  .lead-picker{max-height:220px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:10px;}
   .lead-picker label{display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400; padding:5px 2px;}
 
   .transcript-line{padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;}
@@ -150,8 +221,8 @@
 
   .toast{
     position:fixed; bottom:24px; right:24px; background:var(--ink); color:#fff;
-    padding:11px 16px; border-radius:8px; font-size:13px; z-index:100; opacity:0;
-    transform:translateY(8px); transition:all .25s ease; box-shadow:0 4px 14px rgba(16,24,40,.2);
+    padding:11px 16px; border-radius:9px; font-size:13px; z-index:100; opacity:0;
+    transform:translateY(8px); transition:all .25s ease; box-shadow:0 6px 18px rgba(19,27,46,.25);
   }
   .toast.show{opacity:1; transform:translateY(0);}
 </style>
@@ -179,15 +250,85 @@
 <div class="shell">
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="agents">Voice Agents</button>
+    <button class="tab-btn active" data-tab="dashboard">Eva Dashboard</button>
+    <button class="tab-btn" data-tab="agents">Voice Agents</button>
     <button class="tab-btn" data-tab="campaigns">Campaigns</button>
     <button class="tab-btn" data-tab="testcall">Test Call</button>
     <button class="tab-btn" data-tab="calls">Call Logs</button>
     <button class="tab-btn" data-tab="voip">Calling Settings</button>
   </div>
 
+  <!-- ===================== DASHBOARD ===================== -->
+  <div class="tab-panel active" id="panel-dashboard">
+    <div class="row">
+      <div>
+        <h2>Overview</h2>
+        <div class="sub">Live snapshot of Eva's calling activity and your lead temperature.</div>
+      </div>
+      <button class="btn btn-ghost" onclick="refreshDashboard()">Refresh</button>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-icon icon-warn">⏳</div>
+        <div class="stat-label">Pending calls</div>
+        <div class="stat-value" id="statPending">–</div>
+        <div class="stat-foot">Not yet dialed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-blue">📞</div>
+        <div class="stat-label">In queue / live</div>
+        <div class="stat-value" id="statQueued">–</div>
+        <div class="stat-foot">Ringing, initiating or in-progress</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-good">✓</div>
+        <div class="stat-label">Completed today</div>
+        <div class="stat-value" id="statCompletedToday">–</div>
+        <div class="stat-foot" id="statSuccessRate">–</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-violet">👥</div>
+        <div class="stat-label">Total leads</div>
+        <div class="stat-value" id="statTotalLeads">–</div>
+        <div class="stat-foot" id="statCallableLeads">–</div>
+      </div>
+    </div>
+
+    <div class="temp-grid">
+      <div class="temp-card hot">
+        <div class="temp-top"><span class="temp-label">Hot</span><span class="temp-dot"></span></div>
+        <div class="temp-value" id="tempHot">–</div>
+        <div class="temp-sub">Ready to close</div>
+      </div>
+      <div class="temp-card warm">
+        <div class="temp-top"><span class="temp-label">Warm</span><span class="temp-dot"></span></div>
+        <div class="temp-value" id="tempWarm">–</div>
+        <div class="temp-sub">Engaged, needs follow-up</div>
+      </div>
+      <div class="temp-card cold">
+        <div class="temp-top"><span class="temp-label">Cold</span><span class="temp-dot"></span></div>
+        <div class="temp-value" id="tempCold">–</div>
+        <div class="temp-sub">No response / not interested</div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="panel-block">
+        <h3>Active campaigns</h3>
+        <div id="dashCampaignList"></div>
+        <div class="empty" id="dashCampaignEmpty" style="display:none; padding:24px;">No campaigns running right now.</div>
+      </div>
+      <div class="panel-block">
+        <h3>Recent calls</h3>
+        <div id="dashRecentCalls"></div>
+        <div class="empty" id="dashRecentEmpty" style="display:none; padding:24px;">No calls yet.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ===================== AGENTS ===================== -->
-  <div class="tab-panel active" id="panel-agents">
+  <div class="tab-panel" id="panel-agents">
     <div class="row">
       <div>
         <h2>Voice agents</h2>
@@ -209,10 +350,6 @@
       <button class="btn btn-primary" onclick="openCampaignModal()">+ New campaign</button>
     </div>
     <div class="grid" id="campaignsGrid"></div>
-    <div class="empty" id="campaignsEmpty" style="display:none;">No campaigns yet.</div>
-  </div>
-
-  <div class="grid" id="campaignsGrid"></div>
     <div class="empty" id="campaignsEmpty" style="display:none;">No campaigns yet.</div>
   </div>
 
@@ -241,8 +378,6 @@
       <span class="hint" id="testCallStatus" style="margin-left:10px;"></span>
     </form>
   </div>
-
-  <!-- ===================== CALL LOGS ===================== -->
 
   <!-- ===================== CALL LOGS ===================== -->
   <div class="tab-panel" id="panel-calls">
@@ -331,11 +466,10 @@
       <div class="hint">Use {{name}}, {{business_name}} etc. — same merge tags as your WhatsApp/email templates.</div>
     </div>
 
-
     <div class="field">
-  <label>WhatsApp info Eva can send</label>
-  <textarea id="agentWhatsapp" placeholder="Pricing, catalog link, brochure text, etc. Eva will draft a WhatsApp message from this if the lead asks for details during the call."></textarea>
-</div>
+      <label>WhatsApp info Eva can send</label>
+      <textarea id="agentWhatsapp" placeholder="Pricing, catalog link, brochure text, etc. Eva will draft a WhatsApp message from this if the lead asks for details during the call."></textarea>
+    </div>
 
     <div class="field">
       <label>System prompt</label>
@@ -385,7 +519,7 @@
     <button class="modal-close" onclick="closeModal('callModal')">✕</button>
     <h3 id="callModalTitle">Call detail</h3>
     <div class="meta" id="callModalMeta" style="margin-bottom:14px;"></div>
-    <div style="background:#FAF9FD; border-radius:10px; padding:12px 16px; margin-bottom:16px;">
+    <div style="background:var(--paper); border-radius:10px; padding:12px 16px; margin-bottom:16px;">
       <b style="font-size:12.5px; color:var(--muted); text-transform:uppercase;">AI summary</b>
       <p id="callModalSummary" style="margin:6px 0 0; font-size:13.5px;"></p>
     </div>
@@ -400,6 +534,7 @@
 let AGENTS = [];
 let CAMPAIGNS = [];
 let LEADS = [];
+let CALLS = [];
 
 // ---------------- tabs ----------------
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -408,6 +543,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'dashboard') refreshDashboard();
   });
 });
 
@@ -439,6 +575,102 @@ async function loadMinutes(){
     const pct = d.total > 0 ? Math.max(0, Math.min(100, (d.remaining / d.total) * 100)) : 0;
     document.getElementById('minutesBarFill').style.width = pct + '%';
   }catch(e){ /* silent */ }
+}
+
+// ---------------- dashboard ----------------
+function classifyTemperature(lead, callsForLead){
+  // Prefer an explicit temperature field if your backend sets one
+  if (lead.temperature) return lead.temperature.toLowerCase();
+
+  // Fallback: infer from most recent call outcome
+  if (!callsForLead.length) return 'cold';
+  const latest = callsForLead[0];
+  const outcome = (latest.outcome || '').toLowerCase();
+  if (['interested','hot','ready to buy','converted','closed won'].some(k => outcome.includes(k))) return 'hot';
+  if (['callback','maybe','follow up','follow-up','warm','considering'].some(k => outcome.includes(k))) return 'warm';
+  return 'cold';
+}
+
+function computeDashboardStats(){
+  const pendingStatuses = ['queued','draft'];
+  const liveStatuses = ['ringing','initiating','in-progress'];
+
+  const pending = CALLS.filter(c => pendingStatuses.includes(c.status)).length;
+  const queued = CALLS.filter(c => liveStatuses.includes(c.status)).length;
+
+  const todayStr = new Date().toDateString();
+  const completedToday = CALLS.filter(c => c.status === 'completed' && c.created_at && new Date(c.created_at).toDateString() === todayStr).length;
+  const failedToday = CALLS.filter(c => c.status === 'failed' && c.created_at && new Date(c.created_at).toDateString() === todayStr).length;
+  const totalToday = completedToday + failedToday;
+  const successRate = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : null;
+
+  // group calls by lead for temperature inference
+  const callsByLead = {};
+  CALLS.slice().sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0)).forEach(c => {
+    if (!c.lead_id) return;
+    (callsByLead[c.lead_id] = callsByLead[c.lead_id] || []).push(c);
+  });
+
+  let hot = 0, warm = 0, cold = 0;
+  LEADS.forEach(l => {
+    const t = classifyTemperature(l, callsByLead[l._id] || []);
+    if (t === 'hot') hot++;
+    else if (t === 'warm') warm++;
+    else cold++;
+  });
+
+  document.getElementById('statPending').textContent = pending;
+  document.getElementById('statQueued').textContent = queued;
+  document.getElementById('statCompletedToday').textContent = completedToday;
+  document.getElementById('statSuccessRate').textContent = successRate === null ? 'No calls today yet' : `${successRate}% success rate today`;
+  document.getElementById('statTotalLeads').textContent = LEADS.length;
+  document.getElementById('statCallableLeads').textContent = `${LEADS.filter(l => l.phone).length} with phone numbers`;
+
+  document.getElementById('tempHot').textContent = hot;
+  document.getElementById('tempWarm').textContent = warm;
+  document.getElementById('tempCold').textContent = cold;
+}
+
+function renderDashCampaigns(){
+  const box = document.getElementById('dashCampaignList');
+  const empty = document.getElementById('dashCampaignEmpty');
+  const running = CAMPAIGNS.filter(c => c.status === 'running' || c.status === 'queued');
+  empty.style.display = running.length ? 'none' : 'block';
+  box.innerHTML = running.map(c => {
+    const s = c.stats || {total:0, completed:0, failed:0, pending:0};
+    const pct = s.total > 0 ? Math.round(((s.completed + s.failed) / s.total) * 100) : 0;
+    return `
+      <div class="queue-row" style="display:block;">
+        <div style="display:flex; justify-content:space-between;">
+          <span class="qname">${escapeHtml(c.name)}</span>
+          <span class="status-pill status-${c.status}">${c.status}</span>
+        </div>
+        <div class="qmeta">${s.completed}/${s.total} done · ${s.pending} pending · ${s.failed} failed</div>
+        <div class="mini-bar"><i style="width:${pct}%"></i></div>
+      </div>`;
+  }).join('');
+}
+
+function renderDashRecentCalls(){
+  const box = document.getElementById('dashRecentCalls');
+  const empty = document.getElementById('dashRecentEmpty');
+  const recent = CALLS.slice().sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0)).slice(0, 6);
+  empty.style.display = recent.length ? 'none' : 'block';
+  box.innerHTML = recent.map(c => `
+    <div class="queue-row">
+      <div>
+        <div class="qname">${escapeHtml(c.lead_name || 'Unknown lead')}</div>
+        <div class="qmeta">${escapeHtml(c.agent_name || '—')} · ${c.created_at ? new Date(c.created_at).toLocaleString() : '—'}</div>
+      </div>
+      <span class="status-pill status-${c.status}">${c.status}</span>
+    </div>`).join('');
+}
+
+async function refreshDashboard(){
+  await Promise.all([loadCalls(), loadCampaigns(), loadLeads()]);
+  computeDashboardStats();
+  renderDashCampaigns();
+  renderDashRecentCalls();
 }
 
 // ---------------- agents ----------------
@@ -567,7 +799,6 @@ async function launchCampaign(id, target){
   }catch(e){ toast(e.message); }
 }
 
-
 async function sendTestCall(e){
   e.preventDefault();
   const agent_id = document.getElementById('testCallAgent').value;
@@ -597,11 +828,12 @@ async function viewCampaignLogs(id){
 async function loadCalls(campaignId){
   const q = campaignId ? `?campaign_id=${campaignId}` : '';
   const d = await api('/api/calls' + q);
+  CALLS = d.calls || [];
   const body = document.getElementById('callsTableBody');
   const empty = document.getElementById('callsEmpty');
   body.innerHTML = '';
-  empty.style.display = d.calls.length ? 'none' : 'block';
-  d.calls.forEach(c => {
+  empty.style.display = CALLS.length ? 'none' : 'block';
+  CALLS.forEach(c => {
     const tr = document.createElement('tr');
     tr.onclick = () => showCallDetail(c);
     tr.innerHTML = `
@@ -660,7 +892,13 @@ function escapeHtml(s){
 // ---------------- init ----------------
 (async function init(){
   await Promise.all([loadMinutes(), loadAgents(), loadCampaigns(), loadCalls(), loadVoip(), loadLeads()]);
+  computeDashboardStats();
+  renderDashCampaigns();
+  renderDashRecentCalls();
   setInterval(loadMinutes, 20000);
+  setInterval(() => {
+    if (document.getElementById('panel-dashboard').classList.contains('active')) refreshDashboard();
+  }, 25000);
 })();
 </script>
 </body>
