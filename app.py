@@ -2644,4 +2644,4 @@ def init_eva(app, db, users_col, leads_col):
 
 init_eva(app, db, users_col, leads_col)
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5400, debug=True)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 6875)), debug=True)
