@@ -74,6 +74,8 @@ campaigns_col  = db["pravah-campaigns"]
 executions_col = db["pravah-executions"]   # per-lead campaign execution logs
 messages_col   = db["pravah-messages"]     # inbound/outbound whatsapp message log
 teams_col      = db["pravah-team"]         # team members (sub-accounts)
+plans_col      = db["pravah-plans"]        # subscription plans (India / International)
+pricing_col    = db["pravah-eva-pricing"]  # global Eva per-minute pricing settings
 
 # ----------------------------------
 # Create Indexes
@@ -93,8 +95,24 @@ try:
     messages_col.create_index([("owner_id", 1), ("lead_id", 1), ("created_at", -1)])
     teams_col.create_index("owner_id")
     teams_col.create_index("email", unique=True)
+    plans_col.create_index("region")
+    pricing_col.create_index("key", unique=True)
 except Exception:
     pass
+
+
+def seed_admin_defaults():
+    """Creates the global Eva pricing document the first time the app boots."""
+    if pricing_col.count_documents({"key": "global"}) == 0:
+        pricing_col.insert_one({
+            "key": "global",
+            "india_price_per_min": 2.0,            # INR
+            "international_price_per_min": 0.05,   # USD
+            "updated_at": datetime.utcnow(),
+        })
+
+
+seed_admin_defaults()
 
 # ----------------------------------
 # Lead Import Settings
@@ -193,6 +211,22 @@ def owner_required(view):
             return redirect("/login")
         if session.get("role") != "owner":
             return jsonify({"error": "This section is only available to the account owner"}), 403
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def admin_required(view):
+    """Restricts a route to platform admins (account_type == 'admin')."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if "user_id" not in session:
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Not authenticated"}), 401
+            return redirect("/login")
+        if session.get("account_type") != "admin":
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Admin access only"}), 403
+            return redirect("/dashboard")
         return view(*args, **kwargs)
     return wrapped
 
@@ -296,6 +330,48 @@ def serialize_message(m):
         "channel": m.get("channel", "whatsapp"),
         "text": m.get("text", ""),
         "created_at": m.get("created_at").isoformat() if m.get("created_at") else None,
+    }
+
+
+def serialize_plan(p):
+    return {
+        "_id": str(p["_id"]),
+        "name": p.get("name", ""),
+        "region": p.get("region", "international"),
+        "currency": p.get("currency", "USD"),
+        "price": p.get("price", 0),
+        "billing_cycle": p.get("billing_cycle", "monthly"),
+        "eva_minutes_included": p.get("eva_minutes_included", 0),
+        "lead_limit": p.get("lead_limit", 0),
+        "features": p.get("features", []),
+        "created_at": p.get("created_at").isoformat() if p.get("created_at") else None,
+    }
+
+
+def serialize_admin_user(u):
+    plan = None
+    if u.get("plan_id"):
+        try:
+            plan = plans_col.find_one({"_id": ObjectId(u["plan_id"])})
+        except InvalidId:
+            plan = None
+    return {
+        "_id": str(u["_id"]),
+        "username": u.get("username", ""),
+        "email": u.get("email", ""),
+        "phone": u.get("phone", ""),
+        "business_name": u.get("business_name", ""),
+        "status": u.get("status", "active"),
+        "email_verified": u.get("email_verified", False),
+        "account_type": u.get("account_type", "user"),
+        "region": u.get("region", "international"),
+        "plan": {"_id": str(plan["_id"]), "name": plan.get("name", "")} if plan else None,
+        "eva_minutes": float(u.get("eva_minutes", 0) or 0),
+        "eva_minutes_used": float(u.get("eva_minutes_used", 0) or 0),
+        "team_count": teams_col.count_documents({"owner_id": str(u["_id"])}),
+        "lead_count": leads_col.count_documents({"owner_id": str(u["_id"])}),
+        "created_at": u.get("created_at").isoformat() if u.get("created_at") else None,
+        "last_login": u.get("last_login").isoformat() if u.get("last_login") else None,
     }
 
 
@@ -724,8 +800,10 @@ def launch_campaign(campaign_id: str, owner_id: str):
 @app.route("/")
 def home():
     if "user_id" in session:
+        if session.get("account_type") == "admin":
+            return redirect("/admin/dashboard")
         return redirect("/dashboard")
-    return redirect("/login")
+    return render_template("/index.html")
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -750,6 +828,11 @@ def signup():
 
         users_col.insert_one({
             "type": "user",
+            "account_type": "user",
+            "region": "international",
+            "plan_id": None,
+            "eva_minutes": 0.0,
+            "eva_minutes_used": 0.0,
             "username": username,
             "email": email,
             "phone": phone,
@@ -780,23 +863,36 @@ def login():
         username = request.form.get("username", "").strip().lower()
         password = request.form.get("password", "")
 
-        # Try account owner first
+        # Try account owner / admin first
         user = users_col.find_one({"username": username, "type": "user"})
         if user and check_password_hash(user["password"], password):
-            session["user_id"]  = str(user["_id"])
-            session["actor_id"] = str(user["_id"])
-            session["username"] = user["username"]
-            session["role"]     = "owner"
+            if user.get("status", "active") != "active":
+                flash("This account has been disabled. Contact support.")
+                return redirect("/login")
+            session["user_id"]      = str(user["_id"])
+            session["actor_id"]     = str(user["_id"])
+            session["username"]     = user["username"]
+            session["role"]         = "owner"
+            session["account_type"] = user.get("account_type", "user")
             users_col.update_one({"_id": user["_id"]}, {"$set": {"last_login": datetime.utcnow()}})
+            if session["account_type"] == "admin":
+                return redirect("/admin/dashboard")
             return redirect("/dashboard")
 
         # Try team member (logs in with email as "username")
         member = teams_col.find_one({"email": username})
-        if member and check_password_hash(member["password"], password) and member.get("status") == "active":
-            session["user_id"]  = member["owner_id"]           # data is scoped to the owner
-            session["actor_id"] = str(member["_id"])
-            session["username"] = member.get("name") or member["email"]
-            session["role"]     = "member"
+        if member and check_password_hash(member["password"], password):
+            if member.get("status") != "active":
+                flash("Invalid username or password"); return redirect("/login")
+            owner = users_col.find_one({"_id": ObjectId(member["owner_id"])})
+            if not owner or owner.get("status", "active") != "active":
+                flash("This account has been disabled. Contact support.")
+                return redirect("/login")
+            session["user_id"]      = member["owner_id"]           # data is scoped to the owner
+            session["actor_id"]     = str(member["_id"])
+            session["username"]     = member.get("name") or member["email"]
+            session["role"]         = "member"
+            session["account_type"] = "user"
             teams_col.update_one({"_id": member["_id"]}, {"$set": {"last_login": datetime.utcnow()}})
             return redirect("/dashboard")
 
@@ -807,6 +903,8 @@ def login():
 @app.route("/dashboard")
 @login_required
 def dashboard():
+    if session.get("account_type") == "admin":
+        return redirect("/admin/dashboard")
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
     if not user:
         session.clear(); return redirect("/login")
@@ -1550,6 +1648,371 @@ def api_toggle_team_member(member_id):
     if result.matched_count == 0:
         return jsonify({"error": "Team member not found"}), 404
     return jsonify({"updated": True})
+
+
+# ==================================================================
+# ADMIN DASHBOARD PAGE + API  (account_type == "admin" only)
+# ==================================================================
+
+@app.route("/admin/dashboard")
+@admin_required
+def admin_dashboard_page():
+    return render_template("admin_dashboard.html", display_name=session.get("username"))
+
+
+@app.route("/api/admin/stats", methods=["GET"])
+@login_required
+@admin_required
+def api_admin_stats():
+    total_users = users_col.count_documents({"type": "user", "account_type": {"$ne": "admin"}})
+    active_users = users_col.count_documents({"type": "user", "account_type": {"$ne": "admin"}, "status": "active"})
+    disabled_users = users_col.count_documents({"type": "user", "account_type": {"$ne": "admin"}, "status": "disabled"})
+    pending_users = users_col.count_documents({"type": "user", "account_type": {"$ne": "admin"}, "email_verified": False})
+
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    new_this_month = users_col.count_documents({
+        "type": "user", "account_type": {"$ne": "admin"}, "created_at": {"$gte": month_start},
+    })
+
+    plan_counts = []
+    for p in plans_col.find({}):
+        count = users_col.count_documents({"plan_id": str(p["_id"])})
+        plan_counts.append({"plan_id": str(p["_id"]), "name": p.get("name", ""), "region": p.get("region", ""), "users": count})
+
+    no_plan = users_col.count_documents({
+        "type": "user", "account_type": {"$ne": "admin"},
+        "$or": [{"plan_id": {"$exists": False}}, {"plan_id": None}, {"plan_id": ""}],
+    })
+
+    total_eva_minutes_used = 0.0
+    for u in users_col.find({"type": "user"}, {"eva_minutes_used": 1}):
+        total_eva_minutes_used += float(u.get("eva_minutes_used", 0) or 0)
+
+    return jsonify({
+        "total_users": total_users,
+        "active_users": active_users,
+        "disabled_users": disabled_users,
+        "pending_users": pending_users,
+        "new_this_month": new_this_month,
+        "plan_counts": plan_counts,
+        "no_plan_users": no_plan,
+        "total_eva_minutes_used": round(total_eva_minutes_used, 2),
+        "total_leads": leads_col.count_documents({}),
+        "total_team_members": teams_col.count_documents({}),
+    })
+
+
+@app.route("/api/admin/users", methods=["GET"])
+@login_required
+@admin_required
+def api_admin_list_users():
+    q = request.args.get("q", "").strip()
+    status = request.args.get("status", "").strip()
+    region = request.args.get("region", "").strip()
+
+    query = {"type": "user", "account_type": {"$ne": "admin"}}
+    if q:
+        query["$or"] = [
+            {"username": {"$regex": q, "$options": "i"}},
+            {"email": {"$regex": q, "$options": "i"}},
+            {"business_name": {"$regex": q, "$options": "i"}},
+        ]
+    if status in ("active", "disabled"):
+        query["status"] = status
+    if region in ("india", "international"):
+        query["region"] = region
+
+    users = list(users_col.find(query).sort("created_at", -1))
+    return jsonify({"users": [serialize_admin_user(u) for u in users]})
+
+
+@app.route("/api/admin/users", methods=["POST"])
+@login_required
+@admin_required
+def api_admin_create_user():
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip().lower()
+    email    = (data.get("email") or "").strip().lower()
+    password = data.get("password") or generate_temp_password()
+    region   = data.get("region") if data.get("region") in ("india", "international") else "international"
+
+    if not username or not email:
+        return jsonify({"error": "Username and email are required"}), 400
+    if users_col.find_one({"username": username}):
+        return jsonify({"error": "Username already exists"}), 400
+    if users_col.find_one({"email": email}):
+        return jsonify({"error": "Email already exists"}), 400
+
+    # If an initial plan was chosen, the customer's Eva minutes wallet
+    # starts at that plan's included minutes (plus any manual top-up below).
+    plan_id = data.get("plan_id") or None
+    plan_minutes = 0.0
+    if plan_id:
+        try:
+            plan = plans_col.find_one({"_id": ObjectId(plan_id)})
+            if plan:
+                plan_minutes = float(plan.get("eva_minutes_included", 0) or 0)
+        except InvalidId:
+            plan_id = None
+
+    manual_minutes = float(data.get("eva_minutes", 0) or 0)
+
+    doc = {
+        "type": "user", "account_type": "user",
+        "username": username, "email": email,
+        "phone": (data.get("phone") or "").strip(),
+        "business_name": (data.get("business_name") or "").strip(),
+        "business_type": (data.get("business_type") or "").strip(),
+        "website": "", "address": "",
+        "password": generate_password_hash(password),
+        "status": "active", "email_verified": True,
+        "region": region,
+        "plan_id": plan_id,
+        "eva_minutes": plan_minutes + manual_minutes,
+        "eva_minutes_used": 0.0,
+        "plan": {"name": "Free", "credits": 100},
+        "integrations": {},
+        "webhook_token": generate_webhook_token(),
+        "wirebase_webhook_token": generate_webhook_token(),
+        "team_rr_index": 0,
+        "created_at": datetime.utcnow(),
+        "last_login": None,
+    }
+    result = users_col.insert_one(doc)
+    saved = users_col.find_one({"_id": result.inserted_id})
+    return jsonify({"user": serialize_admin_user(saved), "temp_password": password}), 201
+
+
+@app.route("/api/admin/users/<user_id>/status", methods=["PATCH"])
+@login_required
+@admin_required
+def api_admin_update_user_status(user_id):
+    try: oid = ObjectId(user_id)
+    except InvalidId: return jsonify({"error": "Invalid user id"}), 400
+    data = request.get_json(silent=True) or {}
+    status = data.get("status")
+    if status not in ("active", "disabled"):
+        return jsonify({"error": "status must be active or disabled"}), 400
+    result = users_col.update_one({"_id": oid, "type": "user"}, {"$set": {"status": status}})
+    if result.matched_count == 0:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({"updated": True, "status": status})
+
+
+@app.route("/api/admin/users/<user_id>/plan", methods=["PATCH"])
+@login_required
+@admin_required
+def api_admin_assign_plan(user_id):
+    """Assigning a plan sets (not increments) the customer's eva_minutes
+    wallet to the plan's included-minutes figure — that's their fresh
+    allotment for this plan. Use the separate 'add Eva minutes' endpoint
+    to top up extra minutes on top of whatever their plan already gives them."""
+    try: oid = ObjectId(user_id)
+    except InvalidId: return jsonify({"error": "Invalid user id"}), 400
+    data = request.get_json(silent=True) or {}
+    plan_id = data.get("plan_id")
+
+    update = {"plan_id": plan_id or None}
+    if plan_id:
+        try:
+            plan = plans_col.find_one({"_id": ObjectId(plan_id)})
+        except InvalidId:
+            return jsonify({"error": "Invalid plan id"}), 400
+        if not plan:
+            return jsonify({"error": "Plan not found"}), 404
+        update["eva_minutes"] = float(plan.get("eva_minutes_included", 0) or 0)
+        update["eva_minutes_used"] = 0.0  # fresh plan cycle starts the usage counter over
+
+    result = users_col.update_one({"_id": oid, "type": "user"}, {"$set": update})
+    if result.matched_count == 0:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({"updated": True, "eva_minutes": update.get("eva_minutes")})
+
+
+@app.route("/api/admin/users/<user_id>/eva-minutes", methods=["POST"])
+@login_required
+@admin_required
+def api_admin_add_eva_minutes(user_id):
+    """Admin grants ADDITIONAL Eva minutes to a customer, on top of
+    whatever their plan already gave them. Use a negative number to deduct."""
+    try: oid = ObjectId(user_id)
+    except InvalidId: return jsonify({"error": "Invalid user id"}), 400
+    data = request.get_json(silent=True) or {}
+    try:
+        minutes = float(data.get("minutes", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "minutes must be a number"}), 400
+    if minutes == 0:
+        return jsonify({"error": "minutes cannot be 0"}), 400
+    result = users_col.update_one({"_id": oid, "type": "user"}, {"$inc": {"eva_minutes": minutes}})
+    if result.matched_count == 0:
+        return jsonify({"error": "User not found"}), 404
+    user = users_col.find_one({"_id": oid})
+    return jsonify({"updated": True, "eva_minutes": user.get("eva_minutes", 0)})
+
+
+@app.route("/api/admin/users/<user_id>/team", methods=["GET"])
+@login_required
+@admin_required
+def api_admin_user_team(user_id):
+    members = list(teams_col.find({"owner_id": user_id}).sort("created_at", -1))
+    return jsonify({"members": [serialize_team_member(m) for m in members]})
+
+
+# ---------------- plans ----------------
+
+@app.route("/api/admin/plans", methods=["GET"])
+@login_required
+@admin_required
+def api_admin_list_plans():
+    plans = list(plans_col.find({}).sort("created_at", -1))
+    return jsonify({"plans": [serialize_plan(p) for p in plans]})
+
+
+@app.route("/api/admin/plans", methods=["POST"])
+@login_required
+@admin_required
+def api_admin_create_plan():
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    region = data.get("region")
+    if not name or region not in ("india", "international"):
+        return jsonify({"error": "name and a valid region (india/international) are required"}), 400
+    doc = {
+        "name": name, "region": region,
+        "currency": "INR" if region == "india" else "USD",
+        "price": float(data.get("price", 0) or 0),
+        "billing_cycle": data.get("billing_cycle", "monthly"),
+        "eva_minutes_included": float(data.get("eva_minutes_included", 0) or 0),
+        "lead_limit": int(data.get("lead_limit", 0) or 0),
+        "features": data.get("features", []),
+        "created_at": datetime.utcnow(),
+    }
+    result = plans_col.insert_one(doc)
+    return jsonify({"plan": serialize_plan(plans_col.find_one({"_id": result.inserted_id}))}), 201
+
+
+@app.route("/api/admin/plans/<plan_id>", methods=["PUT", "PATCH"])
+@login_required
+@admin_required
+def api_admin_update_plan(plan_id):
+    try: oid = ObjectId(plan_id)
+    except InvalidId: return jsonify({"error": "Invalid plan id"}), 400
+    data = request.get_json(silent=True) or {}
+    update = {}
+    for f in ("name", "billing_cycle"):
+        if f in data: update[f] = (data[f] or "").strip()
+    if "region" in data and data["region"] in ("india", "international"):
+        update["region"] = data["region"]
+        update["currency"] = "INR" if data["region"] == "india" else "USD"
+    if "price" in data: update["price"] = float(data["price"] or 0)
+    if "eva_minutes_included" in data: update["eva_minutes_included"] = float(data["eva_minutes_included"] or 0)
+    if "lead_limit" in data: update["lead_limit"] = int(data["lead_limit"] or 0)
+    if "features" in data: update["features"] = data["features"]
+    result = plans_col.update_one({"_id": oid}, {"$set": update})
+    if result.matched_count == 0:
+        return jsonify({"error": "Plan not found"}), 404
+    return jsonify({"plan": serialize_plan(plans_col.find_one({"_id": oid}))})
+
+
+@app.route("/api/admin/plans/<plan_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def api_admin_delete_plan(plan_id):
+    try: oid = ObjectId(plan_id)
+    except InvalidId: return jsonify({"error": "Invalid plan id"}), 400
+    result = plans_col.delete_one({"_id": oid})
+    if result.deleted_count == 0:
+        return jsonify({"error": "Plan not found"}), 404
+    users_col.update_many({"plan_id": plan_id}, {"$set": {"plan_id": None}})
+    return jsonify({"deleted": True})
+
+
+# ---------------- Eva per-minute pricing ----------------
+
+@app.route("/api/admin/pricing", methods=["GET"])
+@login_required
+@admin_required
+def api_admin_get_pricing():
+    p = pricing_col.find_one({"key": "global"}) or {}
+    return jsonify({
+        "india_price_per_min": p.get("india_price_per_min", 2.0),
+        "international_price_per_min": p.get("international_price_per_min", 0.05),
+        "updated_at": p.get("updated_at").isoformat() if p.get("updated_at") else None,
+    })
+
+
+@app.route("/api/admin/pricing", methods=["POST"])
+@login_required
+@admin_required
+def api_admin_save_pricing():
+    data = request.get_json(silent=True) or {}
+    update = {"updated_at": datetime.utcnow()}
+    if "india_price_per_min" in data:
+        update["india_price_per_min"] = float(data["india_price_per_min"] or 0)
+    if "international_price_per_min" in data:
+        update["international_price_per_min"] = float(data["international_price_per_min"] or 0)
+    pricing_col.update_one({"key": "global"}, {"$set": update}, upsert=True)
+    return jsonify({"saved": True})
+
+
+# ---------------- Eva agents / campaigns / stats (read-only, cross-account) ----------------
+
+@app.route("/api/admin/eva/agents", methods=["GET"])
+@login_required
+@admin_required
+def api_admin_eva_agents():
+    agents_col = db["pravah-agents"]
+    owner_map = {str(u["_id"]): u.get("business_name") or u.get("username") for u in users_col.find({}, {"username": 1, "business_name": 1})}
+    agents = list(agents_col.find({}).sort("created_at", -1))
+    out = [{
+        "_id": str(a["_id"]), "name": a.get("name", ""),
+        "owner_id": a.get("owner_id", ""), "owner_name": owner_map.get(a.get("owner_id", ""), "Unknown"),
+        "gender": a.get("gender", ""), "language": a.get("language", ""),
+        "created_at": a.get("created_at").isoformat() if a.get("created_at") else None,
+    } for a in agents]
+    return jsonify({"agents": out})
+
+
+@app.route("/api/admin/eva/campaigns", methods=["GET"])
+@login_required
+@admin_required
+def api_admin_eva_campaigns():
+    call_campaigns_col = db["pravah-call-campaigns"]
+    owner_map = {str(u["_id"]): u.get("business_name") or u.get("username") for u in users_col.find({}, {"username": 1, "business_name": 1})}
+    campaigns = list(call_campaigns_col.find({}).sort("created_at", -1).limit(200))
+    out = [{
+        "_id": str(c["_id"]), "name": c.get("name", ""),
+        "owner_id": c.get("owner_id", ""), "owner_name": owner_map.get(c.get("owner_id", ""), "Unknown"),
+        "status": c.get("status", ""), "stats": c.get("stats", {}),
+        "created_at": c.get("created_at").isoformat() if c.get("created_at") else None,
+    } for c in campaigns]
+    return jsonify({"campaigns": out})
+
+
+@app.route("/api/admin/eva/stats", methods=["GET"])
+@login_required
+@admin_required
+def api_admin_eva_stats():
+    calls_col = db["pravah-calls"]
+    total_calls = calls_col.count_documents({})
+    completed = calls_col.count_documents({"status": "completed"})
+    failed = calls_col.count_documents({"status": "failed"})
+    total_minutes = sum(float(c.get("minutes_used", 0) or 0) for c in calls_col.find({}, {"minutes_used": 1}))
+
+    since = datetime.utcnow() - timedelta(days=14)
+    daily = {}
+    for c in calls_col.find({"created_at": {"$gte": since}}, {"created_at": 1}):
+        day = c["created_at"].strftime("%Y-%m-%d")
+        daily[day] = daily.get(day, 0) + 1
+    timeseries = [{"date": (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d"),
+                   "calls": daily.get((datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d"), 0)}
+                  for i in range(13, -1, -1)]
+
+    return jsonify({
+        "total_calls": total_calls, "completed": completed, "failed": failed,
+        "total_minutes": round(total_minutes, 2), "timeseries": timeseries,
+    })
 
 
 # ==================================================================

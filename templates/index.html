@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PravahAI — The Complete BusinessOS for Conversations</title>
+<meta name="description" content="PravahAI unifies WhatsApp, Email, Voice and Web into one continuous flow of conversation — the complete BusinessOS for real estate, import-export, tech agencies and more.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+:root{
+    --ink:#10182b;
+    --muted:#6b7688;
+    --faint:#a6afbd;
+    --paper:#f5f7fb;
+    --card:#ffffff;
+    --line:rgba(16,24,43,.08);
+    --accent-1:#155eef;
+    --accent-2:#00b8d9;
+    --dark:#0b1220;
+    --dark-card:#141c2e;
+    --dark-line:rgba(255,255,255,.08);
+    --shadow-sm:0 1px 2px rgba(16,24,40,.04);
+    --shadow-lg:0 24px 48px -16px rgba(16,24,40,.16);
+    --ease:cubic-bezier(.22,1,.36,1);
+    --container:1180px;
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+body{
+    font-family:'Manrope',sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+}
+img{max-width:100%; display:block;}
+a{color:inherit;}
+.wrap{ max-width:var(--container); margin:0 auto; padding:0 28px; }
+h1,h2,h3{ font-family:'Fraunces',serif; font-weight:600; letter-spacing:-.01em; }
+section{ position:relative; }
+.eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:12.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent-1); margin-bottom:14px;
+}
+.eyebrow::before{ content:""; width:16px; height:1.5px; background:var(--accent-1); }
+
+/* ---------- reveal on scroll ---------- */
+.reveal{ opacity:0; transform:translateY(28px); transition:opacity .8s var(--ease), transform .8s var(--ease); }
+.reveal.visible{ opacity:1; transform:translateY(0); }
+.stagger.visible > *{ transition-delay:calc(var(--i,0) * 90ms); }
+
+/* ---------- nav ---------- */
+.nav{
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    padding:20px 0;
+    transition:background .35s var(--ease), box-shadow .35s var(--ease), padding .35s var(--ease), border-color .35s var(--ease);
+    border-bottom:1px solid transparent;
+}
+.nav.scrolled{
+    background:rgba(245,247,251,.82);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    padding:14px 0;
+    border-bottom:1px solid var(--line);
+    box-shadow:var(--shadow-sm);
+}
+.nav .wrap{ display:flex; align-items:center; justify-content:space-between; }
+.brand{ display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:600; font-size:20px; text-decoration:none; color:var(--ink); }
+.brand .mark{ width:26px; height:26px; }
+.brand em{ font-style:italic; font-weight:500; color:var(--accent-1); }
+.nav-links{ display:flex; align-items:center; gap:36px; list-style:none; }
+.nav-links a{ text-decoration:none; font-size:14.5px; font-weight:600; color:var(--muted); position:relative; padding:4px 0; transition:color .2s; }
+.nav-links a::after{ content:""; position:absolute; left:0; bottom:0; width:100%; height:1.5px; background:var(--accent-1); transform:scaleX(0); transform-origin:left; transition:transform .25s var(--ease); }
+.nav-links a:hover{ color:var(--ink); }
+.nav-links a:hover::after{ transform:scaleX(1); }
+.nav-cta{ display:flex; align-items:center; gap:14px; }
+.btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    font-family:'Manrope',sans-serif; font-weight:700; font-size:14.5px;
+    padding:11px 22px; border-radius:11px; text-decoration:none; cursor:pointer; border:none;
+    transition:transform .18s var(--ease), box-shadow .25s var(--ease), background .25s var(--ease);
+    white-space:nowrap;
+}
+.btn-ghost{ color:var(--ink); background:transparent; border:1.5px solid var(--line); }
+.btn-ghost:hover{ border-color:var(--accent-1); color:var(--accent-1); }
+.btn-primary{
+    position:relative; overflow:hidden;
+    color:#fff; background:linear-gradient(120deg, var(--accent-1), var(--accent-2));
+    box-shadow:0 8px 20px -8px rgba(21,94,239,.5);
+}
+.btn-primary::after{
+    content:""; position:absolute; top:0; left:-60%; width:40%; height:100%;
+    background:linear-gradient(120deg, transparent, rgba(255,255,255,.35), transparent);
+    transform:skewX(-20deg); transition:left .55s var(--ease);
+}
+.btn-primary:hover::after{ left:130%; }
+.btn-primary:hover{ transform:translateY(-2px); box-shadow:0 14px 28px -8px rgba(21,94,239,.58); }
+.btn-primary:active{ transform:translateY(0) scale(.98); }
+.btn-lg{ padding:15px 28px; font-size:15.5px; border-radius:12px; }
+
+.burger{ display:none; flex-direction:column; gap:5px; background:none; border:none; cursor:pointer; padding:6px; }
+.burger span{ width:22px; height:2px; background:var(--ink); border-radius:2px; transition:transform .3s var(--ease), opacity .3s; }
+.mobile-menu{
+    display:none; position:fixed; inset:0; z-index:99; background:var(--paper);
+    flex-direction:column; align-items:center; justify-content:center; gap:28px;
+    opacity:0; visibility:hidden; transition:opacity .3s var(--ease);
+}
+.mobile-menu.open{ display:flex; opacity:1; visibility:visible; }
+.mobile-menu a{ font-family:'Fraunces',serif; font-size:26px; text-decoration:none; color:var(--ink); }
+
+/* ---------- hero ---------- */
+.hero{ padding:168px 0 100px; overflow:hidden; }
+.hero .wrap{ display:grid; grid-template-columns:1.05fr .95fr; gap:60px; align-items:center; }
+.hero h1{ font-size:clamp(38px,5vw,60px); line-height:1.08; margin-bottom:22px; }
+.hero h1 .flow-word{ font-style:italic; font-weight:500; background:linear-gradient(120deg,var(--accent-1),var(--accent-2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero p.lead{ font-size:18px; color:var(--muted); line-height:1.65; max-width:480px; margin-bottom:34px; }
+.hero-cta{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:38px; }
+.hero-proof{ display:flex; gap:28px; flex-wrap:wrap; }
+.hero-proof div{ font-size:13px; color:var(--muted); }
+.hero-proof strong{ display:block; font-family:'Fraunces',serif; font-size:22px; color:var(--ink); font-weight:600; }
+
+.hero-visual{ position:relative; }
+.hero-visual svg{ width:100%; height:auto; }
+.hero-load{ opacity:0; transform:translateY(20px); animation:fade-up .7s var(--ease) forwards; }
+.hero-load.d1{ animation-delay:.05s; } .hero-load.d2{ animation-delay:.18s; } .hero-load.d3{ animation-delay:.3s; } .hero-load.d4{ animation-delay:.42s; } .hero-load.d5{ animation-delay:.54s; }
+@keyframes fade-up{ to{ opacity:1; transform:translateY(0);} }
+
+/* ---------- channel strip ---------- */
+.channels{ padding:36px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+.channels .wrap{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:24px; }
+.channels .label{ font-size:13px; color:var(--faint); font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+.channel-icons{ display:flex; gap:36px; flex-wrap:wrap; }
+.channel-icons div{ display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--muted); }
+.channel-icons svg{ width:20px; height:20px; stroke:var(--accent-1); }
+
+/* ---------- section shell ---------- */
+.section{ padding:110px 0; }
+.section-head{ max-width:640px; margin-bottom:56px; }
+.section-head h2{ font-size:clamp(28px,3.4vw,40px); line-height:1.15; margin-bottom:16px; }
+.section-head p{ color:var(--muted); font-size:16.5px; line-height:1.65; }
+.section-head.center{ margin-left:auto; margin-right:auto; text-align:center; }
+
+/* ---------- about / channel cards ---------- */
+.channel-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:22px; }
+.channel-card{
+    background:var(--card); border:1px solid var(--line); border-radius:18px; padding:30px 26px;
+    transition:transform .3s var(--ease), box-shadow .3s var(--ease), border-color .3s var(--ease);
+}
+.channel-card:hover{ transform:translateY(-6px); box-shadow:var(--shadow-lg); border-color:rgba(21,94,239,.25); }
+.channel-card .icon-box{
+    width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg, rgba(21,94,239,.1), rgba(0,184,217,.1)); margin-bottom:20px;
+}
+.channel-card .icon-box svg{ width:22px; height:22px; stroke:var(--accent-1); }
+.channel-card h3{ font-size:18px; margin-bottom:8px; }
+.channel-card p{ font-size:14.5px; color:var(--muted); line-height:1.6; }
+
+/* ---------- industries ---------- */
+.industries{ background:var(--card); }
+.industry-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+.industry-card{
+    position:relative; border-radius:18px; overflow:hidden; height:300px;
+    border:1px solid var(--line); background:var(--paper);
+    transition:transform .35s var(--ease), box-shadow .35s var(--ease);
+}
+.industry-card:hover{ transform:translateY(-6px); box-shadow:var(--shadow-lg); }
+.industry-card img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:transform .6s var(--ease); }
+.industry-card:hover img{ transform:scale(1.06); }
+.industry-card .overlay{
+    position:absolute; inset:0; background:linear-gradient(0deg, rgba(11,18,32,.88) 0%, rgba(11,18,32,.25) 55%, transparent 100%);
+}
+.industry-card .content{ position:absolute; left:0; right:0; bottom:0; padding:24px; color:#fff; }
+.industry-card .content span{ font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#7fd4ff; }
+.industry-card .content h3{ font-family:'Fraunces',serif; font-size:21px; margin-top:6px; color:#fff; }
+.industry-card.wide{ grid-column:span 2; }
+
+/* ---------- features ---------- */
+.feature-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+.feature-card{ padding:28px 0; border-top:1px solid var(--line); }
+.feature-card .num{ font-family:'Fraunces',serif; font-style:italic; color:var(--faint); font-size:14px; margin-bottom:14px; display:block; }
+.feature-card h3{ font-size:18px; margin-bottom:8px; }
+.feature-card p{ color:var(--muted); font-size:14.5px; line-height:1.6; }
+
+/* ---------- how it works (dark) ---------- */
+.flow-section{ background:var(--dark); color:#fff; padding:120px 0; }
+.flow-section .section-head p{ color:rgba(255,255,255,.55); }
+.flow-section .section-head h2{ color:#fff; }
+.flow-steps{ position:relative; display:grid; grid-template-columns:repeat(4,1fr); gap:30px; margin-top:20px; }
+.flow-line-svg{ position:absolute; top:34px; left:0; width:100%; height:6px; z-index:0; }
+.flow-step{ position:relative; z-index:1; }
+.flow-step .dot{
+    width:68px; height:68px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:var(--dark-card); border:1.5px solid var(--dark-line); margin-bottom:22px;
+    font-family:'Fraunces',serif; font-size:20px; color:var(--accent-2);
+    box-shadow:0 0 0 6px rgba(11,18,32,1);
+}
+.flow-step h3{ color:#fff; font-size:17px; margin-bottom:8px; }
+.flow-step p{ color:rgba(255,255,255,.55); font-size:14px; line-height:1.6; }
+
+/* ---------- stats ---------- */
+.stats{ padding:90px 0; }
+.stats-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:24px; text-align:center; }
+.stat h3{ font-family:'Fraunces',serif; font-size:44px; background:linear-gradient(120deg,var(--accent-1),var(--accent-2)); -webkit-background-clip:text; background-clip:text; color:transparent; margin-bottom:8px; }
+.stat p{ color:var(--muted); font-size:14px; }
+
+/* ---------- pricing ---------- */
+.pricing-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:24px; align-items:stretch; }
+.price-card{
+    background:var(--card); border:1.5px solid var(--line); border-radius:20px; padding:36px 30px;
+    display:flex; flex-direction:column; transition:transform .3s var(--ease), box-shadow .3s var(--ease), border-color .3s;
+}
+.price-card:hover{ transform:translateY(-6px); box-shadow:var(--shadow-lg); }
+.price-card.featured{ border-color:var(--accent-1); position:relative; background:linear-gradient(180deg, #fff, #f7faff); }
+.price-badge{ position:absolute; top:-13px; left:50%; transform:translateX(-50%); background:linear-gradient(120deg,var(--accent-1),var(--accent-2)); color:#fff; font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:6px 16px; border-radius:20px; }
+.price-card .plan{ font-size:14px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:14px; }
+.price-card .price{ font-family:'Fraunces',serif; font-size:42px; margin-bottom:6px; }
+.price-card .price span{ font-family:'Manrope',sans-serif; font-size:14px; color:var(--muted); font-weight:600; }
+.price-card .desc{ color:var(--muted); font-size:14px; margin-bottom:26px; }
+.price-card ul{ list-style:none; margin-bottom:30px; flex:1; }
+.price-card li{ display:flex; align-items:center; gap:10px; font-size:14.5px; padding:9px 0; border-bottom:1px dashed var(--line); }
+.price-card li svg{ width:16px; height:16px; stroke:var(--accent-1); flex-shrink:0; }
+
+/* ---------- cta banner (dark) ---------- */
+.cta-banner{ background:var(--dark); color:#fff; padding:90px 0; text-align:center; position:relative; overflow:hidden; }
+.cta-banner h2{ color:#fff; font-size:clamp(28px,4vw,42px); margin-bottom:16px; }
+.cta-banner p{ color:rgba(255,255,255,.6); margin-bottom:34px; font-size:16px; }
+.cta-actions{ display:flex; justify-content:center; gap:16px; flex-wrap:wrap; }
+
+/* ---------- contact ---------- */
+.contact-grid{ display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:start; }
+.contact-info div{ margin-bottom:26px; }
+.contact-info h3{ font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:6px; }
+.contact-info p{ font-size:16px; }
+.contact-form{ background:var(--card); border:1px solid var(--line); border-radius:18px; padding:34px; box-shadow:var(--shadow-sm); }
+.form-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+.form-field{ margin-bottom:16px; }
+.form-field label{ display:block; font-size:13px; font-weight:700; margin-bottom:7px; color:var(--muted); }
+.form-field input, .form-field textarea{
+    width:100%; background:var(--paper); border:1.5px solid var(--line); border-radius:10px; padding:12px 14px;
+    font-family:'Manrope',sans-serif; font-size:14.5px; color:var(--ink); outline:none;
+    transition:border-color .25s var(--ease), box-shadow .25s var(--ease);
+}
+.form-field input:focus, .form-field textarea:focus{ border-color:var(--accent-1); box-shadow:0 0 0 4px rgba(21,94,239,.09); }
+.form-field textarea{ resize:vertical; min-height:110px; }
+
+/* ---------- footer ---------- */
+footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px; }
+.footer-grid{ display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:40px; margin-bottom:50px; }
+.footer-grid .brand{ color:#fff; margin-bottom:14px; }
+.footer-grid p{ font-size:14px; line-height:1.6; max-width:280px; }
+.footer-col h4{ color:#fff; font-size:13px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:16px; }
+.footer-col a{ display:block; text-decoration:none; font-size:14px; color:rgba(255,255,255,.55); margin-bottom:11px; transition:color .2s; }
+.footer-col a:hover{ color:#fff; }
+.footer-bottom{ border-top:1px solid var(--dark-line); padding-top:26px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:14px; font-size:13px; }
+
+/* ---------- responsive ---------- */
+@media (max-width:980px){
+    .hero .wrap{ grid-template-columns:1fr; }
+    .hero{ padding-top:140px; text-align:center; }
+    .hero p.lead{ margin-left:auto; margin-right:auto; }
+    .hero-cta, .hero-proof{ justify-content:center; }
+    .channel-grid{ grid-template-columns:repeat(2,1fr); }
+    .industry-grid{ grid-template-columns:repeat(2,1fr); }
+    .industry-card.wide{ grid-column:span 2; }
+    .feature-grid{ grid-template-columns:repeat(2,1fr); }
+    .flow-steps{ grid-template-columns:repeat(2,1fr); row-gap:40px; }
+    .flow-line-svg{ display:none; }
+    .stats-grid{ grid-template-columns:repeat(2,1fr); row-gap:34px; }
+    .pricing-grid{ grid-template-columns:1fr; max-width:420px; margin:0 auto; }
+    .contact-grid{ grid-template-columns:1fr; }
+    .footer-grid{ grid-template-columns:1fr 1fr; }
+}
+@media (max-width:680px){
+    .nav-links{ display:none; }
+    .burger{ display:flex; }
+    .nav-cta .btn-ghost{ display:none; }
+    .channel-grid{ grid-template-columns:1fr; }
+    .industry-grid{ grid-template-columns:1fr; }
+    .industry-card.wide{ grid-column:span 1; }
+    .feature-grid{ grid-template-columns:1fr; }
+    .flow-steps{ grid-template-columns:1fr; }
+    .stats-grid{ grid-template-columns:1fr 1fr; }
+    .channels .wrap{ justify-content:center; text-align:center; }
+    .footer-grid{ grid-template-columns:1fr; }
+    .section{ padding:76px 0; }
+    .form-row{ grid-template-columns:1fr; }
+}
+
+@media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= NAV ================= -->
+<nav class="nav" id="nav">
+    <div class="wrap">
+        <a href="#home" class="brand">
+            <svg class="mark" viewBox="0 0 26 26" fill="none"><path d="M2 16C6 6 10 6 13 13S20 20 24 10" stroke="url(#navGrad)" stroke-width="2.4" stroke-linecap="round"/><defs><linearGradient id="navGrad" x1="0" y1="0" x2="26" y2="0"><stop stop-color="#155eef"/><stop offset="1" stop-color="#00b8d9"/></linearGradient></defs></svg>
+            Pravah<em>AI</em>
+        </a>
+        <ul class="nav-links">
+            <li><a href="#home">Home</a></li>
+            <li><a href="#about">About</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#contact">Contact</a></li>
+        </ul>
+        <div class="nav-cta">
+            <a href="/login" class="btn btn-ghost">Login</a>
+            <a href="/signup" class="btn btn-primary">Get Started</a>
+            <button class="burger" id="burger" aria-label="Menu"><span></span><span></span><span></span></button>
+        </div>
+    </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+    <a href="#home">Home</a>
+    <a href="#about">About</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#contact">Contact</a>
+    <a href="/login">Login</a>
+</div>
+
+<!-- ================= HERO ================= -->
+<section class="hero" id="home">
+    <div class="wrap">
+        <div>
+            <div class="hero-load d1 eyebrow">Complete BusinessOS</div>
+            <h1 class="hero-load d2">Every conversation.<br>One continuous <span class="flow-word">flow</span>.</h1>
+            <p class="lead hero-load d3">PravahAI unifies WhatsApp, Email, Voice and Web into a single intelligent stream — so your business responds like one mind across every channel, every time.</p>
+            <div class="hero-cta hero-load d4">
+                <a href="/signup" class="btn btn-primary btn-lg">Get Started Now</a>
+                <a href="/login" class="btn btn-ghost btn-lg">Login</a>
+            </div>
+            <div class="hero-proof hero-load d5">
+                <div><strong>4</strong>Channels, one flow</div>
+                <div><strong>&lt;30s</strong>Avg. first response</div>
+                <div><strong>100+</strong>Businesses onboard</div>
+            </div>
+        </div>
+
+        <div class="hero-visual hero-load d3">
+            <svg viewBox="0 0 600 460" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="heroGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#155eef"/>
+                        <stop offset="100%" stop-color="#00b8d9"/>
+                    </linearGradient>
+                    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#155eef" stop-opacity=".25"/>
+                        <stop offset="100%" stop-color="#155eef" stop-opacity="0"/>
+                    </radialGradient>
+                    <clipPath id="coreClip">
+                        <circle cx="300" cy="230" r="44"/>
+                    </clipPath>
+                </defs>
+
+                <circle cx="300" cy="230" r="140" fill="url(#coreGlow)"/>
+
+                <path id="p1" d="M70 90 C 160 90, 220 150, 300 230" fill="none" stroke="var(--line)" stroke-width="2"/>
+                <path id="p2" d="M530 90 C 440 90, 380 150, 300 230" fill="none" stroke="var(--line)" stroke-width="2"/>
+                <path id="p3" d="M70 380 C 160 380, 220 300, 300 230" fill="none" stroke="var(--line)" stroke-width="2"/>
+                <path id="p4" d="M530 380 C 440 380, 380 300, 300 230" fill="none" stroke="var(--line)" stroke-width="2"/>
+
+                <circle r="4.5" fill="url(#heroGrad)"><animateMotion dur="3.2s" repeatCount="indefinite" begin="0s"><mpath href="#p1"/></animateMotion></circle>
+                <circle r="4.5" fill="url(#heroGrad)"><animateMotion dur="3.6s" repeatCount="indefinite" begin=".5s"><mpath href="#p2"/></animateMotion></circle>
+                <circle r="4.5" fill="url(#heroGrad)"><animateMotion dur="3.4s" repeatCount="indefinite" begin="1s"><mpath href="#p3"/></animateMotion></circle>
+                <circle r="4.5" fill="url(#heroGrad)"><animateMotion dur="3.8s" repeatCount="indefinite" begin="1.5s"><mpath href="#p4"/></animateMotion></circle>
+
+                <!-- channel nodes -->
+                <g>
+                    <circle cx="70" cy="90" r="34" fill="#fff" stroke="var(--line)" stroke-width="1.5"/>
+                    <path d="M60 86h20M60 94h14" stroke="#155eef" stroke-width="2" stroke-linecap="round"/>
+                </g>
+                <g>
+                    <circle cx="530" cy="90" r="34" fill="#fff" stroke="var(--line)" stroke-width="1.5"/>
+                    <rect x="518" y="82" width="24" height="16" rx="3" fill="none" stroke="#155eef" stroke-width="2"/>
+                    <path d="M518 84l12 9 12-9" fill="none" stroke="#155eef" stroke-width="2"/>
+                </g>
+                <g>
+                    <circle cx="70" cy="380" r="34" fill="#fff" stroke="var(--line)" stroke-width="1.5"/>
+                    <path d="M58 372a6 6 0 0 1 6-6h2l3 8-3 3a16 16 0 0 0 8 8l3-3 8 3v2a6 6 0 0 1-6 6c-11 0-21-10-21-21z" fill="none" stroke="#155eef" stroke-width="1.6"/>
+                </g>
+                <g>
+                    <circle cx="530" cy="380" r="34" fill="#fff" stroke="var(--line)" stroke-width="1.5"/>
+                    <circle cx="530" cy="380" r="12" fill="none" stroke="#155eef" stroke-width="2"/>
+                    <path d="M518 380h24M530 368v24" stroke="#155eef" stroke-width="1.4"/>
+                </g>
+
+                <!-- core node -->
+                <circle cx="300" cy="230" r="46" fill="transparent"/>
+                <image href="{{ url_for('static', filename='img/hero-core.png') }}" alt="PravaahAI Logo"" x="256" y="186" width="88" height="88" clip-path="url(#coreClip)" preserveAspectRatio="xMidYMid slice"/>
+                
+            </svg>
+        </div>
+    </div>
+</section>
+
+<!-- ================= CHANNEL STRIP ================= -->
+<section class="channels">
+    <div class="wrap">
+        <span class="label">One flow, every channel</span>
+        <div class="channel-icons">
+            <div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> WhatsApp</div>
+            <div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg> Email</div>
+            <div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Voice</div>
+            <div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Web</div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= ABOUT ================= -->
+<section class="section" id="about">
+    <div class="wrap">
+        <div class="section-head reveal">
+            <div class="eyebrow">What PravahAI does</div>
+            <h2>Four channels. One context that never breaks.</h2>
+            <p>Most tools bolt channels together and lose the thread between them. PravahAI keeps a single conversational memory flowing underneath every touchpoint — so a customer can start on WhatsApp, follow up by email, and finish on a call without repeating themselves.</p>
+        </div>
+        <div class="channel-grid reveal stagger">
+            <div class="channel-card" style="--i:0">
+                <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+                <h3>WhatsApp</h3>
+                <p>Template & session messaging with rich replies, built for two-way business conversation.</p>
+            </div>
+            <div class="channel-card" style="--i:1">
+                <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></div>
+                <h3>Email</h3>
+                <p>Transactional and lifecycle email that reads the same context as every other channel.</p>
+            </div>
+            <div class="channel-card" style="--i:2">
+                <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+                <h3>Voice</h3>
+                <p>Conversational IVR with live transcription — calls route with full history in hand.</p>
+            </div>
+            <div class="channel-card" style="--i:3">
+                <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+                <h3>Web Chat</h3>
+                <p>Embed a live, context-aware assistant directly on your site in minutes.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= INDUSTRIES ================= -->
+<section class="section industries">
+    <div class="wrap">
+        <div class="section-head reveal">
+            <div class="eyebrow">Built for your industry</div>
+            <h2>One BusinessOS, tuned to how you work.</h2>
+            <p>PravahAI adapts its flows, vocabulary and integrations to the way each industry actually sells and serves — not a generic chatbot template.</p>
+        </div>
+        <div class="industry-grid reveal stagger">
+            <div class="industry-card wide" style="--i:0">
+                <img src="images/real-estate-skyline.jpg" alt="Modern city skyline representing real estate listings and property management">
+                <div class="overlay"></div>
+                <div class="content"><span>Real Estate</span><h3>Qualify buyers, auto-schedule site visits, follow up on every listing.</h3></div>
+            </div>
+            <div class="industry-card" style="--i:1">
+                <img src="images/import-export-port.jpg" alt="Container shipping port representing import and export logistics">
+                <div class="overlay"></div>
+                <div class="content"><span>Import & Export</span><h3>Track shipments and quote buyers across WhatsApp and email in one thread.</h3></div>
+            </div>
+            <div class="industry-card" style="--i:2">
+                <img src="images/tech-agency-team.jpg" alt="Creative tech agency team collaborating at a desk with laptops">
+                <div class="overlay"></div>
+                <div class="content"><span>Tech Agencies</span><h3>Triage client requests and route tickets without dropping context.</h3></div>
+            </div>
+            <div class="industry-card" style="--i:3">
+                <img src="images/healthcare-consult.jpg" alt="Healthcare receptionist assisting a patient over a call">
+                <div class="overlay"></div>
+                <div class="content"><span>Healthcare</span><h3>Confirm appointments and send reminders that patients actually read.</h3></div>
+            </div>
+            <div class="industry-card wide" style="--i:4">
+                <img src="images/retail-storefront.jpg" alt="Modern retail storefront and ecommerce packaging on a shelf">
+                <div class="overlay"></div>
+                <div class="content"><span>Retail & E-commerce</span><h3>Recover carts, confirm orders and handle support — and many more.</h3></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= FEATURES ================= -->
+<section class="section" id="features">
+    <div class="wrap">
+        <div class="section-head reveal">
+            <div class="eyebrow">Under the hood</div>
+            <h2>Everything a real operations team needs.</h2>
+        </div>
+        <div class="feature-grid reveal stagger">
+            <div class="feature-card" style="--i:0"><span class="num">01</span><h3>Context memory</h3><p>Every session, profile and history persists across channels — nothing resets.</p></div>
+            <div class="feature-card" style="--i:1"><span class="num">02</span><h3>NLU + generative replies</h3><p>Intent detection where it's reliable, LLM generation where it's flexible.</p></div>
+            <div class="feature-card" style="--i:2"><span class="num">03</span><h3>Flow builder</h3><p>Conditional routing, fallbacks and human escalation, no code required.</p></div>
+            <div class="feature-card" style="--i:3"><span class="num">04</span><h3>Template management</h3><p>Manage approved WhatsApp templates and transactional email in one place.</p></div>
+            <div class="feature-card" style="--i:4"><span class="num">05</span><h3>Live analytics</h3><p>Volume, resolution rate and response time, tracked per channel and flow.</p></div>
+            <div class="feature-card" style="--i:5"><span class="num">06</span><h3>Open integrations</h3><p>Connect your CRM, database or internal tools through a simple API.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= HOW IT WORKS (dark) ================= -->
+<section class="flow-section">
+    <div class="wrap">
+        <div class="section-head reveal">
+            <div class="eyebrow" style="color:#7fd4ff;">How it flows</div>
+            <h2>From first message to resolution.</h2>
+            <p>One pipeline, four movements — built to feel instant on the outside and stay orderly underneath.</p>
+        </div>
+        <div class="flow-steps reveal stagger">
+            <svg class="flow-line-svg" viewBox="0 0 1000 6" preserveAspectRatio="none">
+                <line x1="0" y1="3" x2="1000" y2="3" stroke="rgba(255,255,255,.12)" stroke-width="1.5"/>
+                <line x1="0" y1="3" x2="1000" y2="3" stroke="url(#flowLineGrad)" stroke-width="1.5" stroke-dasharray="24 970" stroke-linecap="round">
+                    <animate attributeName="stroke-dashoffset" from="0" to="-1200" dur="4s" repeatCount="indefinite"/>
+                </line>
+                <defs><linearGradient id="flowLineGrad" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#155eef"/><stop offset="1" stop-color="#00b8d9"/></linearGradient></defs>
+            </svg>
+            <div class="flow-step" style="--i:0"><div class="dot">01</div><h3>Message arrives</h3><p>From WhatsApp, email, a call, or your website — captured the same way.</p></div>
+            <div class="flow-step" style="--i:1"><div class="dot">02</div><h3>Context loads</h3><p>Prior history, profile and open tasks attach instantly.</p></div>
+            <div class="flow-step" style="--i:2"><div class="dot">03</div><h3>Flow decides</h3><p>Intent routes to an automated reply, a workflow, or a human.</p></div>
+            <div class="flow-step" style="--i:3"><div class="dot">04</div><h3>Resolution flows back</h3><p>Answer, booking or handoff — delivered on whichever channel fits best.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= STATS ================= -->
+<section class="stats">
+    <div class="wrap">
+        <div class="stats-grid reveal stagger">
+            <div class="stat" style="--i:0"><h3 data-count="63">0</h3><p>% faster first response</p></div>
+            <div class="stat" style="--i:1"><h3 data-count="41">0</h3><p>% lower cost per contact</p></div>
+            <div class="stat" style="--i:2"><h3 data-count="4">0</h3><p>Channels, one context</p></div>
+            <div class="stat" style="--i:3"><h3 data-count="100">0</h3><p>+ businesses onboard</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= PRICING ================= -->
+<section class="section" id="pricing">
+    <div class="wrap">
+        <div class="section-head center reveal" style="margin-left:auto;margin-right:auto;">
+            <div class="eyebrow">Pricing</div>
+            <h2>Simple plans that scale with your flow.</h2>
+            <p>Start free. Upgrade when your conversations outgrow the basics.</p>
+        </div>
+        <div class="pricing-grid reveal stagger">
+            <div class="price-card" style="--i:0">
+                <div class="plan">Starter</div>
+                <div class="price">₹2999<span>/month</span></div>
+                <div class="desc">For small teams testing the waters.</div>
+                <ul>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>1 channel</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>500 conversations/mo</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Basic analytics</li>
+                </ul>
+                <a href="/signup" class="btn btn-ghost">Start Free</a>
+            </div>
+            <div class="price-card featured" style="--i:1">
+                <div class="price-badge">Most Popular</div>
+                <div class="plan">Growth</div>
+                <div class="price">₹4,999<span>/month</span></div>
+                <div class="desc">For teams running real support & sales ops.</div>
+                <ul>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>All 4 channels</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>10,000 conversations/mo</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Flow builder + escalation</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Full analytics suite</li>
+                </ul>
+                <a href="/signup" class="btn btn-primary">Get Started</a>
+            </div>
+            <div class="price-card" style="--i:2">
+                <div class="plan">Enterprise</div>
+                <div class="price">Custom</div>
+                <div class="desc">For high-volume, multi-team operations.</div>
+                <ul>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Unlimited conversations</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Dedicated infra & SLA</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Custom integrations</li>
+                </ul>
+                <a href="#contact" class="btn btn-ghost">Talk to Sales</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= CTA BANNER ================= -->
+<section class="cta-banner">
+    <div class="wrap reveal">
+        <h2>Ready to let your business flow?</h2>
+        <p>Set up your first channel in minutes — no credit card required.</p>
+        <div class="cta-actions">
+            <a href="/signup" class="btn btn-primary btn-lg">Get Started Now</a>
+            <a href="/login" class="btn btn-ghost btn-lg" style="border-color:rgba(255,255,255,.25); color:#fff;">Login</a>
+        </div>
+    </div>
+</section>
+
+<!-- ================= CONTACT ================= -->
+<section class="section" id="contact">
+    <div class="wrap">
+        <div class="section-head reveal">
+            <div class="eyebrow">Contact</div>
+            <h2>Let's talk about your flow.</h2>
+            <p>Tell us about your business and we'll help you map WhatsApp, email, voice and web into one system.</p>
+        </div>
+        <div class="contact-grid reveal">
+            <div class="contact-info">
+                <div><h3>Email</h3><p>hello@pravahai.com</p></div>
+                <div><h3>Sales</h3><p>+91 98XXX XXXXX</p></div>
+                <div><h3>Office</h3><p>Meerut, Uttar Pradesh, India</p></div>
+            </div>
+            <form class="contact-form">
+                <div class="form-row">
+                    <div class="form-field"><label>Name</label><input type="text" placeholder="Your name" required></div>
+                    <div class="form-field"><label>Company</label><input type="text" placeholder="Business name"></div>
+                </div>
+                <div class="form-field"><label>Email</label><input type="email" placeholder="you@company.com" required></div>
+                <div class="form-field"><label>Message</label><textarea placeholder="Tell us about your business..."></textarea></div>
+                <button type="submit" class="btn btn-primary btn-lg" style="width:100%;">Send Message</button>
+            </form>
+        </div>
+    </div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer>
+    <div class="wrap">
+        <div class="footer-grid">
+            <div>
+                <a href="#home" class="brand">
+                    <svg class="mark" viewBox="0 0 26 26" fill="none"><path d="M2 16C6 6 10 6 13 13S20 20 24 10" stroke="url(#footGrad)" stroke-width="2.4" stroke-linecap="round"/><defs><linearGradient id="footGrad" x1="0" y1="0" x2="26" y2="0"><stop stop-color="#155eef"/><stop offset="1" stop-color="#00b8d9"/></linearGradient></defs></svg>
+                    Pravah<em style="color:#7fd4ff;">AI</em>
+                </a>
+                <p>The complete BusinessOS for conversations — WhatsApp, Email, Voice and Web, in one continuous flow.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Product</h4>
+                <a href="#about">About</a>
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+            </div>
+            <div class="footer-col">
+                <h4>Company</h4>
+                <a href="#contact">Contact</a>
+                <a href="/login">Login</a>
+                <a href="/signup">Sign Up</a>
+            </div>
+            <div class="footer-col">
+                <h4>Legal</h4>
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <span>© 2026 PravahAI. All rights reserved.</span>
+            <span>Made to flow.</span>
+        </div>
+    </div>
+</footer>
+
+<script>
+// nav scroll state
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 20);
+}, { passive:true });
+
+// mobile menu
+const burger = document.getElementById('burger');
+const mobileMenu = document.getElementById('mobileMenu');
+burger.addEventListener('click', () => mobileMenu.classList.toggle('open'));
+mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => mobileMenu.classList.remove('open')));
+
+// scroll reveal
+const revealEls = document.querySelectorAll('.reveal');
+const io = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting){
+            entry.target.classList.add('visible');
+            io.unobserve(entry.target);
+        }
+    });
+}, { threshold: 0.15 });
+revealEls.forEach(el => io.observe(el));
+
+// stat counters
+const statEls = document.querySelectorAll('.stat h3');
+const counterIO = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting){
+            const el = entry.target;
+            const target = parseInt(el.getAttribute('data-count'), 10);
+            let cur = 0;
+            const step = Math.max(1, Math.round(target / 50));
+            const tick = () => {
+                cur += step;
+                if (cur >= target){ el.textContent = target; return; }
+                el.textContent = cur;
+                requestAnimationFrame(tick);
+            };
+            tick();
+            counterIO.unobserve(el);
+        }
+    });
+}, { threshold: 0.5 });
+statEls.forEach(el => counterIO.observe(el));
+</script>
+
+</body>
+</html>
