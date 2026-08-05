@@ -856,6 +856,62 @@ def signup():
 
     return render_template("signup.html")
 
+ADMIN_SIGNUP_KEY = os.getenv("ADMIN_SIGNUP_KEY", "")  # set this in .env so randoms can't self-promote to admin
+
+@app.route("/admin/signup", methods=["GET", "POST"])
+def admin_signup():
+    if request.method == "POST":
+        username   = request.form.get("username", "").strip().lower()
+        email      = request.form.get("email", "").strip().lower()
+        phone      = request.form.get("phone", "").strip()
+        password   = request.form.get("password", "")
+        setup_key  = request.form.get("setup_key", "")
+
+        if not ADMIN_SIGNUP_KEY or setup_key != ADMIN_SIGNUP_KEY:
+            flash("Invalid setup key")
+            return redirect("/admin/signup")
+
+        if not username:
+            flash("Username required"); return redirect("/admin/signup")
+        if not email:
+            flash("Email required"); return redirect("/admin/signup")
+        if not password:
+            flash("Password required"); return redirect("/admin/signup")
+
+        if users_col.find_one({"username": username, "type": "user"}):
+            flash("Username already exists"); return redirect("/admin/signup")
+        if users_col.find_one({"email": email, "type": "user"}):
+            flash("Email already exists"); return redirect("/admin/signup")
+
+        users_col.insert_one({
+            "type": "user",
+            "account_type": "admin",
+            "region": "international",
+            "plan_id": None,
+            "eva_minutes": 0.0,
+            "eva_minutes_used": 0.0,
+            "username": username,
+            "email": email,
+            "phone": phone,
+            "business_name": "",
+            "business_type": "",
+            "website": "",
+            "address": "",
+            "password": generate_password_hash(password),
+            "status": "active",
+            "email_verified": True,
+            "plan": {"name": "Free", "credits": 100},
+            "integrations": {},
+            "webhook_token": generate_webhook_token(),
+            "wirebase_webhook_token": generate_webhook_token(),
+            "team_rr_index": 0,
+            "created_at": datetime.utcnow(),
+            "last_login": None,
+        })
+        flash("Admin account created successfully. Please log in.")
+        return redirect("/login")
+
+    return render_template("admin_signup.html")
 
 @app.route("/login", methods=["GET", "POST"])
 def login():

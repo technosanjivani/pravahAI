@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Signup · PravaahAI</title>
+  <style>
+    body {
+      margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #0f172a; color: #e2e8f0;
+      display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    }
+    .card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      padding: 32px; width: 100%; max-width: 380px;
+    }
+    .card h1 { font-size: 20px; margin: 0 0 4px; }
+    .card p.sub { font-size: 13px; color: #94a3b8; margin: 0 0 20px; }
+    label { display: block; font-size: 13px; margin: 14px 0 6px; color: #cbd5e1; }
+    input {
+      width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 14px;
+    }
+    input:focus { outline: none; border-color: #6366f1; }
+    button {
+      width: 100%; margin-top: 22px; padding: 11px; border: none; border-radius: 8px;
+      background: #6366f1; color: white; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    button:hover { background: #4f46e5; }
+    .flash {
+      background: #7f1d1d; border: 1px solid #991b1b; color: #fecaca;
+      padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px;
+    }
+    a { color: #818cf8; text-decoration: none; font-size: 13px; }
+    .footer { text-align: center; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Create Admin Account</h1>
+    <p class="sub">Restricted access — requires a valid setup key.</p>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for m in messages %}
+          <div class="flash">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="/admin/signup">
+      <label for="setup_key">Setup Key</label>
+      <input type="password" id="setup_key" name="setup_key" required>
+
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" required>
+
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" required>
+
+      <label for="phone">Phone</label>
+      <input type="text" id="phone" name="phone">
+
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required>
+
+      <button type="submit">Create Admin Account</button>
+    </form>
+
+    <div class="footer">
+      <a href="/login">Back to login</a>
+    </div>
+  </div>
+</body>
+</html>
