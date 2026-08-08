@@ -181,9 +181,28 @@ def generate_webhook_token() -> str:
     return secrets.token_urlsafe(24)
 
 
+
 def generate_temp_password(length=10) -> str:
     alphabet = string.ascii_letters + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
+
+def parse_iso_utc(s):
+    """Parses an ISO datetime string (with or without trailing Z / ms) into
+    a naive UTC datetime, matching how the rest of this file stores time."""
+    if not s:
+        return None
+    s = s.strip()
+    if s.endswith("Z"):
+        s = s[:-1]
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"):
+            try:
+                return datetime.strptime(s, fmt)
+            except ValueError:
+                continue
+    return None
 
 
 # ----------------------------------
@@ -288,8 +307,11 @@ def serialize_campaign(c):
         "name": c.get("name", ""),
         "description": c.get("description", ""),
         "status": c.get("status", "draft"),
-        "flow": c.get("flow", []),
+        "nodes": c.get("nodes", []),
+        "edges": c.get("edges", []),
         "lead_ids": c.get("lead_ids", []),
+        "schedule_type": c.get("schedule_type", "now"),
+        "scheduled_at": c.get("scheduled_at").isoformat() if c.get("scheduled_at") else None,
         "created_at": c.get("created_at").isoformat() if c.get("created_at") else None,
         "updated_at": c.get("updated_at").isoformat() if c.get("updated_at") else None,
         "last_run_at": c.get("last_run_at").isoformat() if c.get("last_run_at") else None,
@@ -614,9 +636,29 @@ def send_whatsapp_dispatch(user: dict, phone: str, message: str) -> dict:
 # ----------------------------------
 # Campaign Flow Execution Engine
 # ----------------------------------
+def _find_next_node(edges_by_source, node_id, handle=None):
+    """Given an adjacency map (node_id -> list of edge dicts), returns the
+    id of the node reached by following an outgoing edge from node_id.
+    `handle` disambiguates condition-node branches ('true' / 'false')."""
+    for e in edges_by_source.get(node_id, []):
+        if handle is None or (e.get("source_handle") or None) == handle:
+            return e.get("target")
+    return None
 
-def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: str):
-    flow = campaign.get("flow", [])
+
+def execute_campaign_for_lead(campaign, lead, user, owner_id):
+    """Walks the campaign's node graph (built in the canvas flow builder)
+    for a single lead — starting at the 'start' node and following edges
+    until a branch has no further connection."""
+    nodes = {n["id"]: n for n in campaign.get("nodes", [])}
+    edges_by_source = {}
+    for e in campaign.get("edges", []):
+        edges_by_source.setdefault(e["source"], []).append(e)
+
+    start_node = next((n for n in nodes.values() if n.get("type") == "start"), None)
+    if not start_node:
+        return  # flow has no start node — nothing to run
+
     campaign_id = str(campaign["_id"])
     lead_id = str(lead["_id"])
 
@@ -628,21 +670,28 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
     ai_wa_prompt    = creds.get("ai_whatsapp_prompt", "")
     ai_email_prompt = creds.get("ai_email_prompt", "")
 
-    step_idx = 0
-    while step_idx < len(flow):
-        step = flow[step_idx]
-        step_type = step.get("type", "")
+    current_id = _find_next_node(edges_by_source, start_node["id"])
+    hops = 0
 
-        if step_type == "wait":
-            amount = float(step.get("amount", 1) or 1)
-            unit = step.get("unit", "minutes")
+    while current_id and hops < 200:  # safety cap against accidental loops
+        hops += 1
+        node = nodes.get(current_id)
+        if not node:
+            break
+        node_type = node.get("type", "")
+        data = node.get("data", {}) or {}
+
+        if node_type == "wait":
+            amount = float(data.get("amount", 1) or 1)
+            unit = data.get("unit", "minutes")
             seconds = {"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}.get(unit, 60) * amount
-            time.sleep(min(seconds, 3600))  # safety cap so a single wait step can't block forever
+            time.sleep(min(seconds, 3600))  # a single wait step can't block forever
+            current_id = _find_next_node(edges_by_source, current_id)
 
-        elif step_type == "condition":
-            field = step.get("field", "")
-            operator = step.get("operator", "exists")
-            value = (step.get("value") or "").strip().lower()
+        elif node_type == "condition":
+            field = data.get("field", "")
+            operator = data.get("operator", "exists")
+            value = (data.get("value") or "").strip().lower()
             field_val = str(lead.get(field, "") or "").strip().lower()
             if operator == "exists":
                 result = bool(field_val)
@@ -656,27 +705,25 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
                 result = value not in field_val
             else:
                 result = True
-            next_step = step.get("then_step") if result else step.get("else_step")
-            if next_step is not None:
-                step_idx = next_step
-                continue
+            current_id = _find_next_node(edges_by_source, current_id, "true" if result else "false")
 
-        elif step_type == "whatsapp":
+        elif node_type == "whatsapp":
             phone   = lead.get("phone", "")
-            message = step.get("message", "")
+            message = data.get("message", "")
 
-            if step.get("use_ai"):
+            if data.get("use_ai"):
                 throttle_ai_call(owner_id)
-                ai_result = generate_ai_content(lead, "whatsapp", step.get("ai_instructions", ""), ai_wa_prompt)
+                ai_result = generate_ai_content(lead, "whatsapp", data.get("ai_instructions", ""), ai_wa_prompt)
                 if ai_result.get("success"):
                     message = ai_result.get("message", message)
 
             message = render_template_vars(message, lead)
 
             if not phone:
-                _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "failed", "whatsapp", "Lead has no phone number")
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), current_id, "failed", "whatsapp", "Lead has no phone number")
                 _bump_campaign_stat(campaign["_id"], "failed")
             else:
+                # Routes through whichever provider the owner has active — Evolution or Wirebase
                 send_result = send_whatsapp_dispatch(user, phone, message)
                 if send_result.get("success"):
                     channel = creds.get("active_provider", "evo")
@@ -684,21 +731,23 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
                         "owner_id": owner_id, "lead_id": lead_id, "direction": "out",
                         "channel": channel, "text": message, "created_at": datetime.utcnow(),
                     })
-                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "sent", "whatsapp")
+                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), current_id, "sent", "whatsapp")
                     _bump_campaign_stat(campaign["_id"], "sent")
                 else:
-                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "failed", "whatsapp", send_result.get("error", "Send failed"))
+                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), current_id, "failed", "whatsapp", send_result.get("error", "Send failed"))
                     _bump_campaign_stat(campaign["_id"], "failed")
 
-        elif step_type == "email":
-            provider = step.get("provider", "gmail")
-            to_addr  = lead.get("email", "")
-            subject  = step.get("subject", "")
-            body     = step.get("body", "")
+            current_id = _find_next_node(edges_by_source, current_id)
 
-            if step.get("use_ai"):
+        elif node_type == "email":
+            provider = data.get("provider", "gmail")
+            to_addr  = lead.get("email", "")
+            subject  = data.get("subject", "")
+            body     = data.get("body", "")
+
+            if data.get("use_ai"):
                 throttle_ai_call(owner_id)
-                ai_result = generate_ai_content(lead, "email", step.get("ai_instructions", ""), ai_email_prompt)
+                ai_result = generate_ai_content(lead, "email", data.get("ai_instructions", ""), ai_email_prompt)
                 if ai_result.get("success"):
                     subject = ai_result.get("subject", subject)
                     body    = ai_result.get("body", body)
@@ -708,10 +757,11 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
             channel_name = f"email_{provider}"
 
             if not to_addr:
-                _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "failed", channel_name, "Lead has no email address")
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), current_id, "failed", channel_name, "Lead has no email address")
                 _bump_campaign_stat(campaign["_id"], "failed")
             else:
                 try:
+                    # Routes through whichever provider is picked on THIS node — Gmail or Resend
                     if provider == "resend":
                         if not resend_key or not resend_from:
                             raise Exception("Resend not configured in Settings")
@@ -720,13 +770,16 @@ def execute_campaign_for_lead(campaign: dict, lead: dict, user: dict, owner_id: 
                         if not gmail_addr or not gmail_pass:
                             raise Exception("Gmail not configured in Settings")
                         send_gmail(gmail_addr, gmail_pass, to_addr, subject, body)
-                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "sent", channel_name)
+                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), current_id, "sent", channel_name)
                     _bump_campaign_stat(campaign["_id"], "sent")
                 except Exception as e:
-                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), step_idx, "failed", channel_name, str(e))
+                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), current_id, "failed", channel_name, str(e))
                     _bump_campaign_stat(campaign["_id"], "failed")
 
-        step_idx += 1
+            current_id = _find_next_node(edges_by_source, current_id)
+
+        else:
+            current_id = _find_next_node(edges_by_source, current_id)
 
 
 def _bump_campaign_stat(campaign_oid, status):
@@ -752,6 +805,9 @@ def launch_campaign(campaign_id: str, owner_id: str):
     campaign = campaigns_col.find_one({"_id": ObjectId(campaign_id), "owner_id": owner_id})
     if not campaign:
         return False
+
+    if not any(n.get("type") == "start" for n in campaign.get("nodes", [])):
+        return False  # flow hasn't been built yet
 
     user = users_col.find_one({"_id": ObjectId(owner_id)})
     if not user:
@@ -1262,6 +1318,9 @@ def api_list_campaigns():
     return jsonify({"campaigns": [serialize_campaign(c) for c in campaigns]})
 
 
+DEFAULT_START_NODE = {"id": "start", "type": "start", "x": 40, "y": 160, "data": {}}
+
+
 @app.route("/api/campaigns", methods=["POST"])
 @login_required
 @owner_required
@@ -1270,17 +1329,25 @@ def api_create_campaign():
     name = (data.get("name") or "").strip()
     if not name:
         return jsonify({"error": "Campaign name is required"}), 400
+
+    nodes = data.get("nodes") or [DEFAULT_START_NODE]
+    if not any(n.get("type") == "start" for n in nodes):
+        nodes = [DEFAULT_START_NODE] + nodes
+
     doc = {
-        "owner_id":   current_user_id(),
-        "name":       name,
-        "description": (data.get("description") or "").strip(),
-        "status":     "draft",
-        "flow":       data.get("flow", []),
-        "lead_ids":   data.get("lead_ids", []),
-        "stats":      {"sent": 0, "failed": 0, "pending": 0},
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-        "last_run_at": None,
+        "owner_id":     current_user_id(),
+        "name":         name,
+        "description":  (data.get("description") or "").strip(),
+        "status":       "draft",
+        "nodes":        nodes,
+        "edges":        data.get("edges", []),
+        "lead_ids":     data.get("lead_ids", []),
+        "schedule_type": "now",
+        "scheduled_at":  None,
+        "stats":        {"sent": 0, "failed": 0, "pending": 0},
+        "created_at":   datetime.utcnow(),
+        "updated_at":   datetime.utcnow(),
+        "last_run_at":  None,
     }
     result = campaigns_col.insert_one(doc)
     saved  = campaigns_col.find_one({"_id": result.inserted_id})
@@ -1308,10 +1375,30 @@ def api_update_campaign(campaign_id):
     update = {"updated_at": datetime.utcnow()}
     if "name" in data:        update["name"]        = (data["name"] or "").strip()
     if "description" in data: update["description"] = (data["description"] or "").strip()
-    if "flow" in data:        update["flow"]        = data["flow"]
+    if "nodes" in data:
+        nodes = data["nodes"] or [DEFAULT_START_NODE]
+        if not any(n.get("type") == "start" for n in nodes):
+            nodes = [DEFAULT_START_NODE] + nodes
+        update["nodes"] = nodes
+    if "edges" in data:       update["edges"]       = data["edges"]
     if "lead_ids" in data:    update["lead_ids"]    = data["lead_ids"]
-    if "status" in data and data["status"] in ("draft", "active", "paused", "completed"):
+    if "status" in data and data["status"] in ("draft", "active", "paused", "completed", "scheduled"):
         update["status"] = data["status"]
+
+    # Scheduling toggle (used by the Launch modal on the frontend)
+    if "schedule_type" in data and data["schedule_type"] in ("now", "schedule"):
+        update["schedule_type"] = data["schedule_type"]
+        if data["schedule_type"] == "schedule":
+            scheduled_at = parse_iso_utc(data.get("scheduled_at", ""))
+            if not scheduled_at:
+                return jsonify({"error": "A valid scheduled date/time is required"}), 400
+            if scheduled_at <= datetime.utcnow():
+                return jsonify({"error": "Scheduled time must be in the future"}), 400
+            update["scheduled_at"] = scheduled_at
+            update["status"] = "scheduled"
+        else:
+            update["scheduled_at"] = None
+
     campaigns_col.update_one({"_id": oid, "owner_id": current_user_id()}, {"$set": update})
     c = campaigns_col.find_one({"_id": oid})
     if not c: return jsonify({"error": "Campaign not found"}), 404
@@ -2109,15 +2196,14 @@ def api_ai_generate():
 # ==================================================================
 # TEST CAMPAIGN WHATSAPP STEP
 # ==================================================================
-
 @app.route("/api/campaigns/<campaign_id>/test-whatsapp", methods=["POST"])
 @login_required
 @owner_required
 def api_test_campaign_whatsapp(campaign_id):
-    data = request.get_json(silent=True) or {}
-    step_index = data.get("step_index")
-    phone      = (data.get("phone") or "").strip()
-    lead_id    = data.get("lead_id")
+    data_in = request.get_json(silent=True) or {}
+    node_id = data_in.get("node_id")
+    phone   = (data_in.get("phone") or "").strip()
+    lead_id = data_in.get("lead_id")
 
     try:
         oid = ObjectId(campaign_id)
@@ -2128,13 +2214,13 @@ def api_test_campaign_whatsapp(campaign_id):
     if not campaign:
         return jsonify({"error": "Campaign not found"}), 404
 
-    flow = campaign.get("flow", [])
-    if step_index is None or not isinstance(step_index, int) or not (0 <= step_index < len(flow)):
-        return jsonify({"error": "Invalid step index — save the flow first"}), 400
+    node = next((n for n in campaign.get("nodes", []) if n.get("id") == node_id), None)
+    if not node:
+        return jsonify({"error": "Node not found — save the flow first"}), 400
+    if node.get("type") != "whatsapp":
+        return jsonify({"error": "That node is not a WhatsApp node"}), 400
 
-    step = flow[step_index]
-    if step.get("type") != "whatsapp":
-        return jsonify({"error": "That step is not a WhatsApp step"}), 400
+    data = node.get("data", {}) or {}
 
     lead = None
     if lead_id:
@@ -2160,10 +2246,10 @@ def api_test_campaign_whatsapp(campaign_id):
     user  = users_col.find_one({"_id": ObjectId(current_user_id())})
     creds = user.get("integrations", {}) if user else {}
 
-    message = step.get("message", "")
-    if step.get("use_ai"):
+    message = data.get("message", "")
+    if data.get("use_ai"):
         ai_prompt  = creds.get("ai_whatsapp_prompt", "")
-        ai_result  = generate_ai_content(lead_ctx, "whatsapp", step.get("ai_instructions", ""), ai_prompt)
+        ai_result  = generate_ai_content(lead_ctx, "whatsapp", data.get("ai_instructions", ""), ai_prompt)
         if not ai_result.get("success"):
             return jsonify({"error": f"AI generation failed: {ai_result.get('error')}"}), 400
         message = ai_result.get("message", message)
@@ -3160,6 +3246,26 @@ def init_eva(app, db, users_col, leads_col):
     threading.Thread(target=_campaign_scheduler, daemon=True, name="PravaahEvaCampaignScheduler").start()
 
     log("INIT", "PravaahAI Eva-dashboard routes registered.")
+
+def _wa_campaign_scheduler():
+    """Fires scheduled WhatsApp/Email campaigns the moment their time comes."""
+    while True:
+        time.sleep(30)
+        try:
+            due = list(campaigns_col.find({
+                "status": "scheduled",
+                "scheduled_at": {"$lte": datetime.utcnow()},
+            }))
+        except Exception:
+            continue
+        for c in due:
+            ok = launch_campaign(str(c["_id"]), c["owner_id"])
+            if not ok:
+                # couldn't launch (e.g. leads removed) — drop back to draft so it's not retried forever
+                campaigns_col.update_one({"_id": c["_id"]}, {"$set": {"status": "draft"}})
+
+
+threading.Thread(target=_wa_campaign_scheduler, daemon=True, name="PravaahCampaignScheduler").start()
 
 init_eva(app, db, users_col, leads_col)
 if __name__ == "__main__":

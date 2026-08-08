@@ -197,9 +197,12 @@ td.col-aitask .cell-input { min-width: 160px; }
 .camp-actions { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
 
 /* ─── FLOW BUILDER ────────────────────────────────── */
-.flow-builder-wrap { display: flex; gap: 16px; height: calc(100vh - 180px); min-height: 600px; }
+
+/* ─── CANVAS FLOW BUILDER ─────────────────────────── */
+.canvas-builder-wrap { display: flex; gap: 14px; height: calc(100vh - 170px); min-height: 600px; }
+
 .flow-palette {
-  width: 200px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border);
+  width: 190px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 14px; overflow-y: auto; box-shadow: var(--shadow-sm);
 }
 .palette-title { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 600; margin-bottom: 10px; }
@@ -211,57 +214,82 @@ td.col-aitask .cell-input { min-width: 160px; }
 .palette-item:hover { border-color: var(--accent-1); }
 .palette-item:active { cursor: grabbing; }
 .pi-icon { font-size: 16px; flex-shrink: 0; }
-.flow-canvas-wrap {
+
+.canvas-viewport {
   flex: 1; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
-  overflow-y: auto; padding: 20px; position: relative; box-shadow: var(--shadow-sm);
+  overflow: auto; position: relative; box-shadow: var(--shadow-sm);
+  background-image: radial-gradient(circle, rgba(15,23,42,0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+  width:45vw;
 }
-.flow-canvas { min-height: 100%; position: relative; }
-.flow-drop-hint {
-  border: 2px dashed var(--border); border-radius: var(--radius); padding: 40px 20px;
-  text-align: center; color: var(--text-dim); font-size: 13.5px;
+.canvas-viewport.drag-over { outline: 2px dashed var(--accent-1); outline-offset: -2px; }
+.canvas-inner { position: relative; width: 2400px; height: 1500px; }
+.edges-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.edges-svg path { pointer-events: stroke; cursor: pointer; }
+.edge-del-btn { pointer-events: all; cursor: pointer; }
+
+#canvas-nodes { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+.node-card {
+  position: absolute; width: 210px; background: var(--bg-card); border: 1.5px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow-sm); cursor: grab; user-select: none;
+  transition: border-color .15s, box-shadow .15s;
 }
-.flow-canvas.drag-over .flow-drop-hint { border-color: var(--accent-1); color: var(--accent-1); }
-.flow-steps-list { display: flex; flex-direction: column; gap: 0; }
-.flow-connector {
-  width: 2px; height: 24px; background: var(--border); margin: 0 auto;
-  display: flex; align-items: center; justify-content: center; position: relative;
+.node-card:hover { box-shadow: var(--shadow-md); }
+.node-card.selected { border-color: var(--accent-1); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+.node-card.dragging { cursor: grabbing; opacity: .85; z-index: 50; }
+.node-card[data-type="start"]     { border-left: 4px solid #64748b; }
+.node-card[data-type="whatsapp"]  { border-left: 4px solid var(--green); }
+.node-card[data-type="email"]     { border-left: 4px solid var(--accent-1); }
+.node-card[data-type="wait"]      { border-left: 4px solid var(--yellow); }
+.node-card[data-type="condition"] { border-left: 4px solid var(--orange); }
+
+.node-head { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+.node-head .ni { font-size: 15px; }
+.node-head .nt { font-size: 11.5px; font-weight: 700; color: var(--text-h); flex: 1; }
+.node-del { width: 20px; height: 20px; border-radius: 5px; background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.node-del:hover { color: var(--red); background: rgba(220,38,38,.12); }
+.node-body { padding: 9px 10px; font-size: 11.5px; color: var(--text-b); line-height: 1.5; min-height: 20px; max-height: 60px; overflow: hidden; }
+
+.port { position: absolute; width: 13px; height: 13px; border-radius: 50%; background: var(--bg-card); border: 2px solid var(--accent-1); cursor: crosshair; z-index: 5; }
+.port:hover { background: var(--accent-1); }
+.port.in  { left: -7px; top: 50%; margin-top: -6.5px; }
+.port.out { right: -7px; top: 50%; margin-top: -6.5px; }
+.port.out.true  { border-color: var(--green); top: 34px; margin-top: 0; }
+.port.out.false { border-color: var(--red); top: 62px; margin-top: 0; }
+.port-label { position: absolute; font-size: 9px; font-weight: 700; color: var(--text-dim); pointer-events: none; }
+.port-label.tl { right: 14px; top: 30px; color: var(--green); }
+.port-label.fl { right: 14px; top: 58px; color: var(--red); }
+
+.node-inspector {
+  width: 290px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; overflow-y: auto; box-shadow: var(--shadow-sm);
 }
-.flow-connector::after {
-  content: '▼'; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
-  font-size: 8px; color: var(--text-dim);
-}
-.flow-step {
-  background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 14px 16px; position: relative; transition: border-color .2s; cursor: default;
-}
-.flow-step:hover { border-color: rgba(37,99,235,.3); }
-.flow-step.dragging-step { opacity: .4; }
-.flow-step.drop-target   { border-color: var(--accent-1); background: rgba(37,99,235,.06); }
-.step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.step-drag-handle { cursor: grab; color: var(--text-dim); font-size: 14px; padding: 2px; }
-.step-drag-handle:active { cursor: grabbing; }
-.step-type-icon { font-size: 18px; flex-shrink: 0; }
-.step-type-label { font-size: 12px; font-weight: 600; color: var(--text-b); text-transform: uppercase; letter-spacing: .06em; flex: 1; }
-.step-del-btn { margin-left: auto; width: 22px; height: 22px; border-radius: 6px; background: transparent; border: none; cursor: pointer; color: var(--text-dim); font-size: 13px; display: flex; align-items: center; justify-content: center; }
-.step-del-btn:hover { color: var(--red); background: rgba(220,38,38,.12); }
-.step-fields { display: flex; flex-direction: column; gap: 8px; }
-.step-field { display: flex; flex-direction: column; gap: 4px; }
+.inspector-empty { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; padding-top: 20px; text-align: center; }
+.inspector-title { display: flex; align-items: center; gap: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 14px; color: var(--text-h); }
+.step-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
 .step-field label { font-size: 11px; color: var(--text-b); font-weight: 500; display: flex; align-items: center; gap: 6px; }
 .step-input, .step-textarea, .step-select {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  color: var(--text-h); font-family: inherit; font-size: 12.5px; padding: 7px 10px; outline: none;
+  background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text-h); font-family: inherit; font-size: 12.5px; padding: 7px 10px; outline: none; width: 100%;
 }
 .step-textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
-.step-select option { background: var(--bg-card); }
-.step-input:focus, .step-textarea:focus, .step-select:focus { border-color: var(--accent-1); }
+.step-input:focus, .step-textarea:focus, .step-select:focus { border-color: var(--accent-1); background: #fff; }
 .vars-hint { font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
 .ai-block { border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 4px; }
-.ai-toggle-label { font-size: 12px; color: var(--text-h); font-weight: 500; }
+.ai-toggle-label { font-size: 12px; color: var(--text-h); font-weight: 500; display: flex; align-items: center; gap: 6px; }
 .ai-toggle-label input { accent-color: var(--accent-1); }
-.flow-step[data-type="whatsapp"]    { border-left: 3px solid var(--green); }
-.flow-step[data-type="email"]       { border-left: 3px solid var(--accent-1); }
-.flow-step[data-type="wait"]        { border-left: 3px solid var(--yellow); }
-.flow-step[data-type="condition"]   { border-left: 3px solid var(--orange); }
+
+@media (max-width: 1100px) {
+  .canvas-builder-wrap { flex-direction: column; height: auto; }
+  .flow-palette { width: 100%; height: 120px; display: flex; gap: 8px; align-items: center; overflow-x: auto; overflow-y: hidden; padding: 10px; }
+  .flow-palette .palette-title, .flow-palette > div:last-child { display: none; }
+  .palette-item { margin-bottom: 0; flex-shrink: 0; }
+  .canvas-viewport { height: 480px; }
+  .node-inspector { width: 100%; }
+}
+
+
 
 /* ─── SETTINGS ────────────────────────────────────── */
 .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -542,6 +570,7 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
     </div>
 
     <!-- ═══ PAGE: FLOW BUILDER ═══ -->
+    <!-- ═══ PAGE: FLOW BUILDER (CANVAS) ═══ -->
     <div class="page" id="page-flow-builder">
       <div class="page-header" style="display:flex;align-items:center;gap:14px;">
         <button class="btn btn-ghost btn-sm" onclick="backToCampaigns()">← Back</button>
@@ -552,34 +581,31 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
         <div class="spacer"></div>
         <button class="btn btn-ghost btn-sm" onclick="openLeadSelector()">👥 Assign Leads (<span id="fb-lead-count">0</span>)</button>
         <button class="btn btn-ghost btn-sm" onclick="saveFlow()">💾 Save Flow</button>
-        <button class="btn btn-primary" id="launch-btn" onclick="launchCampaign()">▶ Launch</button>
+        <button class="btn btn-primary" id="launch-btn" onclick="openLaunchModal(currentCampaignId)">▶ Launch</button>
       </div>
 
-      <div class="flow-builder-wrap">
+      <div class="canvas-builder-wrap">
         <div class="flow-palette">
-          <div class="palette-title">Step Types</div>
-          <div class="palette-item" draggable="true" data-step-type="whatsapp" ondragstart="paletteDragStart(event)">
-            <span class="pi-icon">💬</span> WhatsApp
-          </div>
-          <div class="palette-item" draggable="true" data-step-type="email" ondragstart="paletteDragStart(event)">
-            <span class="pi-icon">📧</span> Email
-          </div>
-          <div class="palette-item" draggable="true" data-step-type="wait" ondragstart="paletteDragStart(event)">
-            <span class="pi-icon">⏳</span> Wait
-          </div>
-          <div class="palette-item" draggable="true" data-step-type="condition" ondragstart="paletteDragStart(event)">
-            <span class="pi-icon">🔀</span> Condition
+          <div class="palette-title">Drag onto canvas</div>
+          <div class="palette-item" draggable="true" data-node-type="whatsapp" ondragstart="paletteDragStart(event)"><span class="pi-icon">💬</span> WhatsApp</div>
+          <div class="palette-item" draggable="true" data-node-type="email" ondragstart="paletteDragStart(event)"><span class="pi-icon">📧</span> Email</div>
+          <div class="palette-item" draggable="true" data-node-type="wait" ondragstart="paletteDragStart(event)"><span class="pi-icon">⏳</span> Wait</div>
+          <div class="palette-item" draggable="true" data-node-type="condition" ondragstart="paletteDragStart(event)"><span class="pi-icon">🔀</span> Condition</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:1.7;margin-top:16px;">
+            Drag a step onto the canvas. Drag from the blue dot on a node's right edge to another node's left dot to connect them. Click a node to edit it. Click the ✕ on a line to disconnect.
           </div>
         </div>
 
-        <div class="flow-canvas-wrap" id="flow-canvas-wrap"
-             ondragover="canvasDragOver(event)" ondrop="canvasDrop(event)" ondragleave="canvasDragLeave(event)">
-          <div class="flow-canvas" id="flow-canvas">
-            <div class="flow-drop-hint" id="flow-drop-hint">
-              ← Drag steps from the left panel and drop here to build your flow
-            </div>
-            <div class="flow-steps-list" id="flow-steps-list"></div>
+        <div class="canvas-viewport" id="canvas-viewport" ondragover="canvasDragOver(event)" ondragleave="canvasDragLeave(event)" ondrop="canvasDrop(event)" onmousedown="canvasBackgroundMouseDown(event)">
+          <div class="canvas-inner" id="canvas-inner">
+            <svg class="edges-svg" id="edges-svg"></svg>
+            <div id="canvas-nodes"></div>
           </div>
+        </div>
+
+        <div class="node-inspector" id="node-inspector">
+          <div class="inspector-empty" id="inspector-empty">Select a node to edit its settings, or drag a new step onto the canvas.</div>
+          <div id="inspector-body" style="display:none;"></div>
         </div>
       </div>
     </div>
@@ -894,6 +920,26 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
   </div>
 </div>
 
+<!-- Launch Campaign -->
+<div class="modal-overlay" id="launch-modal">
+  <div class="modal-box">
+    <div class="modal-title">🚀 Launch Campaign</div>
+    <div class="modal-sub">Messages will be delivered through whichever provider is set active in Settings (WhatsApp: Evolution or Wirebase · Email: Gmail or Resend per node).</div>
+    <div class="segmented" id="launch-segmented" style="margin-bottom:16px;">
+      <div class="segmented-opt active" data-val="now" onclick="setLaunchMode('now')">Launch Now</div>
+      <div class="segmented-opt" data-val="schedule" onclick="setLaunchMode('schedule')">Schedule</div>
+    </div>
+    <div id="launch-schedule-fields" style="display:none;">
+      <div class="form-row"><label>Date & Time</label><input class="form-input" type="datetime-local" id="launch-datetime" /></div>
+    </div>
+    <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;" id="launch-note"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('launch-modal')">Cancel</button>
+      <button class="btn btn-primary" id="launch-confirm-btn" onclick="confirmLaunch()">▶ Launch Now</button>
+    </div>
+  </div>
+</div>
+
 <!-- Invite Team Member -->
 <div class="modal-overlay" id="invite-modal">
   <div class="modal-box">
@@ -942,12 +988,519 @@ let chatLeadId    = null;
 let timeseriesChart = null;
 let statusChart      = null;
 
-// Flow builder state
-let currentCampaignId   = null;
+// Flow builder (canvas) state
+let currentCampaignId      = null;
 let currentCampaignLeadIds = [];
-let flowSteps           = [];
-let dragSrcPaletteType  = null;
-let dragSrcStepIdx      = null;
+let fbNodes  = [];   // {id, type, x, y, data}
+let fbEdges  = [];   // {id, source, target, source_handle}
+let selectedNodeId = null;
+let nodeIdCounter  = 1;
+
+let dragSrcPaletteType = null;   // set when dragging FROM the left palette
+let nodeDragState  = null;       // {id, offsetX, offsetY} while dragging a node on canvas
+let connectDrag     = null;      // {sourceId, handle, x1, y1} while drawing a new edge
+let launchTargetCampaignId = null;
+let launchMode = "now";
+
+function newNodeId() { return "n" + (nodeIdCounter++) + "_" + Math.random().toString(36).slice(2, 7); }
+
+async function openFlowBuilder(campaignId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-flow-builder').classList.add('active');
+  currentCampaignId = campaignId;
+  selectedNodeId = null;
+  try {
+    const res  = await fetch(`/api/campaigns/${campaignId}`);
+    const data = await res.json();
+    const c    = data.campaign;
+    document.getElementById("fb-campaign-name").textContent = c.name;
+    document.getElementById("fb-campaign-desc").textContent = c.description || "Design your automation sequence";
+    fbNodes = JSON.parse(JSON.stringify(c.nodes && c.nodes.length ? c.nodes : [{id:"start",type:"start",x:40,y:160,data:{}}]));
+    fbEdges = JSON.parse(JSON.stringify(c.edges || []));
+    currentCampaignLeadIds = c.lead_ids || [];
+    updateFbLeadCount();
+    closeInspector();
+    renderCanvas();
+  } catch { showToast("Could not load campaign", "error"); }
+}
+
+function updateFbLeadCount() {
+  document.getElementById("fb-lead-count").textContent = currentCampaignLeadIds.length;
+}
+
+/* ── rendering ── */
+const NODE_TYPE_INFO = {
+  start:     { icon: "🚀", label: "Start" },
+  whatsapp:  { icon: "💬", label: "WhatsApp" },
+  email:     { icon: "📧", label: "Email" },
+  wait:      { icon: "⏳", label: "Wait" },
+  condition: { icon: "🔀", label: "Condition" },
+};
+
+function nodeSummary(node) {
+  const d = node.data || {};
+  if (node.type === "start") return "Flow begins here";
+  if (node.type === "whatsapp") return d.use_ai ? "🤖 AI-generated message" : (d.message ? d.message.slice(0,60) : "No message set");
+  if (node.type === "email") return (d.use_ai ? "🤖 AI-generated · " : "") + (d.subject || "No subject set");
+  if (node.type === "wait") return `Wait ${d.amount||1} ${d.unit||"minutes"}`;
+  if (node.type === "condition") return `If ${d.field||"field"} ${d.operator||"exists"}${["equals","contains","not_contains"].includes(d.operator)?(" '"+(d.value||"")+"'"):""}`;
+  return "";
+}
+
+function renderCanvas() {
+  const container = document.getElementById("canvas-nodes");
+  container.innerHTML = fbNodes.map(n => nodeCardHtml(n)).join("");
+  attachNodeHandlers();
+  renderEdges();
+}
+
+function nodeCardHtml(node) {
+  const info = NODE_TYPE_INFO[node.type] || {icon:"❓", label: node.type};
+  const isStart = node.type === "start";
+  const isCond  = node.type === "condition";
+  return `<div class="node-card ${node.id===selectedNodeId?'selected':''}" data-type="${node.type}" data-id="${node.id}"
+      style="left:${node.x}px; top:${node.y}px;">
+    <div class="node-head">
+      <span class="ni">${info.icon}</span>
+      <span class="nt">${info.label}</span>
+      ${isStart ? "" : `<button class="node-del" onclick="deleteNode(event,'${node.id}')" title="Delete node">✕</button>`}
+    </div>
+    <div class="node-body" id="node-summary-${node.id}">${esc(nodeSummary(node))}</div>
+    ${isStart ? "" : `<div class="port in" data-node="${node.id}"></div>`}
+    ${isCond
+      ? `<div class="port out true" data-node="${node.id}" data-handle="true"></div><span class="port-label tl">TRUE</span>
+         <div class="port out false" data-node="${node.id}" data-handle="false"></div><span class="port-label fl">FALSE</span>`
+      : `<div class="port out" data-node="${node.id}" data-handle=""></div>`}
+  </div>`;
+}
+
+function portPos(nodeId, side, handle) {
+  const node = fbNodes.find(n => n.id === nodeId);
+  if (!node) return {x:0,y:0};
+  const w = 210;
+  if (side === "in") return { x: node.x, y: node.y + 30 };
+  if (node.type === "condition") {
+    return { x: node.x + w, y: node.y + (handle === "false" ? 62 : 34) };
+  }
+  return { x: node.x + w, y: node.y + 30 };
+}
+
+function edgePathD(x1,y1,x2,y2) {
+  const dx = Math.max(50, Math.abs(x2-x1) * 0.5);
+  return `M ${x1} ${y1} C ${x1+dx} ${y1}, ${x2-dx} ${y2}, ${x2} ${y2}`;
+}
+
+function renderEdges() {
+  const svg = document.getElementById("edges-svg");
+  let html = `<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2563eb"/></marker></defs>`;
+  fbEdges.forEach(e => {
+    const p1 = portPos(e.source, "out", e.source_handle);
+    const p2 = portPos(e.target, "in");
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    const color = e.source_handle === "false" ? "#dc2626" : (e.source_handle === "true" ? "#16a34a" : "#2563eb");
+    html += `<path d="${edgePathD(p1.x,p1.y,p2.x,p2.y)}" fill="none" stroke="${color}" stroke-width="2" marker-end="url(#arrow)" onclick="deleteEdge('${e.id}')"></path>`;
+    html += `<circle class="edge-del-btn" cx="${mx}" cy="${my}" r="7" fill="#fff" stroke="${color}" stroke-width="1.5" onclick="deleteEdge('${e.id}')"></circle>`;
+    html += `<text x="${mx}" y="${my+3}" text-anchor="middle" font-size="9" fill="${color}" style="pointer-events:none;">✕</text>`;
+  });
+  if (connectDrag) {
+    const p1 = portPos(connectDrag.sourceId, "out", connectDrag.handle);
+    html += `<path d="${edgePathD(p1.x,p1.y,connectDrag.x,connectDrag.y)}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 4"></path>`;
+  }
+  svg.innerHTML = html;
+}
+
+function deleteEdge(edgeId) {
+  fbEdges = fbEdges.filter(e => e.id !== edgeId);
+  renderEdges();
+}
+
+function deleteNode(evt, nodeId) {
+  evt.stopPropagation();
+  fbNodes = fbNodes.filter(n => n.id !== nodeId);
+  fbEdges = fbEdges.filter(e => e.source !== nodeId && e.target !== nodeId);
+  if (selectedNodeId === nodeId) closeInspector();
+  renderCanvas();
+}
+
+/* ── palette drag-to-add ── */
+function paletteDragStart(event) {
+  dragSrcPaletteType = event.currentTarget.dataset.nodeType;
+  event.dataTransfer.effectAllowed = "copy";
+}
+function canvasDragOver(event) { event.preventDefault(); document.getElementById("canvas-viewport").classList.add("drag-over"); }
+function canvasDragLeave(event) { document.getElementById("canvas-viewport").classList.remove("drag-over"); }
+function canvasDrop(event) {
+  event.preventDefault();
+  document.getElementById("canvas-viewport").classList.remove("drag-over");
+  if (!dragSrcPaletteType) return;
+  const rect = document.getElementById("canvas-inner").getBoundingClientRect();
+  const viewport = document.getElementById("canvas-viewport");
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  addNode(dragSrcPaletteType, Math.max(0,x-40), Math.max(0,y-30));
+  dragSrcPaletteType = null;
+}
+
+function addNode(type, x, y) {
+  const defaults = {
+    whatsapp:  { message: "", use_ai: false, ai_instructions: "" },
+    email:     { provider: "gmail", subject: "", body: "", use_ai: false, ai_instructions: "" },
+    wait:      { amount: 1, unit: "minutes" },
+    condition: { field: "email", operator: "exists", value: "" },
+  };
+  const node = { id: newNodeId(), type, x, y, data: defaults[type] || {} };
+  fbNodes.push(node);
+  renderCanvas();
+  selectNode(node.id);
+}
+
+/* ── node dragging + port connecting ── */
+function attachNodeHandlers() {
+  document.querySelectorAll('.node-card').forEach(card => {
+    card.addEventListener('mousedown', (e) => {
+      if (e.target.classList.contains('port') || e.target.classList.contains('node-del')) return;
+      const id = card.dataset.id;
+      selectNode(id);
+      const node = fbNodes.find(n => n.id === id);
+      nodeDragState = { id, startX: e.clientX, startY: e.clientY, origX: node.x, origY: node.y };
+      card.classList.add('dragging');
+      e.stopPropagation();
+    });
+  });
+  document.querySelectorAll('.port.out').forEach(p => {
+    p.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      const sourceId = p.dataset.node;
+      const handle = p.dataset.handle || null;
+      // Only one outgoing edge per output handle — remove any existing
+      fbEdges = fbEdges.filter(ed => !(ed.source === sourceId && (ed.source_handle||null) === handle));
+      const pos = portPos(sourceId, "out", handle);
+      connectDrag = { sourceId, handle, x: pos.x, y: pos.y };
+      renderEdges();
+    });
+  });
+  document.querySelectorAll('.port.in').forEach(p => {
+    p.addEventListener('mouseup', (e) => {
+      e.stopPropagation();
+      if (!connectDrag) return;
+      const targetId = p.dataset.node;
+      if (targetId !== connectDrag.sourceId) {
+        fbEdges.push({ id: "e"+Math.random().toString(36).slice(2,9), source: connectDrag.sourceId, target: targetId, source_handle: connectDrag.handle });
+      }
+      connectDrag = null;
+      renderEdges();
+    });
+  });
+}
+
+document.addEventListener('mousemove', (e) => {
+  const inner = document.getElementById('canvas-inner');
+  if (!inner) return;
+  const rect = inner.getBoundingClientRect();
+  if (nodeDragState) {
+    const node = fbNodes.find(n => n.id === nodeDragState.id);
+    if (!node) return;
+    node.x = Math.max(0, nodeDragState.origX + (e.clientX - nodeDragState.startX));
+    node.y = Math.max(0, nodeDragState.origY + (e.clientY - nodeDragState.startY));
+    const card = document.querySelector(`.node-card[data-id="${node.id}"]`);
+    if (card) { card.style.left = node.x + "px"; card.style.top = node.y + "px"; }
+    renderEdges();
+  } else if (connectDrag) {
+    connectDrag.x = e.clientX - rect.left;
+    connectDrag.y = e.clientY - rect.top;
+    renderEdges();
+  }
+});
+document.addEventListener('mouseup', () => {
+  if (nodeDragState) {
+    document.querySelectorAll('.node-card.dragging').forEach(c => c.classList.remove('dragging'));
+    nodeDragState = null;
+  }
+  if (connectDrag) { connectDrag = null; renderEdges(); }
+});
+function canvasBackgroundMouseDown(e) {
+  if (e.target.id === 'canvas-viewport' || e.target.id === 'canvas-inner') closeInspector();
+}
+
+/* ── inspector panel ── */
+function selectNode(id) {
+  selectedNodeId = id;
+  document.querySelectorAll('.node-card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
+  renderInspector();
+}
+function closeInspector() {
+  selectedNodeId = null;
+  document.getElementById('inspector-empty').style.display = 'block';
+  document.getElementById('inspector-body').style.display = 'none';
+  document.querySelectorAll('.node-card').forEach(c => c.classList.remove('selected'));
+}
+
+function renderInspector() {
+  const node = fbNodes.find(n => n.id === selectedNodeId);
+  const empty = document.getElementById('inspector-empty');
+  const body  = document.getElementById('inspector-body');
+  if (!node || node.type === "start") { closeInspector(); return; }
+  empty.style.display = 'none';
+  body.style.display = 'block';
+  const info = NODE_TYPE_INFO[node.type];
+  body.innerHTML = `<div class="inspector-title">${info.icon} ${info.label}</div>` + inspectorFieldsHtml(node);
+}
+
+function aiBlockHtml(node, kind) {
+  const d = node.data;
+  const checked = d.use_ai ? "checked" : "";
+  return `
+    <div class="step-field ai-block">
+      <label class="ai-toggle-label">
+        <input type="checkbox" ${checked} onchange="updateNodeData('${node.id}','use_ai',this.checked)" />
+        🤖 Auto-generate ${kind === "whatsapp" ? "the message" : "subject & body"} per lead with AI at send time
+      </label>
+      <textarea class="step-textarea" style="min-height:50px;margin-top:6px;" placeholder="Optional instructions for the AI (tone, offer, goal…)" oninput="updateNodeData('${node.id}','ai_instructions',this.value)">${esc(d.ai_instructions||"")}</textarea>
+      <button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px;width:100%;" onclick="previewAIGenerate('${node.id}','${kind}')">✨ Preview with an assigned lead</button>
+    </div>`;
+}
+
+function inspectorFieldsHtml(node) {
+  const d = node.data;
+  if (node.type === "whatsapp") {
+    return `
+      <div class="step-field">
+        <label>Message</label>
+        <textarea class="step-textarea" oninput="updateNodeData('${node.id}','message',this.value)" placeholder="Hi {{name}}, we'd love to connect…">${esc(d.message||"")}</textarea>
+        <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}} {{website}} {{description}}</div>
+      </div>
+      <div class="step-field">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="openTestWhatsAppModal('${node.id}')">🧪 Send Test Message</button>
+      </div>
+      ${aiBlockHtml(node, "whatsapp")}`;
+  }
+  if (node.type === "email") {
+    return `
+      <div class="step-field">
+        <label>Send Via <span style="color:var(--text-dim);font-weight:400;">(delivery provider for this step)</span></label>
+        <select class="step-select" onchange="updateNodeData('${node.id}','provider',this.value)">
+          <option value="gmail"${(d.provider||"gmail")==="gmail"?" selected":""}>Gmail</option>
+          <option value="resend"${d.provider==="resend"?" selected":""}>Resend (Domain Email)</option>
+        </select>
+      </div>
+      <div class="step-field">
+        <label>Subject</label>
+        <input class="step-input" value="${esc(d.subject||"")}" oninput="updateNodeData('${node.id}','subject',this.value)" placeholder="Hi {{name}}, quick note" />
+      </div>
+      <div class="step-field">
+        <label>Body (HTML or plain text)</label>
+        <textarea class="step-textarea" style="min-height:90px;" oninput="updateNodeData('${node.id}','body',this.value)" placeholder="<p>Hello {{name}},</p>">${esc(d.body||"")}</textarea>
+        <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}} {{website}} {{description}}</div>
+      </div>
+      ${aiBlockHtml(node, "email")}`;
+  }
+  if (node.type === "wait") {
+    return `
+      <div class="step-field">
+        <label>Amount</label>
+        <input class="step-input" type="number" min="1" value="${d.amount||1}" oninput="updateNodeData('${node.id}','amount',this.value)" />
+      </div>
+      <div class="step-field">
+        <label>Unit</label>
+        <select class="step-select" onchange="updateNodeData('${node.id}','unit',this.value)">
+          ${["seconds","minutes","hours","days"].map(u=>`<option value="${u}"${d.unit===u?" selected":""}>${u}</option>`).join("")}
+        </select>
+      </div>`;
+  }
+  if (node.type === "condition") {
+    return `
+      <div class="step-field">
+        <label>Field</label>
+        <select class="step-select" onchange="updateNodeData('${node.id}','field',this.value)">
+          ${["name","business_name","email","phone","website","description"].map(f=>`<option value="${f}"${d.field===f?" selected":""}>${f}</option>`).join("")}
+        </select>
+      </div>
+      <div class="step-field">
+        <label>Operator</label>
+        <select class="step-select" onchange="updateNodeData('${node.id}','operator',this.value)">
+          ${["exists","not_exists","equals","contains","not_contains"].map(o=>`<option value="${o}"${d.operator===o?" selected":""}>${o}</option>`).join("")}
+        </select>
+      </div>
+      ${["equals","contains","not_contains"].includes(d.operator) ? `
+      <div class="step-field">
+        <label>Value to compare</label>
+        <input class="step-input" value="${esc(d.value||"")}" oninput="updateNodeData('${node.id}','value',this.value)" placeholder="e.g. gmail.com" />
+      </div>` : ""}
+      <div class="vars-hint">Drag TWO connections from this node's right side — the green (TRUE) dot and red (FALSE) dot — to the next steps for each branch.</div>`;
+  }
+  return "";
+}
+
+function updateNodeData(nodeId, key, value) {
+  const node = fbNodes.find(n => n.id === nodeId);
+  if (!node) return;
+  node.data[key] = value;
+  const summaryEl = document.getElementById(`node-summary-${nodeId}`);
+  if (summaryEl) summaryEl.textContent = nodeSummary(node);
+  // condition operator changes which fields show — re-render inspector for that case only
+  if (node.type === "condition" && key === "operator") renderInspector();
+}
+
+async function previewAIGenerate(nodeId, kind) {
+  if (!currentCampaignLeadIds.length) { showToast("Assign at least one lead first.", "error"); return; }
+  const node = fbNodes.find(n => n.id === nodeId);
+  const leadId = currentCampaignLeadIds[0];
+  showToast("Generating with AI…");
+  try {
+    const res = await fetch("/api/ai/generate", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ lead_id: leadId, type: kind, instructions: node.data.ai_instructions || "" })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Generation failed");
+    if (kind === "whatsapp") { node.data.message = data.message; }
+    else { node.data.subject = data.subject; node.data.body = data.body; }
+    renderInspector();
+    const summaryEl = document.getElementById(`node-summary-${nodeId}`);
+    if (summaryEl) summaryEl.textContent = nodeSummary(node);
+    showToast("Generated ✓ — edit as needed, then Save Flow.", "success");
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+/* ── test whatsapp modal (now keyed by node id) ── */
+let testNodeIdx = null;
+async function openTestWhatsAppModal(nodeId) {
+  testNodeIdx = nodeId;
+  await saveFlow();
+  document.getElementById("test-wa-phone").value = "";
+  renderTestLeadOptions();
+  document.getElementById("test-whatsapp-modal").classList.add("open");
+}
+function renderTestLeadOptions() {
+  const sel = document.getElementById("test-wa-lead");
+  const assigned = leads.filter(l => currentCampaignLeadIds.includes(l._id));
+  sel.innerHTML = `<option value="">— none, use phone number below —</option>` +
+    assigned.map(l => `<option value="${l._id}">${esc(l.name)}${l.phone ? " (" + esc(l.phone) + ")" : " (no phone)"}</option>`).join("");
+}
+async function sendTestWhatsApp() {
+  const phone  = document.getElementById("test-wa-phone").value.trim();
+  const leadId = document.getElementById("test-wa-lead").value;
+  if (!phone && !leadId) { showToast("Enter a phone number or pick a lead.", "error"); return; }
+  const btn = document.getElementById("test-wa-send-btn");
+  btn.disabled = true; btn.textContent = "Sending…";
+  try {
+    const res = await fetch(`/api/campaigns/${currentCampaignId}/test-whatsapp`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ node_id: testNodeIdx, phone, lead_id: leadId || null })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Test failed");
+    showToast(`Test message sent to ${data.to} ✓`, "success");
+    closeModal("test-whatsapp-modal");
+  } catch(err) { showToast(err.message, "error"); }
+  finally { btn.disabled = false; btn.textContent = "🧪 Send Test"; }
+}
+
+/* ── save flow ── */
+async function saveFlow() {
+  if (!currentCampaignId) return;
+  try {
+    const res = await fetch(`/api/campaigns/${currentCampaignId}`,{
+      method:"PATCH", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({nodes: fbNodes, edges: fbEdges, lead_ids: currentCampaignLeadIds})
+    });
+    if (!res.ok) throw new Error("Save failed");
+    showToast("Flow saved ✓", "success");
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+/* ── launch / schedule modal ── */
+function openLaunchModal(campaignId) {
+  launchTargetCampaignId = campaignId;
+  launchMode = "now";
+  document.querySelectorAll('#launch-segmented .segmented-opt').forEach(el => el.classList.toggle('active', el.dataset.val === "now"));
+  document.getElementById("launch-schedule-fields").style.display = "none";
+  document.getElementById("launch-confirm-btn").textContent = "▶ Launch Now";
+  document.getElementById("launch-note").textContent = "Sends immediately, throttled in bursts.";
+  const dt = new Date(Date.now() + 60*60*1000);
+  document.getElementById("launch-datetime").value = new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  document.getElementById("launch-modal").classList.add("open");
+}
+function setLaunchMode(mode) {
+  launchMode = mode;
+  document.querySelectorAll('#launch-segmented .segmented-opt').forEach(el => el.classList.toggle('active', el.dataset.val === mode));
+  document.getElementById("launch-schedule-fields").style.display = mode === "schedule" ? "block" : "none";
+  document.getElementById("launch-confirm-btn").textContent = mode === "schedule" ? "🗓 Schedule Campaign" : "▶ Launch Now";
+  document.getElementById("launch-note").textContent = mode === "schedule"
+    ? "The campaign will start automatically at the chosen time — no need to keep this tab open."
+    : "Sends immediately, throttled in bursts.";
+}
+async function confirmLaunch() {
+  const id = launchTargetCampaignId;
+  if (!id) return;
+  const btn = document.getElementById("launch-confirm-btn");
+  btn.disabled = true;
+  try {
+    if (launchMode === "now") {
+      // Make sure the latest flow is saved first if we're launching from the builder
+      if (id === currentCampaignId) await saveFlow();
+      const res = await fetch(`/api/campaigns/${id}/launch`, {method:"POST"});
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Launch failed");
+      showToast(data.note ? `Campaign launched! 🚀 ${data.note}` : "Campaign launched! 🚀", "success");
+    } else {
+      const dtVal = document.getElementById("launch-datetime").value;
+      if (!dtVal) { showToast("Pick a date and time", "error"); btn.disabled = false; return; }
+      if (id === currentCampaignId) await saveFlow();
+      const isoStr = new Date(dtVal).toISOString();
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: "PATCH", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ schedule_type: "schedule", scheduled_at: isoStr })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Scheduling failed");
+      showToast("Campaign scheduled 🗓", "success");
+    }
+    closeModal("launch-modal");
+    if (document.getElementById('page-campaigns').classList.contains('active')) loadCampaigns();
+  } catch(err) { showToast(err.message, "error"); }
+  finally { btn.disabled = false; }
+}
+
+/* ── lead selector (unchanged) ── */
+function openLeadSelector() {
+  renderLeadSelectorList("");
+  document.getElementById("lead-sel-search").value = "";
+  document.getElementById("lead-selector-modal").classList.add("open");
+  updateSelCount();
+}
+function filterLeadSelector() { renderLeadSelectorList(document.getElementById("lead-sel-search").value.toLowerCase()); }
+function renderLeadSelectorList(q) {
+  const filtered = leads.filter(l => !q || l.name.toLowerCase().includes(q) || (l.business_name||"").toLowerCase().includes(q));
+  document.getElementById("lead-selector-list").innerHTML = filtered.length
+    ? filtered.map(l => `
+      <label class="lead-sel-item">
+        <input type="checkbox" value="${l._id}" ${currentCampaignLeadIds.includes(l._id)?"checked":""} onchange="toggleLeadSel('${l._id}',this.checked)" />
+        <div>
+          <div class="lead-sel-name">${esc(l.name)}</div>
+          <div style="font-size:11.5px;color:var(--text-b);">${esc(l.business_name||"")} ${l.phone?`· ${esc(l.phone)}`:""}</div>
+        </div>
+        <div class="lead-sel-meta">${l.email ? "✉️" : ""}${l.phone ? " 📞" : ""}</div>
+      </label>`).join("")
+    : `<div style="padding:20px;text-align:center;color:var(--text-dim);">No leads found</div>`;
+}
+function toggleLeadSel(id, checked) {
+  if (checked && !currentCampaignLeadIds.includes(id)) currentCampaignLeadIds.push(id);
+  else if (!checked) currentCampaignLeadIds = currentCampaignLeadIds.filter(x=>x!==id);
+  updateSelCount();
+}
+function selectAllLeads()   { currentCampaignLeadIds = leads.map(l=>l._id); renderLeadSelectorList(""); updateSelCount(); }
+function deselectAllLeads() { currentCampaignLeadIds = []; renderLeadSelectorList(""); updateSelCount(); }
+function updateSelCount()   { document.getElementById("sel-count").textContent = currentCampaignLeadIds.length; }
+function confirmLeadSelection() {
+  closeModal("lead-selector-modal");
+  updateFbLeadCount();
+  showToast(`${currentCampaignLeadIds.length} lead${currentCampaignLeadIds.length===1?"":"s"} selected`);
+}
+
+/* ════════════════════════════════════════════════
+   TEAM  (owner only)
+════════════════════════════════════════════════ */
 
 /* ════════════════════════════════════════════════
    INIT
@@ -1294,7 +1847,7 @@ function renderCampaigns() {
       </div>
       <div class="camp-desc">${esc(c.description||"No description")}</div>
       <div class="camp-meta">
-        <span class="camp-stat">📋 ${c.flow.length} step${c.flow.length===1?"":"s"}</span>
+        <span class="camp-stat">📋 ${Math.max(0,(c.nodes||[]).length-1)} step${Math.max(0,(c.nodes||[]).length-1)===1?"":"s"}</span>
         <span class="camp-stat">👥 ${c.lead_ids.length} lead${c.lead_ids.length===1?"":"s"}</span>
         <span class="camp-stat ok">✅ ${stats.sent||0} sent</span>
         <span class="camp-stat bad">❌ ${stats.failed||0} failed</span>
@@ -1304,7 +1857,7 @@ function renderCampaigns() {
       <div class="camp-actions" onclick="event.stopPropagation()">
         <button class="btn btn-ghost btn-sm" onclick="openFlowBuilder('${c._id}')">✏️ Edit Flow</button>
         <button class="btn btn-ghost btn-sm" onclick="openCampaignLogs('${c._id}','${esc(c.name)}')">📊 Logs</button>
-        <button class="btn btn-primary btn-sm" onclick="quickLaunch('${c._id}')">▶ Launch</button>
+        <button class="btn btn-primary btn-sm" onclick="openLaunchModal('${c._id}')">▶ Launch</button>
         <button class="btn btn-danger btn-sm" onclick="deleteCampaign('${c._id}')">🗑</button>
       </div>
     </div>`;
@@ -1341,16 +1894,7 @@ async function deleteCampaign(id) {
   } catch { showToast("Could not delete campaign", "error"); }
 }
 
-async function quickLaunch(id) {
-  if (!confirm("Launch this campaign now? It sends in throttled bursts and keeps running on the server even if you close this tab.")) return;
-  try {
-    const res = await fetch(`/api/campaigns/${id}/launch`,{method:"POST"});
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error||"Launch failed");
-    showToast(data.note ? `Campaign launched! 🚀 ${data.note}` : "Campaign launched! 🚀", "success");
-    await loadCampaigns();
-  } catch(err) { showToast(err.message, "error"); }
-}
+
 
 async function openCampaignLogs(id, name) {
   document.getElementById("logs-modal-sub").textContent = `Execution log for: ${name}`;
@@ -1368,7 +1912,7 @@ async function openCampaignLogs(id, name) {
       <tr>
         <td>${esc(l.lead_name||l.lead_id)}</td>
         <td>${channelBadge(l.channel)}</td>
-        <td>Step ${l.step_index+1}</td>
+        <td>${esc(l.step_index||"")}</td>
         <td><span class="log-status log-${l.status}">${l.status}</span></td>
         <td style="white-space:nowrap;">${l.executed_at ? new Date(l.executed_at).toLocaleString() : "—"}</td>
         <td style="color:var(--red);font-size:11.5px;">${esc(l.error||"")}</td>
@@ -1381,326 +1925,7 @@ function channelBadge(ch) {
   return map[ch] || ch;
 }
 
-/* ════════════════════════════════════════════════
-   FLOW BUILDER  (owner only)
-════════════════════════════════════════════════ */
-async function openFlowBuilder(campaignId) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-flow-builder').classList.add('active');
-  currentCampaignId = campaignId;
-  try {
-    const res  = await fetch(`/api/campaigns/${campaignId}`);
-    const data = await res.json();
-    const c    = data.campaign;
-    document.getElementById("fb-campaign-name").textContent = c.name;
-    document.getElementById("fb-campaign-desc").textContent = c.description || "Design your automation sequence";
-    flowSteps = JSON.parse(JSON.stringify(c.flow || []));
-    currentCampaignLeadIds = c.lead_ids || [];
-    updateFbLeadCount();
-    renderFlowCanvas();
-  } catch { showToast("Could not load campaign", "error"); }
-}
 
-function updateFbLeadCount() {
-  document.getElementById("fb-lead-count").textContent = currentCampaignLeadIds.length;
-}
-
-function renderFlowCanvas() {
-  const list = document.getElementById("flow-steps-list");
-  const hint = document.getElementById("flow-drop-hint");
-  hint.style.display = flowSteps.length ? "none" : "block";
-  list.innerHTML = flowSteps.map((step, idx) => {
-    const connector = idx > 0 ? `<div class="flow-connector"></div>` : "";
-    return connector + stepHtml(step, idx);
-  }).join("");
-}
-
-function aiBlockHtml(step, idx, kind) {
-  const checked = step.use_ai ? "checked" : "";
-  return `
-    <div class="step-field ai-block">
-      <label class="ai-toggle-label">
-        <input type="checkbox" ${checked} onchange="updateStep(${idx},'use_ai',this.checked)" />
-        🤖 Auto-generate ${kind === "whatsapp" ? "the message" : "subject & body"} per lead with AI at send time
-      </label>
-      <textarea class="step-textarea" style="min-height:50px;margin-top:6px;" placeholder="Optional instructions for the AI (tone, offer, goal…)" oninput="updateStep(${idx},'ai_instructions',this.value)">${esc(step.ai_instructions||"")}</textarea>
-      <button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px;width:fit-content;" onclick="previewAIGenerate(${idx},'${kind}')">✨ Preview with an assigned lead</button>
-    </div>`;
-}
-
-function stepHtml(step, idx) {
-  const typeInfo = {
-    whatsapp:  { icon: "💬", label: "WhatsApp Message" },
-    email:     { icon: "📧", label: "Email" },
-    wait:      { icon: "⏳", label: "Wait / Delay" },
-    condition: { icon: "🔀", label: "Condition (If / Else)" },
-  }[step.type] || { icon: "❓", label: step.type };
-
-  let fields = "";
-
-  if (step.type === "whatsapp") {
-    fields = `
-      <div class="step-field">
-        <label>Message</label>
-        <textarea class="step-textarea" oninput="updateStep(${idx},'message',this.value)" placeholder="Hi {{name}}, we'd love to connect…">${esc(step.message||"")}</textarea>
-        <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}} {{website}} {{description}}</div>
-      </div>
-      <div class="step-field">
-        <button type="button" class="btn btn-ghost btn-sm" style="width:fit-content;" onclick="openTestWhatsAppModal(${idx})">🧪 Send Test Message</button>
-      </div>
-      ${aiBlockHtml(step, idx, "whatsapp")}`;
-  } else if (step.type === "email") {
-    fields = `
-      <div class="step-field">
-        <label>Send Via</label>
-        <select class="step-select" onchange="updateStep(${idx},'provider',this.value)">
-          <option value="gmail"${(step.provider||"gmail")==="gmail"?" selected":""}>Gmail</option>
-          <option value="resend"${step.provider==="resend"?" selected":""}>Resend (Domain Email)</option>
-        </select>
-      </div>
-      <div class="step-field">
-        <label>Subject</label>
-        <input class="step-input" value="${esc(step.subject||"")}" oninput="updateStep(${idx},'subject',this.value)" placeholder="Hi {{name}}, quick note from us" />
-      </div>
-      <div class="step-field">
-        <label>Body (HTML or plain text)</label>
-        <textarea class="step-textarea" style="min-height:90px;" oninput="updateStep(${idx},'body',this.value)" placeholder="<p>Hello {{name}},</p><p>…</p>">${esc(step.body||"")}</textarea>
-        <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}} {{website}} {{description}}</div>
-      </div>
-      ${aiBlockHtml(step, idx, "email")}`;
-  } else if (step.type === "wait") {
-    fields = `
-      <div class="step-field" style="flex-direction:row;gap:8px;align-items:flex-end;">
-        <div style="flex:1;">
-          <label>Amount</label>
-          <input class="step-input" type="number" min="1" value="${step.amount||1}" oninput="updateStep(${idx},'amount',this.value)" />
-        </div>
-        <div style="flex:1;">
-          <label>Unit</label>
-          <select class="step-select" onchange="updateStep(${idx},'unit',this.value)">
-            ${["seconds","minutes","hours","days"].map(u=>`<option value="${u}"${step.unit===u?" selected":""}>${u}</option>`).join("")}
-          </select>
-        </div>
-      </div>`;
-  } else if (step.type === "condition") {
-    fields = `
-      <div class="step-field" style="flex-direction:row;gap:8px;align-items:flex-end;">
-        <div style="flex:1;">
-          <label>Field</label>
-          <select class="step-select" onchange="updateStep(${idx},'field',this.value)">
-            ${["name","business_name","email","phone","website","description"].map(f=>`<option value="${f}"${step.field===f?" selected":""}>${f}</option>`).join("")}
-          </select>
-        </div>
-        <div style="flex:1;">
-          <label>Operator</label>
-          <select class="step-select" onchange="updateStep(${idx},'operator',this.value)">
-            ${["exists","not_exists","equals","contains","not_contains"].map(o=>`<option value="${o}"${step.operator===o?" selected":""}>${o}</option>`).join("")}
-          </select>
-        </div>
-      </div>
-      ${["equals","contains","not_contains"].includes(step.operator) ? `
-      <div class="step-field">
-        <label>Value to compare</label>
-        <input class="step-input" value="${esc(step.value||"")}" oninput="updateStep(${idx},'value',this.value)" placeholder="e.g. gmail.com" />
-      </div>` : ""}
-      <div class="step-field" style="flex-direction:row;gap:8px;">
-        <div style="flex:1;">
-          <label>✅ If TRUE → go to step #</label>
-          <input class="step-input" type="number" min="1" value="${step.then_step!=null?step.then_step+1:""}" oninput="updateStep(${idx},'then_step',this.value?parseInt(this.value)-1:null)" placeholder="next" />
-        </div>
-        <div style="flex:1;">
-          <label>❌ If FALSE → go to step #</label>
-          <input class="step-input" type="number" min="1" value="${step.else_step!=null?step.else_step+1:""}" oninput="updateStep(${idx},'else_step',this.value?parseInt(this.value)-1:null)" placeholder="next" />
-        </div>
-      </div>
-      <div class="vars-hint">Leave blank to continue to the next step.</div>`;
-  }
-
-  return `<div class="flow-step" data-type="${step.type}" data-idx="${idx}"
-      draggable="true" ondragstart="stepDragStart(event,${idx})" ondragover="stepDragOver(event,${idx})" ondrop="stepDrop(event,${idx})" ondragleave="stepDragLeave(event)">
-    <div class="step-header">
-      <span class="step-drag-handle" title="Drag to reorder">⠿</span>
-      <span class="step-type-icon">${typeInfo.icon}</span>
-      <span class="step-type-label">${typeInfo.label}</span>
-      <button class="step-del-btn" onclick="deleteStep(${idx})" title="Remove step">✕</button>
-    </div>
-    <div class="step-fields">${fields}</div>
-  </div>`;
-}
-
-function updateStep(idx, key, value) { flowSteps[idx][key] = value; }
-function deleteStep(idx) { flowSteps.splice(idx, 1); renderFlowCanvas(); }
-
-async function previewAIGenerate(idx, kind) {
-  if (!currentCampaignLeadIds.length) { showToast("Assign at least one lead first.", "error"); return; }
-  const leadId = currentCampaignLeadIds[0];
-  showToast("Generating with AI…");
-  try {
-    const res = await fetch("/api/ai/generate", {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ lead_id: leadId, type: kind, instructions: flowSteps[idx].ai_instructions || "" })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Generation failed");
-    if (kind === "whatsapp") { flowSteps[idx].message = data.message; }
-    else { flowSteps[idx].subject = data.subject; flowSteps[idx].body = data.body; }
-    renderFlowCanvas();
-    showToast("Generated ✓ — edit as needed, then Save Flow.", "success");
-  } catch(err) { showToast(err.message, "error"); }
-}
-
-let testStepIdx = null;
-async function openTestWhatsAppModal(idx) {
-  testStepIdx = idx;
-  await saveFlow();
-  document.getElementById("test-wa-phone").value = "";
-  renderTestLeadOptions();
-  document.getElementById("test-whatsapp-modal").classList.add("open");
-}
-function renderTestLeadOptions() {
-  const sel = document.getElementById("test-wa-lead");
-  const assigned = leads.filter(l => currentCampaignLeadIds.includes(l._id));
-  sel.innerHTML = `<option value="">— none, use phone number below —</option>` +
-    assigned.map(l => `<option value="${l._id}">${esc(l.name)}${l.phone ? " (" + esc(l.phone) + ")" : " (no phone)"}</option>`).join("");
-}
-async function sendTestWhatsApp() {
-  const phone  = document.getElementById("test-wa-phone").value.trim();
-  const leadId = document.getElementById("test-wa-lead").value;
-  if (!phone && !leadId) { showToast("Enter a phone number or pick a lead.", "error"); return; }
-  const btn = document.getElementById("test-wa-send-btn");
-  btn.disabled = true; btn.textContent = "Sending…";
-  try {
-    const res = await fetch(`/api/campaigns/${currentCampaignId}/test-whatsapp`, {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ step_index: testStepIdx, phone, lead_id: leadId || null })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Test failed");
-    showToast(`Test message sent to ${data.to} ✓`, "success");
-    closeModal("test-whatsapp-modal");
-  } catch(err) { showToast(err.message, "error"); }
-  finally { btn.disabled = false; btn.textContent = "🧪 Send Test"; }
-}
-
-function paletteDragStart(event) {
-  dragSrcPaletteType = event.currentTarget.dataset.stepType;
-  dragSrcStepIdx     = null;
-  event.dataTransfer.effectAllowed = "copy";
-}
-function canvasDragOver(event) {
-  event.preventDefault();
-  event.dataTransfer.dropEffect = dragSrcPaletteType ? "copy" : "move";
-  document.getElementById("flow-canvas").classList.add("drag-over");
-}
-function canvasDragLeave(event) {
-  if (!event.currentTarget.contains(event.relatedTarget))
-    document.getElementById("flow-canvas").classList.remove("drag-over");
-}
-function canvasDrop(event) {
-  event.preventDefault();
-  document.getElementById("flow-canvas").classList.remove("drag-over");
-  if (dragSrcPaletteType) {
-    if (!event.target.closest('.flow-step')) addStep(dragSrcPaletteType);
-    dragSrcPaletteType = null;
-  }
-}
-function addStep(type) {
-  const defaults = {
-    whatsapp: { type, message: "", use_ai: false, ai_instructions: "" },
-    email:    { type, provider: "gmail", subject: "", body: "", use_ai: false, ai_instructions: "" },
-    wait:     { type, amount: 1, unit: "minutes" },
-    condition:{ type, field: "email", operator: "exists", value: "", then_step: null, else_step: null },
-  };
-  flowSteps.push(defaults[type] || { type });
-  renderFlowCanvas();
-  const wrap = document.getElementById("flow-canvas-wrap");
-  wrap.scrollTop = wrap.scrollHeight;
-}
-function stepDragStart(event, idx) {
-  if (event.target.closest('.step-drag-handle') || event.currentTarget.draggable) {
-    dragSrcStepIdx    = idx;
-    dragSrcPaletteType = null;
-    event.dataTransfer.effectAllowed = "move";
-    event.stopPropagation();
-    setTimeout(() => event.currentTarget.classList.add("dragging-step"), 0);
-  }
-}
-function stepDragOver(event, idx) {
-  if (dragSrcStepIdx === null) return;
-  event.preventDefault(); event.stopPropagation();
-  document.querySelectorAll('.flow-step').forEach(s => s.classList.remove("drop-target"));
-  event.currentTarget.classList.add("drop-target");
-}
-function stepDragLeave(event) { event.currentTarget.classList.remove("drop-target"); }
-function stepDrop(event, idx) {
-  event.preventDefault(); event.stopPropagation();
-  document.querySelectorAll('.flow-step').forEach(s => s.classList.remove("drop-target","dragging-step"));
-  if (dragSrcStepIdx === null || dragSrcStepIdx === idx) { dragSrcStepIdx = null; return; }
-  const moved = flowSteps.splice(dragSrcStepIdx, 1)[0];
-  flowSteps.splice(idx, 0, moved);
-  dragSrcStepIdx = null;
-  renderFlowCanvas();
-}
-
-async function saveFlow() {
-  if (!currentCampaignId) return;
-  try {
-    const res = await fetch(`/api/campaigns/${currentCampaignId}`,{
-      method:"PATCH", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({flow: flowSteps, lead_ids: currentCampaignLeadIds})
-    });
-    if (!res.ok) throw new Error("Save failed");
-    showToast("Flow saved ✓", "success");
-  } catch(err) { showToast(err.message, "error"); }
-}
-
-async function launchCampaign() {
-  if (!currentCampaignId) return;
-  await saveFlow();
-  if (!confirm("Launch campaign now? It sends in throttled bursts and keeps running on the server even if you close this tab.")) return;
-  try {
-    const res  = await fetch(`/api/campaigns/${currentCampaignId}/launch`,{method:"POST"});
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error||"Launch failed");
-    showToast(data.note ? `Campaign launched! 🚀 ${data.note}` : "Campaign launched! 🚀", "success");
-    document.getElementById("launch-btn").textContent = "Running…";
-  } catch(err) { showToast(err.message, "error"); }
-}
-
-function openLeadSelector() {
-  renderLeadSelectorList("");
-  document.getElementById("lead-sel-search").value = "";
-  document.getElementById("lead-selector-modal").classList.add("open");
-  updateSelCount();
-}
-function filterLeadSelector() { renderLeadSelectorList(document.getElementById("lead-sel-search").value.toLowerCase()); }
-function renderLeadSelectorList(q) {
-  const filtered = leads.filter(l => !q || l.name.toLowerCase().includes(q) || (l.business_name||"").toLowerCase().includes(q));
-  document.getElementById("lead-selector-list").innerHTML = filtered.length
-    ? filtered.map(l => `
-      <label class="lead-sel-item">
-        <input type="checkbox" value="${l._id}" ${currentCampaignLeadIds.includes(l._id)?"checked":""} onchange="toggleLeadSel('${l._id}',this.checked)" />
-        <div>
-          <div class="lead-sel-name">${esc(l.name)}</div>
-          <div style="font-size:11.5px;color:var(--text-b);">${esc(l.business_name||"")} ${l.phone?`· ${esc(l.phone)}`:""}</div>
-        </div>
-        <div class="lead-sel-meta">${l.email ? "✉️" : ""}${l.phone ? " 📞" : ""}</div>
-      </label>`).join("")
-    : `<div style="padding:20px;text-align:center;color:var(--text-dim);">No leads found</div>`;
-}
-function toggleLeadSel(id, checked) {
-  if (checked && !currentCampaignLeadIds.includes(id)) currentCampaignLeadIds.push(id);
-  else if (!checked) currentCampaignLeadIds = currentCampaignLeadIds.filter(x=>x!==id);
-  updateSelCount();
-}
-function selectAllLeads()   { currentCampaignLeadIds = leads.map(l=>l._id); renderLeadSelectorList(""); updateSelCount(); }
-function deselectAllLeads() { currentCampaignLeadIds = []; renderLeadSelectorList(""); updateSelCount(); }
-function updateSelCount()   { document.getElementById("sel-count").textContent = currentCampaignLeadIds.length; }
-function confirmLeadSelection() {
-  closeModal("lead-selector-modal");
-  updateFbLeadCount();
-  showToast(`${currentCampaignLeadIds.length} lead${currentCampaignLeadIds.length===1?"":"s"} selected`);
-}
 
 /* ════════════════════════════════════════════════
    TEAM  (owner only)
