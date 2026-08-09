@@ -12,3 +12,7 @@ openpyxl
 xlrd
 
 requests
+beautifulsoup4
+
+resend
+evolution-api
