@@ -256,6 +256,7 @@
     <button class="tab-btn" data-tab="testcall">Test Call</button>
     <button class="tab-btn" data-tab="calls">Call Logs</button>
     <button class="tab-btn" data-tab="voip">Calling Settings</button>
+    <button class="tab-btn" style="margin-left:auto;" onclick="openWebWidget()">Web Widget</button>
   </div>
 
   <!-- ===================== DASHBOARD ===================== -->
@@ -933,6 +934,11 @@ async function loadVoip(){
   document.getElementById('voipSid').value = d.account_sid || '';
   document.getElementById('voipFrom').value = d.from_number || '';
   document.getElementById('voipToken').placeholder = d.configured ? 'Saved — leave blank to keep it' : 'Enter auth token';
+}
+
+
+function openwewidget(){
+  window.location.href = '/eva/widgets';
 }
 
 async function saveVoip(e){
