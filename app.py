@@ -102,6 +102,9 @@ try:
     pricing_col.create_index("key", unique=True)
     segments_col.create_index([("owner_id", 1), ("name", 1)], unique=True)
     leads_col.create_index([("owner_id", 1), ("segment_id", 1)])
+    widgets_col = db["pravah-web-widgets"]
+    widgets_col.create_index("owner_id")
+    widgets_col.create_index("public_id", unique=True)
 except Exception:
     pass
 
@@ -377,6 +380,33 @@ def is_owner():
 # ----------------------------------
 # Serialization Helpers
 # ----------------------------------
+
+def generate_public_widget_id():
+    return "wgt_" + secrets.token_urlsafe(16)
+
+
+def build_widget_embed_snippet(public_id, color):
+    eva_public_base = os.getenv("EVA_PUBLIC_BASE_URL", os.getenv("EVA_API_BASE_URL", "")).rstrip("/")
+    return (
+        f'<script src="{eva_public_base}/embed/widget.js" '
+        f'data-public-id="{public_id}" data-color="{color}" async></script>'
+    )
+
+
+def serialize_widget(w):
+    return {
+        "_id": str(w["_id"]),
+        "public_id": w.get("public_id", ""),
+        "name": w.get("name", ""),
+        "agent_id": w.get("agent_id", ""),
+        "status": w.get("status", "active"),
+        "primary_color": w.get("primary_color", "#2454E8"),
+        "greeting": w.get("greeting", "Hi! How can I help you today?"),
+        "collect_lead": w.get("collect_lead", True),
+        "require_lead_before_chat": w.get("require_lead_before_chat", True),
+        "created_at": w.get("created_at").isoformat() if w.get("created_at") else None,
+        "embed_snippet": build_widget_embed_snippet(w.get("public_id", ""), w.get("primary_color", "#2454E8")),
+    }
 
 def serialize_lead(lead):
     return {
@@ -1153,6 +1183,233 @@ def logout():
     session.clear()
     return redirect("/login")
 
+
+# ==================================================================
+# WEB WIDGETS  (owner dashboard CRUD)
+# ==================================================================
+
+@app.route("/eva/widgets")
+@login_required
+@owner_required
+def eva_widgets_page():
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    return render_template("eva_widgets.html", user=user, display_name=session.get("username"))
+
+
+@app.route("/api/widgets", methods=["GET"])
+@login_required
+@owner_required
+def api_list_widgets():
+    widgets = list(widgets_col.find({"owner_id": current_user_id()}).sort("created_at", -1))
+    return jsonify({"widgets": [serialize_widget(w) for w in widgets]})
+
+
+@app.route("/api/widgets", methods=["POST"])
+@login_required
+@owner_required
+def api_create_widget():
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    agent_id = data.get("agent_id")
+    if not name:
+        return jsonify({"error": "Widget name is required"}), 400
+    if not agent_id:
+        return jsonify({"error": "Select an agent for this widget"}), 400
+
+    agents_col = db["pravah-agents"]
+    try:
+        agent = agents_col.find_one({"_id": ObjectId(agent_id), "owner_id": current_user_id()})
+    except InvalidId:
+        return jsonify({"error": "Invalid agent id"}), 400
+    if not agent:
+        return jsonify({"error": "Agent not found"}), 404
+
+    doc = {
+        "owner_id": current_user_id(),
+        "public_id": generate_public_widget_id(),
+        "name": name,
+        "agent_id": agent_id,
+        "status": "active",
+        "primary_color": (data.get("primary_color") or "#2454E8").strip(),
+        "greeting": (data.get("greeting") or "Hi! How can I help you today?").strip(),
+        "collect_lead": bool(data.get("collect_lead", True)),
+        "require_lead_before_chat": bool(data.get("require_lead_before_chat", True)),
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+    }
+    result = widgets_col.insert_one(doc)
+    return jsonify({"widget": serialize_widget(widgets_col.find_one({"_id": result.inserted_id}))}), 201
+
+
+@app.route("/api/widgets/<widget_id>", methods=["PUT", "PATCH"])
+@login_required
+@owner_required
+def api_update_widget(widget_id):
+    try: oid = ObjectId(widget_id)
+    except InvalidId: return jsonify({"error": "Invalid widget id"}), 400
+    data = request.get_json(silent=True) or {}
+    update = {"updated_at": datetime.utcnow()}
+    if "name" in data: update["name"] = (data["name"] or "").strip()
+    if "agent_id" in data:
+        agents_col = db["pravah-agents"]
+        try:
+            agent = agents_col.find_one({"_id": ObjectId(data["agent_id"]), "owner_id": current_user_id()})
+        except InvalidId:
+            return jsonify({"error": "Invalid agent id"}), 400
+        if not agent:
+            return jsonify({"error": "Agent not found"}), 404
+        update["agent_id"] = data["agent_id"]
+    if "primary_color" in data: update["primary_color"] = data["primary_color"]
+    if "greeting" in data: update["greeting"] = data["greeting"]
+    if "collect_lead" in data: update["collect_lead"] = bool(data["collect_lead"])
+    if "require_lead_before_chat" in data: update["require_lead_before_chat"] = bool(data["require_lead_before_chat"])
+    if "status" in data and data["status"] in ("active", "paused"):
+        update["status"] = data["status"]
+
+    result = widgets_col.update_one({"_id": oid, "owner_id": current_user_id()}, {"$set": update})
+    if result.matched_count == 0:
+        return jsonify({"error": "Widget not found"}), 404
+    return jsonify({"widget": serialize_widget(widgets_col.find_one({"_id": oid}))})
+
+
+@app.route("/api/widgets/<widget_id>", methods=["DELETE"])
+@login_required
+@owner_required
+def api_delete_widget(widget_id):
+    try: oid = ObjectId(widget_id)
+    except InvalidId: return jsonify({"error": "Invalid widget id"}), 400
+    result = widgets_col.delete_one({"_id": oid, "owner_id": current_user_id()})
+    if result.deleted_count == 0:
+        return jsonify({"error": "Widget not found"}), 404
+    return jsonify({"deleted": True})
+
+
+# ==================================================================
+# WEB WIDGETS  (server-to-server — called by Eva, X-Eva-Secret auth)
+# ==================================================================
+
+@app.route("/api/public/widget-config/<public_id>", methods=["GET"])
+def api_public_widget_config(public_id):
+    if not EVA_API_SECRET or request.headers.get("X-Eva-Secret") != EVA_API_SECRET:
+        return jsonify({"error": "Invalid or missing X-Eva-Secret"}), 401
+
+    widget = widgets_col.find_one({"public_id": public_id})
+    if not widget or widget.get("status") != "active":
+        return jsonify({"error": "Widget not found or inactive"}), 404
+
+    agents_col = db["pravah-agents"]
+    try:
+        agent = agents_col.find_one({"_id": ObjectId(widget["agent_id"])})
+    except InvalidId:
+        agent = None
+    if not agent:
+        return jsonify({"error": "Widget's agent no longer exists"}), 404
+
+    owner = users_col.find_one({"_id": ObjectId(widget["owner_id"])})
+    if not owner or owner.get("status") != "active":
+        return jsonify({"error": "Account inactive"}), 403
+    remaining = float(owner.get("eva_minutes", 0) or 0) - float(owner.get("eva_minutes_used", 0) or 0)
+    if remaining <= 0:
+        return jsonify({"error": "Owner is out of Eva minutes"}), 402
+
+    return jsonify({
+        "owner_id": str(owner["_id"]),
+        "widget_id": str(widget["_id"]),
+        "public_id": public_id,
+        "require_lead_before_chat": widget.get("require_lead_before_chat", True),
+        "agent": {
+            "name": agent.get("name", ""),
+            "system_prompt": agent.get("system_prompt", ""),
+            "gender": agent.get("gender", "female"),
+            "language": agent.get("language", "auto"),
+            "speaker": agent.get("speaker", ""),
+            "opening_line": agent.get("opening_line") or widget.get("greeting") or "Hi, how can I help you today?",
+            "min_duration_secs": agent.get("min_duration_secs", 20),
+            "max_duration_secs": agent.get("max_duration_secs", 600),
+        },
+    })
+
+
+@app.route("/api/eva-webhook/widget-lead", methods=["POST"])
+def api_eva_webhook_widget_lead():
+    if not EVA_API_SECRET or request.headers.get("X-Eva-Secret") != EVA_API_SECRET:
+        return jsonify({"error": "Invalid or missing X-Eva-Secret"}), 401
+
+    data = request.get_json(silent=True) or {}
+    owner_id = data.get("owner_id")
+    name = (data.get("name") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    if not owner_id or not name or not phone:
+        return jsonify({"error": "owner_id, name and phone are required"}), 400
+
+    norm = normalize_phone(phone)
+    existing = leads_col.find_one({
+        "owner_id": owner_id,
+        "phone": {"$regex": re.escape(norm[-9:])},
+    }) if norm else None
+
+    now = datetime.utcnow()
+    if existing:
+        leads_col.update_one({"_id": existing["_id"]}, {"$set": {
+            "email": email or existing.get("email", ""), "updated_at": now,
+        }})
+        lead_id = str(existing["_id"])
+    else:
+        doc = {
+            "owner_id": owner_id, "name": name, "business_name": "",
+            "email": email, "phone": phone, "website": "", "description": "",
+            "source": "web_widget", "status": "warm", "assigned_to": None,
+            "ai_task_prompt": "", "segment_id": "", "created_at": now, "updated_at": now,
+        }
+        inserted = leads_col.insert_one(doc)
+        lead_id = str(inserted.inserted_id)
+        assigned = assign_round_robin(owner_id)
+        if assigned:
+            leads_col.update_one({"_id": inserted.inserted_id}, {"$set": {"assigned_to": assigned}})
+
+    return jsonify({"received": True, "lead_id": lead_id})
+
+
+@app.route("/api/eva-webhook/widget-session-result", methods=["POST"])
+def api_eva_webhook_widget_session_result():
+    if not EVA_API_SECRET or request.headers.get("X-Eva-Secret") != EVA_API_SECRET:
+        return jsonify({"error": "Invalid or missing X-Eva-Secret"}), 401
+
+    data = request.get_json(silent=True) or {}
+    owner_id = data.get("owner_id")
+    widget_id = data.get("widget_id")
+    lead_id = data.get("lead_id")
+    duration_secs = float(data.get("duration_secs", 0) or 0)
+    transcript = data.get("transcript", [])
+    if not owner_id:
+        return jsonify({"error": "owner_id is required"}), 400
+
+    minutes_used = round(duration_secs / 60.0, 3)
+    if minutes_used > 0:
+        try:
+            users_col.update_one({"_id": ObjectId(owner_id)}, {"$inc": {"eva_minutes_used": minutes_used}})
+        except InvalidId:
+            pass
+
+    db["pravah-widget-sessions"].insert_one({
+        "owner_id": owner_id, "widget_id": widget_id, "lead_id": lead_id or "",
+        "duration_secs": duration_secs, "minutes_used": minutes_used,
+        "transcript": transcript, "created_at": datetime.utcnow(),
+    })
+
+    if lead_id and transcript:
+        try:
+            lead = leads_col.find_one({"_id": ObjectId(lead_id)})
+            if lead:
+                lead_text = " ".join(t.get("text", "") for t in transcript if t.get("role") == "lead")
+                if lead_text:
+                    new_status = classify_lead_temperature(lead, lead_text, [], lead.get("status", "warm"))
+                    leads_col.update_one({"_id": lead["_id"]}, {"$set": {"status": new_status, "updated_at": datetime.utcnow()}})
+        except Exception:
+            pass
+
+    return jsonify({"received": True, "minutes_used": minutes_used})
 
 @app.route("/api/me", methods=["GET"])
 @login_required

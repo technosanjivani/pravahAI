@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Widgets — Eva Voice</title>
+<style>
+  :root{
+    --ink:#131B2E; --ink-soft:#3A4256; --paper:#F3F5F9; --panel:#FFFFFF;
+    --line:#E6E9F0; --line-soft:#EEF1F6; --muted:#6B7688;
+    --blue:#2454E8; --blue-deep:#1B3FC0; --blue-soft:#EEF2FF; --blue-glow:rgba(36,84,232,.14);
+    --violet:#6C4CE0; --violet-soft:#F1EDFC;
+    --good:#0F9D58; --good-soft:#E7F6ED; --bad:#D93025; --bad-soft:#FCEAE9;
+    --radius:12px; --radius-lg:16px;
+    --shadow-sm:0 1px 2px rgba(19,27,46,.05), 0 1px 3px rgba(19,27,46,.06);
+    --shadow-md:0 4px 14px rgba(19,27,46,.07), 0 1px 3px rgba(19,27,46,.05);
+    --shadow-lg:0 12px 34px rgba(19,27,46,.10);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:14px; -webkit-font-smoothing:antialiased;}
+  h1,h2,h3{font-family:inherit; font-weight:650; letter-spacing:-.015em; color:var(--ink); margin:0;}
+
+  .topbar{display:flex; align-items:center; justify-content:space-between; padding:14px 32px; background:var(--panel); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20;}
+  .brand{display:flex; align-items:center; gap:11px;}
+  .brand .mark{width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg, var(--blue), var(--violet)); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:15px; box-shadow:0 3px 10px var(--blue-glow);}
+  .brand-text span{font-size:12px; color:var(--muted);}
+  .back-link{font-size:13px; color:var(--muted); text-decoration:none; border:1px solid var(--line); padding:7px 14px; border-radius:8px; background:#fff;}
+  .back-link:hover{border-color:var(--blue); color:var(--blue);}
+
+  .shell{max-width:1180px; margin:0 auto; padding:28px 32px 80px;}
+  .row{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; gap:12px; flex-wrap:wrap;}
+  .row h2{font-size:19px;}
+  .sub{color:var(--muted); font-size:12.5px; margin-top:3px;}
+
+  .btn{border:none; border-radius:9px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;}
+  .btn-primary{background:var(--blue); color:#fff; box-shadow:0 2px 8px var(--blue-glow);}
+  .btn-primary:hover{background:var(--blue-deep);}
+  .btn-ghost{background:#fff; border:1px solid var(--line); color:var(--ink);}
+  .btn-ghost:hover{border-color:var(--blue); color:var(--blue);}
+  .btn-danger{background:var(--bad-soft); color:var(--bad);}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:14px;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px 20px; box-shadow:var(--shadow-sm);}
+  .card h3{font-size:14.5px; margin-bottom:6px;}
+  .card .meta{font-size:12px; color:var(--muted); line-height:1.7;}
+  .swatch{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle;}
+  .status-pill{font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:6px;}
+  .status-active{background:var(--good-soft); color:var(--good);}
+  .status-paused{background:var(--bad-soft); color:var(--bad);}
+  .card-actions{display:flex; gap:8px; margin-top:14px;}
+  .card-actions button{flex:1; font-size:12.5px; padding:8px 10px;}
+  .empty{border:1px dashed var(--line); border-radius:var(--radius-lg); padding:40px 20px; text-align:center; color:var(--muted); font-size:13.5px; background:#fff;}
+
+  .embed-box{background:#0F1626; color:#CFE0FF; border-radius:9px; padding:12px 14px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px; word-break:break-all; margin-top:10px; position:relative;}
+  .copy-btn{position:absolute; top:8px; right:8px; background:rgba(255,255,255,.12); color:#fff; border:none; border-radius:6px; padding:4px 9px; font-size:11px; cursor:pointer;}
+  .copy-btn:hover{background:rgba(255,255,255,.22);}
+
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(19,27,46,.45); align-items:flex-start; justify-content:center; padding:60px 20px; z-index:50; overflow:auto;}
+  .modal-overlay.active{display:flex;}
+  .modal{background:#fff; border-radius:14px; padding:26px; width:100%; max-width:920px; box-shadow:var(--shadow-lg); display:grid; grid-template-columns:1fr 300px; gap:26px;}
+  .modal h3{margin-bottom:16px; font-size:16.5px;}
+  .modal-close{float:right; background:none; border:none; font-size:16px; cursor:pointer; color:var(--muted);}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; font-weight:650; margin-bottom:6px;}
+  .field .hint{font-size:11.5px; color:var(--muted); margin-top:4px;}
+  input[type=text], textarea, select{width:100%; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:13px; font-family:inherit; background:#fff; color:var(--ink);}
+  input:focus, textarea:focus, select:focus{outline:2px solid #C7D6FB; border-color:var(--blue);}
+  .color-row{display:flex; align-items:center; gap:10px;}
+  input[type=color]{width:44px; height:38px; border:1px solid var(--line); border-radius:8px; padding:2px; background:#fff; cursor:pointer;}
+  .toggle-row{display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line-soft); font-size:13px;}
+  .toggle-row:last-child{border-bottom:none;}
+  .switch{position:relative; width:38px; height:22px; flex-shrink:0;}
+  .switch input{opacity:0; width:0; height:0;}
+  .slider{position:absolute; inset:0; background:#D7DCE6; border-radius:22px; cursor:pointer; transition:.15s;}
+  .slider:before{content:""; position:absolute; width:16px; height:16px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.15s;}
+  input:checked + .slider{background:var(--blue);}
+  input:checked + .slider:before{transform:translateX(16px);}
+
+  /* ---- live preview pane, mirrors the actual embed bubble ---- */
+  .preview-pane{background:var(--paper); border:1px solid var(--line); border-radius:var(--radius-lg); position:relative; min-height:420px; overflow:hidden;}
+  .preview-pane .pv-label{position:absolute; top:10px; left:12px; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em;}
+  .pv-bubble{position:absolute; bottom:20px; right:20px; width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,.22); animation:pv-pulse 1.6s infinite;}
+  .pv-bubble svg{width:22px; height:22px; fill:#fff;}
+  @keyframes pv-pulse{0%{box-shadow:0 0 0 0 rgba(36,84,232,.35);} 70%{box-shadow:0 0 0 14px rgba(36,84,232,0);} 100%{box-shadow:0 0 0 0 rgba(36,84,232,0);}}
+  .pv-note{position:absolute; bottom:24px; left:16px; right:96px; font-size:11.5px; color:var(--muted);}
+
+  .toast{position:fixed; bottom:24px; right:24px; background:var(--ink); color:#fff; padding:11px 16px; border-radius:9px; font-size:13px; z-index:100; opacity:0; transform:translateY(8px); transition:all .25s ease; box-shadow:0 6px 18px rgba(19,27,46,.25);}
+  .toast.show{opacity:1; transform:translateY(0);}
+  @media (max-width:820px){ .modal{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="mark">E</div>
+    <div class="brand-text"><h1>Web Widgets</h1><span>Embeddable voice widget for your website or app</span></div>
+  </div>
+  <a class="back-link" href="/eva">← Back to Eva dashboard</a>
+</div>
+
+<div class="shell">
+  <div class="row">
+    <div>
+      <h2>Your widgets</h2>
+      <div class="sub">Each widget carries its own public id and is wired to exactly one voice agent. Minutes spoken through it are deducted from your Eva balance.</div>
+    </div>
+    <button class="btn btn-primary" onclick="openWidgetModal()">+ New widget</button>
+  </div>
+
+  <div class="grid" id="widgetsGrid"></div>
+  <div class="empty" id="widgetsEmpty" style="display:none;">No widgets yet. Create one to get an embed code for your site.</div>
+</div>
+
+<!-- ===================== CREATE / EDIT MODAL ===================== -->
+<div class="modal-overlay" id="widgetModal">
+  <div class="modal">
+    <div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <h3 id="modalTitle">New web widget</h3>
+
+      <div class="field">
+        <label>Widget name</label>
+        <input type="text" id="wName" placeholder="e.g. Homepage assistant" oninput="renderPreview()">
+      </div>
+
+      <div class="field">
+        <label>Agent</label>
+        <select id="wAgent"></select>
+        <div class="hint">The widget speaks using this agent's prompt, opening line and voice.</div>
+      </div>
+
+      <div class="field">
+        <label>Bubble color</label>
+        <div class="color-row">
+          <input type="color" id="wColor" value="#2454E8" oninput="renderPreview()">
+          <input type="text" id="wColorHex" value="#2454E8" oninput="syncColorFromHex()" style="max-width:120px;">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Greeting / opening line</label>
+        <textarea id="wGreeting" placeholder="Hi! How can I help you today?" oninput="renderPreview()"></textarea>
+      </div>
+
+      <div class="panel" style="border:1px solid var(--line); border-radius:10px; padding:4px 14px; margin-top:16px;">
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight:600;">Capture leads</div>
+            <div class="hint">Save visitor name/phone/email into your leads list.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="wCollectLead" checked><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight:600;">Ask for details before chatting</div>
+            <div class="hint">Visitor fills the form first, then Eva starts talking.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="wRequireLeadFirst" checked><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" style="width:100%; margin-top:20px;" id="saveWidgetBtn" onclick="saveWidget()">Create widget</button>
+    </div>
+
+    <div class="preview-pane">
+      <div class="pv-label">Live preview</div>
+      <div class="pv-note" id="pvNote">Hi! How can I help you today?</div>
+      <div class="pv-bubble" id="pvBubble" style="background:#2454E8;">
+        <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== EMBED CODE MODAL ===================== -->
+<div class="modal-overlay" id="embedModal">
+  <div class="modal" style="grid-template-columns:1fr; max-width:560px;">
+    <div>
+      <button class="modal-close" onclick="document.getElementById('embedModal').classList.remove('active')">✕</button>
+      <h3>Embed code</h3>
+      <div class="sub" style="margin-bottom:10px;">Paste this one tag anywhere on your site — desktop shows a bottom-right bubble, mobile shows a full-width bottom bubble.</div>
+      <div class="embed-box" id="embedSnippet">
+        <button class="copy-btn" onclick="copyEmbed()">Copy</button>
+        <span id="embedSnippetText"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let WIDGETS = [];
+let AGENTS = [];
+let editingId = null;
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+async function api(path, opts={}){
+  const res = await fetch(path, {headers:{'Content-Type':'application/json'}, ...opts});
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+function escapeHtml(s){
+  return (s || '').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+async function loadAgents(){
+  const d = await api('/api/agents');
+  AGENTS = d.agents || [];
+  const sel = document.getElementById('wAgent');
+  sel.innerHTML = AGENTS.map(a => `<option value="${a._id}">${escapeHtml(a.name)}</option>`).join('')
+    || '<option disabled>Create a voice agent first</option>';
+}
+
+async function loadWidgets(){
+  const d = await api('/api/widgets');
+  WIDGETS = d.widgets || [];
+  const grid = document.getElementById('widgetsGrid');
+  const empty = document.getElementById('widgetsEmpty');
+  grid.innerHTML = '';
+  empty.style.display = WIDGETS.length ? 'none' : 'block';
+  WIDGETS.forEach(w => {
+    const agent = AGENTS.find(a => a._id === w.agent_id);
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <h3><span class="swatch" style="background:${w.primary_color}"></span>${escapeHtml(w.name)}</h3>
+        <span class="status-pill status-${w.status}">${w.status}</span>
+      </div>
+      <div class="meta">
+        Agent: ${escapeHtml(agent ? agent.name : '—')}<br>
+        Public id: ${w.public_id}<br>
+        ${w.collect_lead ? 'Captures leads' : 'No lead capture'}
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-ghost" onclick="showEmbed('${w._id}')">Get embed code</button>
+        <button class="btn btn-ghost" onclick="toggleStatus('${w._id}','${w.status}')">${w.status === 'active' ? 'Pause' : 'Activate'}</button>
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-danger" style="flex:1;" onclick="deleteWidget('${w._id}')">Delete</button>
+      </div>`;
+    grid.appendChild(el);
+  });
+}
+
+function openWidgetModal(){
+  if (!AGENTS.length){ toast('Create a voice agent first'); return; }
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'New web widget';
+  document.getElementById('saveWidgetBtn').textContent = 'Create widget';
+  document.getElementById('wName').value = '';
+  document.getElementById('wColor').value = '#2454E8';
+  document.getElementById('wColorHex').value = '#2454E8';
+  document.getElementById('wGreeting').value = 'Hi! How can I help you today?';
+  document.getElementById('wCollectLead').checked = true;
+  document.getElementById('wRequireLeadFirst').checked = true;
+  renderPreview();
+  document.getElementById('widgetModal').classList.add('active');
+}
+
+function closeModal(){ document.getElementById('widgetModal').classList.remove('active'); }
+
+function syncColorFromHex(){
+  const hex = document.getElementById('wColorHex').value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) document.getElementById('wColor').value = hex;
+  renderPreview();
+}
+
+function renderPreview(){
+  const color = document.getElementById('wColor').value;
+  document.getElementById('wColorHex').value = color;
+  document.getElementById('pvBubble').style.background = color;
+  document.getElementById('pvNote').textContent = document.getElementById('wGreeting').value || 'Hi! How can I help you today?';
+}
+document.getElementById('wColor').addEventListener('input', renderPreview);
+
+async function saveWidget(){
+  const name = document.getElementById('wName').value.trim();
+  const agent_id = document.getElementById('wAgent').value;
+  if (!name){ toast('Widget name is required'); return; }
+  if (!agent_id){ toast('Pick an agent'); return; }
+  const payload = {
+    name, agent_id,
+    primary_color: document.getElementById('wColor').value,
+    greeting: document.getElementById('wGreeting').value.trim(),
+    collect_lead: document.getElementById('wCollectLead').checked,
+    require_lead_before_chat: document.getElementById('wRequireLeadFirst').checked,
+  };
+  try{
+    if (editingId){
+      await api('/api/widgets/' + editingId, {method:'PATCH', body: JSON.stringify(payload)});
+      toast('Widget updated');
+    } else {
+      await api('/api/widgets', {method:'POST', body: JSON.stringify(payload)});
+      toast('Widget created');
+    }
+    closeModal();
+    await loadWidgets();
+  }catch(e){ toast(e.message); }
+}
+
+async function toggleStatus(id, current){
+  try{
+    await api('/api/widgets/' + id, {method:'PATCH', body: JSON.stringify({status: current === 'active' ? 'paused' : 'active'})});
+    await loadWidgets();
+  }catch(e){ toast(e.message); }
+}
+
+async function deleteWidget(id){
+  if (!confirm('Delete this widget? Any embedded copies will stop working immediately.')) return;
+  try{ await api('/api/widgets/' + id, {method:'DELETE'}); toast('Widget deleted'); await loadWidgets(); }
+  catch(e){ toast(e.message); }
+}
+
+function showEmbed(id){
+  const w = WIDGETS.find(x => x._id === id);
+  if (!w) return;
+  document.getElementById('embedSnippetText').textContent = w.embed_snippet;
+  document.getElementById('embedModal').classList.add('active');
+}
+
+function copyEmbed(){
+  const text = document.getElementById('embedSnippetText').textContent;
+  navigator.clipboard.writeText(text).then(() => toast('Copied to clipboard'));
+}
+
+(async function init(){
+  await loadAgents();
+  await loadWidgets();
+})();
+</script>
+</body>
+</html>
