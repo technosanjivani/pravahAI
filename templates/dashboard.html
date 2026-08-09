@@ -163,15 +163,30 @@ td.col-aitask .cell-input { min-width: 160px; }
   width: 100%; background: transparent; border: 1px solid var(--border); border-radius: 6px;
   color: var(--text-h); font-size: 12px; font-family: inherit; padding: 6px 8px; outline: none; cursor: pointer;
 }
+.status-select.pending { color: var(--text-b); }
 .status-select.cold { color: var(--accent-1); }
 .status-select.warm { color: var(--yellow); }
 .status-select.hot  { color: var(--red); }
+.segment-select {
+  width: 100%; background: transparent; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-h); font-size: 12px; font-family: inherit; padding: 6px 8px; outline: none; cursor: pointer;
+}
 .assigned-tag { font-size: 11px; color: var(--text-b); padding: 8px 6px; display: block; }
 .row-actions { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 6px; }
 .row-act-btn { width: 26px; height: 26px; border-radius: 6px; background: var(--bg-hover); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; transition: background .15s; }
 .row-act-btn:hover { background: rgba(220,38,38,.15); }
 .sheet-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); }
+
 .dirty-note { font-size: 12px; color: var(--yellow); }
+.filter-badge {
+  display: none; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600;
+  color: var(--accent-1); background: rgba(37,99,235,.1); border: 1px solid rgba(37,99,235,.25);
+  padding: 5px 10px; border-radius: 99px;
+}
+.filter-badge span { cursor: pointer; }
+.filter-row { display: flex; gap: 10px; margin-bottom: 4px; }
+.filter-row .form-row { flex: 1; margin-bottom: 0; }
+
 .empty-state { padding: 50px 20px; text-align: center; color: var(--text-b); font-size: 13.5px; }
 
 /* ─── CAMPAIGNS LIST ──────────────────────────────── */
@@ -523,10 +538,13 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
         <button class="btn btn-primary" onclick="openAddModal()">＋ Add Lead</button>
         <button class="btn btn-ghost" onclick="addBlankRow()">＋ Add Row</button>
         <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">⬆ Import CSV / Excel</button>
-        <input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportFile(event)" />
-        <a class="btn btn-ghost btn-sm" href="/api/leads/template">⬇ Template (Excel)</a>
-        <a class="btn btn-ghost btn-sm" href="/api/leads/export">⬇ Export My Leads</a>
+        <input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportFileSelected(event)" />
+        <button class="btn btn-ghost" onclick="openSegmentsModal()">🏷️ Segments</button>
+        <button class="btn btn-ghost" onclick="openLeadsFilterModal()">🔍 Filter</button>
+        
+        <button class="btn btn-ghost btn-sm" onclick="exportFilteredLeads()">⬇ Export My Leads</button>
         <div class="spacer"></div>
+        <span class="filter-badge" id="leads-filter-badge"></span>
         <span class="dirty-note" id="dirty-note" style="display:none;">Unsaved changes</span>
         <button class="btn btn-primary" id="save-all-btn" onclick="saveAll()" disabled>💾 Save All</button>
       </div>
@@ -537,7 +555,7 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
               <tr>
                 <th class="col-num">#</th>
                 <th>Name</th><th>Business Name</th><th>Email</th><th>Phone</th><th>Website</th>
-                <th>Description</th><th>AI Task</th><th class="col-status">Status</th><th>Assigned</th>
+                <th>Description</th><th>AI Task</th><th>Segment</th><th class="col-status">Status</th><th>Assigned</th>
                 <th class="col-actions">Actions</th>
               </tr>
             </thead>
@@ -844,12 +862,82 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
     <div class="form-row"><label>Website</label><input class="form-input" id="m-website" placeholder="https://..." /></div>
     <div class="form-row"><label>Description</label><input class="form-input" id="m-description" placeholder="What are they looking for?" /></div>
     <div class="form-row"><label>AI Task <span style="color:var(--text-dim);font-size:11px;">(optional — goal for the auto-reply bot)</span></label><input class="form-input" id="m-aitask" placeholder="e.g. Push our bulk basmati rice offer" /></div>
+    <div class="form-row">
+      <label>Segment <span style="color:var(--text-dim);font-size:11px;">(optional)</span></label>
+      <select class="form-input" id="m-segment"><option value="">— No Segment —</option></select>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
       <button class="btn btn-primary" onclick="submitAddModal()">Save Lead</button>
     </div>
   </div>
 </div>
+
+<!-- Filter Leads (My Leads page) -->
+<div class="modal-overlay" id="leads-filter-modal">
+  <div class="modal-box">
+    <div class="modal-title">Filter Leads</div>
+    <div class="modal-sub">Narrow down the sheet — and "Export My Leads" — by Segment and/or Status.</div>
+    <div class="form-row">
+      <label>Segment</label>
+      <select class="form-input" id="lf-segment"><option value="">All Segments</option></select>
+    </div>
+    <div class="form-row">
+      <label>Status</label>
+      <select class="form-input" id="lf-status">
+        <option value="">All Statuses</option>
+        <option value="pending">🕓 Pending</option>
+        <option value="cold">❄️ Cold</option>
+        <option value="warm">🌤 Warm</option>
+        <option value="hot">🔥 Hot</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="clearLeadsFilter()">Clear Filters</button>
+      <button class="btn btn-ghost" onclick="closeModal('leads-filter-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="applyLeadsFilter()">Apply Filter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Leads — column mapping -->
+<div class="modal-overlay" id="import-mapping-modal">
+  <div class="modal-box wide">
+    <div class="modal-title">Map Your Columns</div>
+    <div class="modal-sub">Match each column from your file to a field in PravaahAI. <strong>Name</strong> and <strong>Phone</strong> are required — everything else is optional and can be left as "Don't import".</div>
+
+    <div class="form-row">
+      <label>Import into Segment <span style="color:var(--text-dim);font-size:11px;">(optional)</span></label>
+      <select class="form-input" id="im-segment"><option value="">— No Segment —</option></select>
+    </div>
+
+    <div id="im-mapping-rows" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:8px;"></div>
+
+    <div style="font-size:11.5px;color:var(--text-dim);margin-top:10px;" id="im-row-count"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('import-mapping-modal')">Cancel</button>
+      <button class="btn btn-primary" id="im-confirm-btn" onclick="confirmImport()">⬆ Import Leads</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manage Segments -->
+<div class="modal-overlay" id="segments-modal">
+  <div class="modal-box">
+    <div class="modal-title">Segments</div>
+    <div class="modal-sub">Segments are named lists to group your leads (e.g. "Dubai Expo 2026", "Cold Outreach Q1"). Pick one when adding or importing leads.</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <input class="form-input" id="seg-new-name" placeholder="New segment name…" onkeydown="if(event.key==='Enter') createSegment()" />
+      <button class="btn btn-primary btn-sm" onclick="createSegment()">＋ Add</button>
+    </div>
+    <div class="lead-selector" id="segments-list"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('segments-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+
 
 <!-- New Campaign -->
 <div class="modal-overlay" id="new-campaign-modal">
@@ -869,12 +957,29 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 <div class="modal-overlay" id="lead-selector-modal">
   <div class="modal-box wide">
     <div class="modal-title">Assign Leads to Campaign</div>
-    <div class="modal-sub">Select which leads this campaign should run for.</div>
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <input class="form-input" id="lead-sel-search" placeholder="Search leads…" oninput="filterLeadSelector()" style="flex:1;" />
-      <button class="btn btn-ghost btn-sm" onclick="selectAllLeads()">Select All</button>
-      <button class="btn btn-ghost btn-sm" onclick="deselectAllLeads()">Clear</button>
+    <div class="modal-sub">Filter by Segment/Status first, then "Select Filtered" to grab exactly that group — repeat to combine multiple segments.</div>
+    <div class="filter-row">
+      <div class="form-row">
+        <label style="font-size:11px;">Segment</label>
+        <select class="form-input" id="camp-filter-segment" onchange="applyCampFilter()"><option value="">All Segments</option></select>
+      </div>
+      <div class="form-row">
+        <label style="font-size:11px;">Status</label>
+        <select class="form-input" id="camp-filter-status" onchange="applyCampFilter()">
+          <option value="">All Statuses</option>
+          <option value="pending">🕓 Pending</option>
+          <option value="cold">❄️ Cold</option>
+          <option value="warm">🌤 Warm</option>
+          <option value="hot">🔥 Hot</option>
+        </select>
+      </div>
     </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
+      <input class="form-input" id="lead-sel-search" placeholder="Search leads…" oninput="filterLeadSelector()" style="flex:1;" />
+      <button class="btn btn-ghost btn-sm" onclick="selectAllLeads()" title="Selects every lead currently matching the search/filter above">＋ Select Filtered</button>
+      <button class="btn btn-ghost btn-sm" onclick="deselectAllLeads()" title="Unselects every lead currently matching the search/filter above">Clear Filtered</button>
+    </div>
+    <div style="font-size:11px;color:var(--text-dim);margin:-6px 0 10px;" id="camp-filter-summary"></div>
     <div class="lead-selector" id="lead-selector-list"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('lead-selector-modal')">Cancel</button>
@@ -981,7 +1086,13 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 let leads         = [];
 let campaigns     = [];
 let teamMembers   = [];
+let segments      = [];
 let searchQuery   = "";
+let leadsFilterSegment = "";   // My Leads page filter
+let leadsFilterStatus  = "";
+let allLeadsCache      = [];   // independent full lead list — used by the campaign lead selector + test-message picker
+let campFilterSegment  = "";   // campaign "Assign Leads" modal filter (independent of the page above)
+let campFilterStatus   = "";
 let searchDebounce = null;
 let myRole        = "owner";
 let chatLeadId    = null;
@@ -1367,13 +1478,15 @@ let testNodeIdx = null;
 async function openTestWhatsAppModal(nodeId) {
   testNodeIdx = nodeId;
   await saveFlow();
+  if (!allLeadsCache.length) await ensureAllLeadsCache();
   document.getElementById("test-wa-phone").value = "";
   renderTestLeadOptions();
   document.getElementById("test-whatsapp-modal").classList.add("open");
 }
 function renderTestLeadOptions() {
   const sel = document.getElementById("test-wa-lead");
-  const assigned = leads.filter(l => currentCampaignLeadIds.includes(l._id));
+  const source = allLeadsCache.length ? allLeadsCache : leads;
+  const assigned = source.filter(l => currentCampaignLeadIds.includes(l._id));
   sel.innerHTML = `<option value="">— none, use phone number below —</option>` +
     assigned.map(l => `<option value="${l._id}">${esc(l.name)}${l.phone ? " (" + esc(l.phone) + ")" : " (no phone)"}</option>`).join("");
 }
@@ -1462,16 +1575,62 @@ async function confirmLaunch() {
   finally { btn.disabled = false; }
 }
 
-/* ── lead selector (unchanged) ── */
-function openLeadSelector() {
-  renderLeadSelectorList("");
+/* ── lead selector (Segment + Status filter aware, independent of My Leads page) ── */
+async function ensureAllLeadsCache() {
+  try {
+    const res = await fetch("/api/leads"); // always the FULL scoped list — ignores whatever filter is active on My Leads
+    const data = await res.json();
+    allLeadsCache = data.leads;
+  } catch { allLeadsCache = leads; /* fallback so the modal still works */ }
+  return allLeadsCache;
+}
+
+async function openLeadSelector() {
+  await ensureAllLeadsCache();
+  campFilterSegment = ""; campFilterStatus = "";
+  document.getElementById("camp-filter-segment").innerHTML =
+    `<option value="">All Segments</option>` + segments.map(s => `<option value="${s._id}">${esc(s.name)}</option>`).join("");
+  document.getElementById("camp-filter-status").value = "";
   document.getElementById("lead-sel-search").value = "";
+  renderCampFilterSummary();
+  renderLeadSelectorList("");
   document.getElementById("lead-selector-modal").classList.add("open");
   updateSelCount();
 }
-function filterLeadSelector() { renderLeadSelectorList(document.getElementById("lead-sel-search").value.toLowerCase()); }
+
+function applyCampFilter() {
+  campFilterSegment = document.getElementById("camp-filter-segment").value;
+  campFilterStatus  = document.getElementById("camp-filter-status").value;
+  filterLeadSelector();
+}
+
+function filteredSelectorLeads(q) {
+  let filtered = allLeadsCache.filter(l => !q || l.name.toLowerCase().includes(q) || (l.business_name||"").toLowerCase().includes(q));
+  if (campFilterSegment) filtered = filtered.filter(l => l.segment_id === campFilterSegment);
+  if (campFilterStatus)  filtered = filtered.filter(l => l.status === campFilterStatus);
+  return filtered;
+}
+
+function renderCampFilterSummary() {
+  const el = document.getElementById("camp-filter-summary");
+  const q = document.getElementById("lead-sel-search").value.toLowerCase();
+  const visible = filteredSelectorLeads(q);
+  const parts = [];
+  if (campFilterSegment) parts.push(`Segment: ${esc(segments.find(s=>s._id===campFilterSegment)?.name || "")}`);
+  if (campFilterStatus)  parts.push(`Status: ${campFilterStatus}`);
+  el.textContent = parts.length
+    ? `Showing ${visible.length} lead${visible.length===1?"":"s"} — ${parts.join(" · ")}`
+    : `Showing all ${visible.length} lead${visible.length===1?"":"s"}`;
+}
+
+function filterLeadSelector() {
+  const q = document.getElementById("lead-sel-search").value.toLowerCase();
+  renderCampFilterSummary();
+  renderLeadSelectorList(q);
+}
+
 function renderLeadSelectorList(q) {
-  const filtered = leads.filter(l => !q || l.name.toLowerCase().includes(q) || (l.business_name||"").toLowerCase().includes(q));
+  const filtered = filteredSelectorLeads(q);
   document.getElementById("lead-selector-list").innerHTML = filtered.length
     ? filtered.map(l => `
       <label class="lead-sel-item">
@@ -1482,16 +1641,35 @@ function renderLeadSelectorList(q) {
         </div>
         <div class="lead-sel-meta">${l.email ? "✉️" : ""}${l.phone ? " 📞" : ""}</div>
       </label>`).join("")
-    : `<div style="padding:20px;text-align:center;color:var(--text-dim);">No leads found</div>`;
+    : `<div style="padding:20px;text-align:center;color:var(--text-dim);">No leads match this search/filter</div>`;
 }
+
 function toggleLeadSel(id, checked) {
   if (checked && !currentCampaignLeadIds.includes(id)) currentCampaignLeadIds.push(id);
   else if (!checked) currentCampaignLeadIds = currentCampaignLeadIds.filter(x=>x!==id);
   updateSelCount();
 }
-function selectAllLeads()   { currentCampaignLeadIds = leads.map(l=>l._id); renderLeadSelectorList(""); updateSelCount(); }
-function deselectAllLeads() { currentCampaignLeadIds = []; renderLeadSelectorList(""); updateSelCount(); }
-function updateSelCount()   { document.getElementById("sel-count").textContent = currentCampaignLeadIds.length; }
+
+// "Select Filtered" / "Clear Filtered" only ever touch leads currently
+// matching the search + Segment/Status filter — never the whole account,
+// and never leads you already picked from a *different* filter pass.
+function selectAllLeads() {
+  const q = document.getElementById("lead-sel-search").value.toLowerCase();
+  const filteredIds = filteredSelectorLeads(q).map(l => l._id);
+  const set = new Set(currentCampaignLeadIds);
+  filteredIds.forEach(id => set.add(id));
+  currentCampaignLeadIds = Array.from(set);
+  renderLeadSelectorList(q);
+  updateSelCount();
+}
+function deselectAllLeads() {
+  const q = document.getElementById("lead-sel-search").value.toLowerCase();
+  const filteredIdSet = new Set(filteredSelectorLeads(q).map(l => l._id));
+  currentCampaignLeadIds = currentCampaignLeadIds.filter(id => !filteredIdSet.has(id));
+  renderLeadSelectorList(q);
+  updateSelCount();
+}
+function updateSelCount() { document.getElementById("sel-count").textContent = currentCampaignLeadIds.length; }
 function confirmLeadSelection() {
   closeModal("lead-selector-modal");
   updateFbLeadCount();
@@ -1508,6 +1686,7 @@ function confirmLeadSelection() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadMe();
+  await loadSegments();
   loadLeads();
   loadDashboardStats();
   if (myRole === "owner") { loadCampaigns(); loadTeam(); loadIntegrations(); }
@@ -1602,10 +1781,10 @@ async function loadDashboardStats() {
     statusChart = new Chart(ctx2, {
       type: "doughnut",
       data: {
-        labels: ["Cold", "Warm", "Hot"],
+        labels: ["Pending", "Cold", "Warm", "Hot"],
         datasets: [{
-          data: [d.status_counts.cold, d.status_counts.warm, d.status_counts.hot],
-          backgroundColor: ["#3b82f6", "#f59e0b", "#ef4444"],
+          data: [d.status_counts.pending||0, d.status_counts.cold, d.status_counts.warm, d.status_counts.hot],
+          backgroundColor: ["#94a3b8", "#3b82f6", "#f59e0b", "#ef4444"],
           borderWidth: 0,
         }]
       },
@@ -1619,12 +1798,62 @@ async function loadDashboardStats() {
 ════════════════════════════════════════════════ */
 async function loadLeads() {
   try {
-    const res = await fetch(`/api/leads${searchQuery ? "?q=" + encodeURIComponent(searchQuery) : ""}`);
+    const params = new URLSearchParams();
+    if (searchQuery) params.set("q", searchQuery);
+    if (leadsFilterSegment) params.set("segment_id", leadsFilterSegment);
+    if (leadsFilterStatus) params.set("status", leadsFilterStatus);
+    const qs = params.toString();
+    const res = await fetch(`/api/leads${qs ? "?" + qs : ""}`);
     if (!res.ok) throw new Error("Failed to load leads");
     const data = await res.json();
     leads = data.leads.map(l => ({ ...l, _dirty: false }));
     renderSheet();
   } catch (err) { showToast("Could not load leads. " + err.message, "error"); }
+}
+
+function exportFilteredLeads() {
+  const params = new URLSearchParams();
+  if (searchQuery) params.set("q", searchQuery);
+  if (leadsFilterSegment) params.set("segment_id", leadsFilterSegment);
+  if (leadsFilterStatus) params.set("status", leadsFilterStatus);
+  const qs = params.toString();
+  window.location.href = `/api/leads/export${qs ? "?" + qs : ""}`;
+}
+
+function openLeadsFilterModal() {
+  document.getElementById("lf-segment").innerHTML =
+    `<option value="">All Segments</option>` +
+    segments.map(s => `<option value="${s._id}" ${leadsFilterSegment===s._id?"selected":""}>${esc(s.name)}</option>`).join("");
+  document.getElementById("lf-status").value = leadsFilterStatus;
+  document.getElementById("leads-filter-modal").classList.add("open");
+}
+
+function applyLeadsFilter() {
+  leadsFilterSegment = document.getElementById("lf-segment").value;
+  leadsFilterStatus  = document.getElementById("lf-status").value;
+  closeModal("leads-filter-modal");
+  renderLeadsFilterBadge();
+  loadLeads();
+}
+
+function clearLeadsFilter() {
+  leadsFilterSegment = ""; leadsFilterStatus = "";
+  const segSel = document.getElementById("lf-segment"); if (segSel) segSel.value = "";
+  const stSel  = document.getElementById("lf-status");  if (stSel)  stSel.value  = "";
+  closeModal("leads-filter-modal");
+  renderLeadsFilterBadge();
+  loadLeads();
+}
+
+function renderLeadsFilterBadge() {
+  const badge = document.getElementById("leads-filter-badge");
+  if (!leadsFilterSegment && !leadsFilterStatus) { badge.style.display = "none"; badge.innerHTML = ""; return; }
+  const segName = leadsFilterSegment ? (segments.find(s => s._id === leadsFilterSegment)?.name || "Segment") : "";
+  const parts = [];
+  if (segName) parts.push(`Segment: ${esc(segName)}`);
+  if (leadsFilterStatus) parts.push(`Status: ${leadsFilterStatus}`);
+  badge.style.display = "inline-flex";
+  badge.innerHTML = `🔎 ${parts.join(" · ")} <span onclick="clearLeadsFilter()">✕</span>`;
 }
 
 function renderSheet() {
@@ -1642,6 +1871,12 @@ function assignedLabel(lead) {
   return m ? m.name : "Assigned";
 }
 
+function segmentOptionsHtml(selectedId) {
+  let html = `<option value="">— No Segment —</option>`;
+  html += segments.map(s => `<option value="${s._id}" ${selectedId===s._id?"selected":""}>${esc(s.name)}</option>`).join("");
+  return html;
+}
+
 function rowHtml(lead, idx) {
   const cls = lead._dirty ? (lead._id ? "is-dirty" : "is-new") : "";
   return `<tr data-idx="${idx}" class="${cls}">
@@ -1653,8 +1888,14 @@ function rowHtml(lead, idx) {
     <td class="col-website"><input class="cell-input" value="${esc(lead.website)}" placeholder="Website" oninput="updateCell(${idx},'website',this.value)" /></td>
     <td class="col-description"><input class="cell-input" value="${esc(lead.description)}" placeholder="Description" oninput="updateCell(${idx},'description',this.value)" /></td>
     <td class="col-aitask"><input class="cell-input" value="${esc(lead.ai_task_prompt)}" placeholder="Bot goal for this lead" oninput="updateCell(${idx},'ai_task_prompt',this.value)" /></td>
+    <td class="col-segment">
+      <select class="segment-select" onchange="updateLeadSegment('${lead._id}',${idx},this.value)">
+        ${segmentOptionsHtml(lead.segment_id)}
+      </select>
+    </td>
     <td class="col-status">
-      <select class="status-select ${lead.status||'cold'}" onchange="updateLeadStatus('${lead._id}',this.value)">
+      <select class="status-select ${lead.status||'pending'}" onchange="updateLeadStatus('${lead._id}',this.value)">
+        <option value="pending" ${lead.status==='pending'?'selected':''}>🕓 Pending</option>
         <option value="cold" ${lead.status==='cold'?'selected':''}>❄️ Cold</option>
         <option value="warm" ${lead.status==='warm'?'selected':''}>🌤 Warm</option>
         <option value="hot"  ${lead.status==='hot'?'selected':''}>🔥 Hot</option>
@@ -1680,7 +1921,7 @@ function updateCell(idx, field, value) {
 }
 
 async function updateLeadStatus(leadId, status) {
-  if (!leadId) return; // unsaved row — will be saved as "cold" until Save All
+  if (!leadId) return; // unsaved row — will be saved as "pending" until Save All
   try {
     const res = await fetch(`/api/leads/${leadId}/status`, {
       method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({status})
@@ -1690,8 +1931,20 @@ async function updateLeadStatus(leadId, status) {
   } catch(err) { showToast(err.message, "error"); }
 }
 
+async function updateLeadSegment(leadId, idx, segmentId) {
+  if (leads[idx]) leads[idx].segment_id = segmentId;
+  if (!leadId) { leads[idx]._dirty = true; updateSaveButtonState(); return; } // unsaved row — saved with Save All
+  try {
+    const res = await fetch(`/api/leads/${leadId}/segment`, {
+      method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({segment_id: segmentId})
+    });
+    if (!res.ok) throw new Error("Could not update segment");
+    showToast("Segment updated", "success");
+  } catch(err) { showToast(err.message, "error"); }
+}
+
 function addBlankRow() {
-  leads.unshift({_id:null,name:"",business_name:"",email:"",phone:"",website:"",description:"",ai_task_prompt:"",status:"cold",assigned_to:null,_dirty:true});
+  leads.unshift({_id:null,name:"",business_name:"",email:"",phone:"",website:"",description:"",ai_task_prompt:"",status:"pending",segment_id:"",assigned_to:null,_dirty:true});
   renderSheet();
   document.querySelector('tr[data-idx="0"] .col-name input')?.focus();
 }
@@ -1717,23 +1970,27 @@ function updateSaveButtonState() {
 
 async function saveAll() {
   const dirty = leads.filter(l=>l._dirty);
-  const valid = dirty.filter(l=>l.name&&l.name.trim());
-  if (!valid.length) { showToast("Add at least a name before saving.", "error"); return; }
+  const valid = dirty.filter(l=>l.name&&l.name.trim()&&l.phone&&l.phone.trim());
+  const skippedCount = dirty.length - valid.length;
+  if (!valid.length) { showToast("Add at least a Name and Phone before saving.", "error"); return; }
   const btn = document.getElementById("save-all-btn");
   btn.disabled = true; btn.textContent = "Saving…";
   try {
     const res = await fetch("/api/leads/bulk", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({leads:valid})});
     if (!res.ok) throw new Error("Save failed");
     const data = await res.json();
-    showToast(`Saved ${data.saved} lead${data.saved===1?"":"s"}.`, "success");
+    const skipMsg = skippedCount ? ` (${skippedCount} row${skippedCount===1?"":"s"} skipped — missing Name/Phone)` : "";
+    showToast(`Saved ${data.saved} lead${data.saved===1?"":"s"}.${skipMsg}`, "success");
     await loadLeads();
   } catch(err) { showToast(err.message, "error"); }
   finally { btn.textContent = "💾 Save All"; }
 }
 
 // Add-lead modal
+
 function openAddModal() {
   ["m-name","m-business","m-email","m-phone","m-website","m-description","m-aitask"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("m-segment").innerHTML = segmentOptionsHtml("");
   document.getElementById("add-modal").classList.add("open");
 }
 function closeAddModal() { document.getElementById("add-modal").classList.remove("open"); }
@@ -1747,8 +2004,10 @@ async function submitAddModal() {
     website:       document.getElementById("m-website").value.trim(),
     description:   document.getElementById("m-description").value.trim(),
     ai_task_prompt: document.getElementById("m-aitask").value.trim(),
+    segment_id:    document.getElementById("m-segment").value,
   };
   if (!payload.name) { showToast("Name is required.", "error"); return; }
+  if (!payload.phone) { showToast("Phone is required.", "error"); return; }
   try {
     const res = await fetch("/api/leads",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
     if (!res.ok) { const e=await res.json(); throw new Error(e.error||"Could not add lead"); }
@@ -1756,19 +2015,7 @@ async function submitAddModal() {
   } catch(err) { showToast(err.message, "error"); }
 }
 
-async function handleImportFile(event) {
-  const file = event.target.files[0]; if (!file) return;
-  const fd = new FormData(); fd.append("file", file);
-  showToast("Importing…");
-  try {
-    const res = await fetch("/api/leads/import",{method:"POST",body:fd});
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error||"Import failed");
-    showToast(`Imported ${data.inserted} lead${data.inserted===1?"":"s"}${data.skipped?` (${data.skipped} skipped)`:""}`, "success");
-    await loadLeads();
-  } catch(err) { showToast(err.message, "error"); }
-  finally { event.target.value=""; }
-}
+
 
 function handleSearchInput() {
   searchQuery = document.getElementById("global-search").value.trim();
@@ -1816,6 +2063,173 @@ async function sendManualChatMessage() {
     openLeadChat(chatLeadId, name);
   } catch(err) { showToast(err.message, "error"); }
 }
+
+
+/* ════════════════════════════════════════════════
+   SEGMENTS
+════════════════════════════════════════════════ */
+async function loadSegments() {
+  try {
+    const res = await fetch("/api/segments");
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    segments = data.segments;
+  } catch { /* silent — dropdowns just show "No Segment" */ }
+}
+
+async function openSegmentsModal() {
+  document.getElementById("seg-new-name").value = "";
+  await loadSegments();
+  renderSegmentsList();
+  document.getElementById("segments-modal").classList.add("open");
+}
+
+function renderSegmentsList() {
+  const box = document.getElementById("segments-list");
+  if (!segments.length) {
+    box.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12.5px;">No segments yet. Add one above.</div>`;
+    return;
+  }
+  box.innerHTML = segments.map(s => `
+    <div class="lead-sel-item" style="cursor:default;">
+      <div>
+        <div class="lead-sel-name">${esc(s.name)}</div>
+        <div style="font-size:11.5px;color:var(--text-b);">${s.lead_count} lead${s.lead_count===1?"":"s"}</div>
+      </div>
+      <div class="lead-sel-meta">
+        <button class="row-act-btn" title="Delete segment" onclick="deleteSegment('${s._id}')">🗑</button>
+      </div>
+    </div>`).join("");
+}
+
+async function createSegment() {
+  const name = document.getElementById("seg-new-name").value.trim();
+  if (!name) { showToast("Segment name required", "error"); return; }
+  try {
+    const res = await fetch("/api/segments", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({name})});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not create segment");
+    document.getElementById("seg-new-name").value = "";
+    await loadSegments();
+    renderSegmentsList();
+    renderSheet(); // refresh segment dropdowns already on screen
+    showToast("Segment added ✓", "success");
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+async function deleteSegment(id) {
+  if (!confirm("Delete this segment? Leads in it won't be deleted — they'll just be unassigned from it.")) return;
+  try {
+    const res = await fetch(`/api/segments/${id}`, {method:"DELETE"});
+    if (!res.ok) throw new Error();
+    await loadSegments();
+    renderSegmentsList();
+    await loadLeads();
+    showToast("Segment deleted");
+  } catch { showToast("Could not delete segment", "error"); }
+}
+
+/* ════════════════════════════════════════════════
+   IMPORT (CSV / Excel) — with column mapping
+════════════════════════════════════════════════ */
+const LEAD_TARGET_FIELDS = [
+  { value: "",              label: "Don't import" },
+  { value: "name",          label: "Name *" },
+  { value: "business_name", label: "Business Name" },
+  { value: "email",         label: "Email" },
+  { value: "phone",         label: "Phone *" },
+  { value: "website",       label: "Website" },
+  { value: "description",   label: "Description" },
+];
+
+let pendingImportFile = null;
+let importColumns = [];
+let importPreviewRows = [];
+
+async function handleImportFileSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  pendingImportFile = file;
+  const fd = new FormData();
+  fd.append("file", file);
+  showToast("Reading file…");
+  try {
+    const res = await fetch("/api/leads/import/preview", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not read file");
+    importColumns = data.columns;
+    importPreviewRows = data.preview_rows || [];
+    openImportMappingModal(data.suggested_mapping || {}, data.row_count || 0);
+  } catch (err) {
+    showToast(err.message, "error");
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function openImportMappingModal(suggestedMapping, rowCount) {
+  document.getElementById("im-segment").innerHTML = segmentOptionsHtml("");
+  document.getElementById("im-row-count").textContent = `${rowCount} row${rowCount===1?"":"s"} found in your file.`;
+  document.getElementById("im-mapping-rows").innerHTML = importColumns.map((col, i) => {
+    const guessed = suggestedMapping[col] || "";
+    const sample = importPreviewRows.map(r => r[i]).filter(v => v).slice(0,2).join(", ");
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;color:var(--text-h);">${esc(col)}</div>
+          ${sample ? `<div style="font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">e.g. ${esc(sample)}</div>` : ""}
+        </div>
+        <span style="color:var(--text-dim);">→</span>
+        <select class="step-select" style="width:180px;flex-shrink:0;" data-col="${esc(col)}" onchange="validateImportMapping()">
+          ${LEAD_TARGET_FIELDS.map(f => `<option value="${f.value}" ${f.value===guessed?"selected":""}>${f.label}</option>`).join("")}
+        </select>
+      </div>`;
+  }).join("");
+  validateImportMapping();
+  document.getElementById("import-mapping-modal").classList.add("open");
+}
+
+function currentImportMapping() {
+  const mapping = {};
+  document.querySelectorAll('#im-mapping-rows select[data-col]').forEach(sel => {
+    if (sel.value) mapping[sel.dataset.col] = sel.value;
+  });
+  return mapping;
+}
+
+function validateImportMapping() {
+  const mapping = currentImportMapping();
+  const values = Object.values(mapping);
+  const ok = values.includes("name") && values.includes("phone");
+  document.getElementById("im-confirm-btn").disabled = !ok;
+  return ok;
+}
+
+async function confirmImport() {
+  if (!pendingImportFile) return;
+  if (!validateImportMapping()) { showToast("Please map a column to both Name and Phone.", "error"); return; }
+  const btn = document.getElementById("im-confirm-btn");
+  btn.disabled = true; btn.textContent = "Importing…";
+  try {
+    const fd = new FormData();
+    fd.append("file", pendingImportFile);
+    fd.append("mapping", JSON.stringify(currentImportMapping()));
+    fd.append("segment_id", document.getElementById("im-segment").value);
+    const res = await fetch("/api/leads/import", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Import failed");
+    showToast(`Imported ${data.inserted} lead${data.inserted===1?"":"s"}${data.skipped?` (${data.skipped} skipped — missing Name/Phone)`:""}`, "success");
+    closeModal("import-mapping-modal");
+    pendingImportFile = null;
+    await loadLeads();
+  } catch (err) {
+    showToast(err.message, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "⬆ Import Leads";
+  }
+}
+
+
 
 /* ════════════════════════════════════════════════
    CAMPAIGNS  (owner only)

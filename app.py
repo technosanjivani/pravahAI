@@ -43,6 +43,9 @@ from evo import send_whatsapp_message, get_instance_status
 from gmail import send_gmail
 from resend import send_resend_email, verify_resend_key
 import requests
+
+from scraper import scrape_website, normalize_website_for_dedupe
+
 # ----------------------------------
 # Load Environment Variables
 # ----------------------------------
@@ -76,7 +79,7 @@ messages_col   = db["pravah-messages"]     # inbound/outbound whatsapp message l
 teams_col      = db["pravah-team"]         # team members (sub-accounts)
 plans_col      = db["pravah-plans"]        # subscription plans (India / International)
 pricing_col    = db["pravah-eva-pricing"]  # global Eva per-minute pricing settings
-
+segments_col   = db["pravah-segments"]
 # ----------------------------------
 # Create Indexes
 # ----------------------------------
@@ -97,6 +100,8 @@ try:
     teams_col.create_index("email", unique=True)
     plans_col.create_index("region")
     pricing_col.create_index("key", unique=True)
+    segments_col.create_index([("owner_id", 1), ("name", 1)], unique=True)
+    leads_col.create_index([("owner_id", 1), ("segment_id", 1)])
 except Exception:
     pass
 
@@ -136,7 +141,7 @@ IMPORT_HEADER_ALIASES = {
     "note": "description", "details": "description",
 }
 
-LEAD_STATUSES = {"cold", "warm", "hot"}
+LEAD_STATUSES = {"pending", "cold", "warm", "hot"}
 
 # ----------------------------------
 # Campaign throttling settings
@@ -151,6 +156,109 @@ CAMPAIGN_AI_GEN_WAIT_SECS  = int(os.getenv("CAMPAIGN_AI_GEN_WAIT_SECS", 120))  #
 # AI-personalized messages inside a running campaign are spaced out.
 _last_ai_call_lock = threading.Lock()
 _last_ai_call_time = {}  # owner_id -> epoch seconds
+
+# ----------------------------------
+# Lead website scraper — job tracking
+# ----------------------------------
+_scrape_jobs = {}                  # job_id -> job state dict (in-memory, like the AI throttle map above)
+_scrape_jobs_lock = threading.Lock()
+
+
+def _new_scrape_job(owner_id, total):
+    job_id = secrets.token_urlsafe(12)
+    with _scrape_jobs_lock:
+        _scrape_jobs[job_id] = {
+            "owner_id": owner_id,
+            "total": total,
+            "processed": 0,
+            "found_email": 0,
+            "found_about": 0,
+            "failed": 0,
+            "current_lead_name": "",
+            "status": "running",       # running | completed
+            "started_at": datetime.utcnow().isoformat(),
+            "log": [],                 # last 40 events, newest last
+        }
+    return job_id
+
+
+def _push_scrape_log(job_id, entry):
+    with _scrape_jobs_lock:
+        job = _scrape_jobs.get(job_id)
+        if not job:
+            return
+        job["log"].append(entry)
+        job["log"] = job["log"][-40:]
+
+
+def run_lead_scrape_job(job_id, owner_id, lead_ids):
+    """Background worker: visits each lead's website, and — only where the
+    field is currently empty — fills in email and/or description (About text).
+    Existing values are never overwritten."""
+    for lead_id in lead_ids:
+        try:
+            oid = ObjectId(lead_id)
+        except InvalidId:
+            continue
+        lead = leads_col.find_one({"_id": oid, "owner_id": owner_id})
+        if not lead:
+            continue
+
+        with _scrape_jobs_lock:
+            _scrape_jobs[job_id]["current_lead_name"] = lead.get("name", "") or lead.get("business_name", "")
+
+        website = lead.get("website", "")
+        lead_name = lead.get("name", "") or lead.get("business_name", "") or "Lead"
+
+        if not website:
+            with _scrape_jobs_lock:
+                j = _scrape_jobs[job_id]
+                j["processed"] += 1
+                j["failed"] += 1
+            _push_scrape_log(job_id, {"name": lead_name, "result": "skipped", "reason": "No website on file"})
+            continue
+
+        try:
+            data = scrape_website(website)
+        except Exception as e:
+            with _scrape_jobs_lock:
+                j = _scrape_jobs[job_id]
+                j["processed"] += 1
+                j["failed"] += 1
+            _push_scrape_log(job_id, {"name": lead_name, "result": "failed", "reason": str(e)[:120]})
+            continue
+
+        got_email = bool(data.get("email")) and not lead.get("email")
+        got_about = bool(data.get("about_text"))
+
+        update = {"updated_at": datetime.utcnow()}
+        if got_email:
+            update["email"] = data["email"].split(",")[0].strip().lower()
+        if got_about:
+            update["description"] = data["about_text"][:2000]
+        if len(update) > 1:
+            leads_col.update_one({"_id": oid}, {"$set": update})
+
+        with _scrape_jobs_lock:
+            j = _scrape_jobs[job_id]
+            j["processed"] += 1
+            if got_email:
+                j["found_email"] += 1
+            if got_about:
+                j["found_about"] += 1
+            if not got_email and not got_about:
+                j["failed"] += 1
+
+        _push_scrape_log(job_id, {
+            "name": lead_name,
+            "result": "found" if (got_email or got_about) else "empty",
+            "email": got_email,
+            "about": got_about,
+        })
+
+    with _scrape_jobs_lock:
+        _scrape_jobs[job_id]["status"] = "completed"
+        _scrape_jobs[job_id]["current_lead_name"] = ""
 
 
 def throttle_ai_call(owner_id: str):
@@ -280,7 +388,8 @@ def serialize_lead(lead):
         "website": lead.get("website", ""),
         "description": lead.get("description", ""),
         "source": lead.get("source", "manual"),
-        "status": lead.get("status", "cold"),
+        "status": lead.get("status", "pending"),
+        "segment_id": lead.get("segment_id", ""),
         "assigned_to": lead.get("assigned_to"),
         "ai_task_prompt": lead.get("ai_task_prompt", ""),
         "created_at": lead.get("created_at").isoformat() if lead.get("created_at") else None,
@@ -298,6 +407,7 @@ def clean_lead_payload(data):
         "website": (data.get("website") or "").strip(),
         "description": (data.get("description") or "").strip(),
         "ai_task_prompt": (data.get("ai_task_prompt") or "").strip(),
+        "segment_id": (data.get("segment_id") or "").strip(),
     }
 
 
@@ -341,6 +451,15 @@ def serialize_team_member(m):
         "status": m.get("status", "active"),
         "leads_assigned": leads_col.count_documents({"assigned_to": str(m["_id"])}),
         "created_at": m.get("created_at").isoformat() if m.get("created_at") else None,
+    }
+
+
+def serialize_segment(s):
+    return {
+        "_id": str(s["_id"]),
+        "name": s.get("name", ""),
+        "lead_count": leads_col.count_documents({"owner_id": s["owner_id"], "segment_id": str(s["_id"])}),
+        "created_at": s.get("created_at").isoformat() if s.get("created_at") else None,
     }
 
 
@@ -1023,6 +1142,12 @@ def dashboard():
     return render_template("dashboard.html", user=user, role=session.get("role", "owner"), display_name=session.get("username"))
 
 
+@app.route("/leads/scrape")
+@login_required
+@owner_required
+def leads_scrape_page():
+    return render_template("leads_scrape.html", display_name=session.get("username"))
+
 @app.route("/logout")
 def logout():
     session.clear()
@@ -1055,11 +1180,12 @@ def _leads_scope_query():
         query["assigned_to"] = current_actor_id()
     return query
 
-
 @app.route("/api/leads", methods=["GET"])
 @login_required
 def api_list_leads():
     q = request.args.get("q", "").strip()
+    segment_id = request.args.get("segment_id", "").strip()
+    status = request.args.get("status", "").strip()
     query = _leads_scope_query()
     if q:
         query["$or"] = [
@@ -1068,6 +1194,10 @@ def api_list_leads():
             {"email": {"$regex": q, "$options": "i"}},
             {"phone": {"$regex": q, "$options": "i"}},
         ]
+    if segment_id:
+        query["segment_id"] = segment_id
+    if status in LEAD_STATUSES:
+        query["status"] = status
     leads = list(leads_col.find(query).sort("created_at", -1))
     return jsonify({"leads": [serialize_lead(l) for l in leads]})
 
@@ -1079,9 +1209,11 @@ def api_create_lead():
     lead = clean_lead_payload(data)
     if not lead["name"]:
         return jsonify({"error": "Name is required"}), 400
+    if not lead["phone"]:
+        return jsonify({"error": "Phone is required"}), 400
     lead["owner_id"]    = current_user_id()
     lead["source"]      = "manual"
-    lead["status"]      = "cold"
+    lead["status"]      = "pending"
     lead["assigned_to"] = None
     lead["created_at"]  = datetime.utcnow()
     lead["updated_at"]  = datetime.utcnow()
@@ -1113,7 +1245,7 @@ def api_bulk_save_leads():
         else:
             lead["owner_id"]    = current_user_id()
             lead["source"]      = row.get("source", "manual")
-            lead["status"]      = "cold"
+            lead["status"]      = "pending"
             lead["assigned_to"] = None
             lead["created_at"]  = datetime.utcnow()
             lead["updated_at"]  = datetime.utcnow()
@@ -1142,13 +1274,13 @@ def api_update_lead(lead_id):
 @login_required
 def api_update_lead_status(lead_id):
     """Lets the owner OR the assigned team member manually override a
-    lead's hot/warm/cold status from the sheet."""
+    lead's pending/cold/warm/hot status from the sheet."""
     try: oid = ObjectId(lead_id)
     except InvalidId: return jsonify({"error": "Invalid lead id"}), 400
     data = request.get_json(silent=True) or {}
     status = (data.get("status") or "").strip().lower()
     if status not in LEAD_STATUSES:
-        return jsonify({"error": "status must be cold, warm, or hot"}), 400
+        return jsonify({"error": "status must be pending, cold, warm, or hot"}), 400
     query = {"_id": oid, "owner_id": current_user_id()}
     if not is_owner():
         query["assigned_to"] = current_actor_id()
@@ -1156,6 +1288,30 @@ def api_update_lead_status(lead_id):
     if result.matched_count == 0:
         return jsonify({"error": "Lead not found"}), 404
     return jsonify({"updated": True, "status": status})
+
+
+@app.route("/api/leads/<lead_id>/segment", methods=["PATCH"])
+@login_required
+def api_update_lead_segment(lead_id):
+    """Lets the owner OR the assigned team member move a lead into a
+    different segment (or clear it) straight from the sheet."""
+    try: oid = ObjectId(lead_id)
+    except InvalidId: return jsonify({"error": "Invalid lead id"}), 400
+    data = request.get_json(silent=True) or {}
+    segment_id = (data.get("segment_id") or "").strip()
+    if segment_id:
+        try:
+            if not segments_col.find_one({"_id": ObjectId(segment_id), "owner_id": current_user_id()}):
+                return jsonify({"error": "Segment not found"}), 400
+        except InvalidId:
+            return jsonify({"error": "Invalid segment id"}), 400
+    query = {"_id": oid, "owner_id": current_user_id()}
+    if not is_owner():
+        query["assigned_to"] = current_actor_id()
+    result = leads_col.update_one(query, {"$set": {"segment_id": segment_id, "updated_at": datetime.utcnow()}})
+    if result.matched_count == 0:
+        return jsonify({"error": "Lead not found"}), 404
+    return jsonify({"updated": True, "segment_id": segment_id})
 
 
 @app.route("/api/leads/<lead_id>", methods=["DELETE"])
@@ -1168,9 +1324,14 @@ def api_delete_lead(lead_id):
     return jsonify({"deleted": True})
 
 
-@app.route("/api/leads/import", methods=["POST"])
+TARGET_LEAD_FIELDS = {"name", "business_name", "email", "phone", "website", "description"}
+
+
+@app.route("/api/leads/import/preview", methods=["POST"])
 @login_required
-def api_import_leads():
+def api_import_preview():
+    """Step 1 of import: parse the file's headers + a few sample rows so the
+    frontend can show a column-mapping UI before anything is inserted."""
     if "file" not in request.files: return jsonify({"error": "No file uploaded"}), 400
     file = request.files["file"]
     if not file.filename: return jsonify({"error": "No file selected"}), 400
@@ -1181,27 +1342,92 @@ def api_import_leads():
         df = pd.read_csv(file) if ext == "csv" else pd.read_excel(file)
     except Exception as e:
         return jsonify({"error": f"Could not read file: {e}"}), 400
-    column_map = {}
-    for col in df.columns:
+    if df.empty or len(df.columns) == 0:
+        return jsonify({"error": "That file doesn't have any columns we can read."}), 400
+
+    columns = [str(c) for c in df.columns]
+    suggested_mapping = {}
+    for col in columns:
         key = normalize_header(col)
         if key in IMPORT_HEADER_ALIASES:
-            column_map[col] = IMPORT_HEADER_ALIASES[key]
+            suggested_mapping[col] = IMPORT_HEADER_ALIASES[key]
+
+    preview_df = df.head(3).fillna("")
+    preview_rows = [[str(v) for v in row] for row in preview_df.astype(str).values.tolist()]
+
+    return jsonify({
+        "columns": columns,
+        "suggested_mapping": suggested_mapping,
+        "preview_rows": preview_rows,
+        "row_count": int(len(df)),
+    })
+
+
+@app.route("/api/leads/import", methods=["POST"])
+@login_required
+def api_import_leads():
+    """Step 2 of import: actually insert leads, using the column mapping the
+    user confirmed on the preview screen. Falls back to auto-detected
+    aliases if no mapping is sent, so older callers still work."""
+    if "file" not in request.files: return jsonify({"error": "No file uploaded"}), 400
+    file = request.files["file"]
+    if not file.filename: return jsonify({"error": "No file selected"}), 400
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ALLOWED_IMPORT_EXTENSIONS:
+        return jsonify({"error": "Unsupported file type. Please upload .csv, .xlsx or .xls"}), 400
+    try:
+        df = pd.read_csv(file) if ext == "csv" else pd.read_excel(file)
+    except Exception as e:
+        return jsonify({"error": f"Could not read file: {e}"}), 400
+
+    segment_id = (request.form.get("segment_id") or "").strip()
+    if segment_id:
+        try:
+            if not segments_col.find_one({"_id": ObjectId(segment_id), "owner_id": current_user_id()}):
+                segment_id = ""
+        except InvalidId:
+            segment_id = ""
+
+    mapping_raw = request.form.get("mapping", "")
+    column_map = {}
+    if mapping_raw:
+        try:
+            user_mapping = _json.loads(mapping_raw)  # {"<source column>": "name" | "phone" | ...}
+        except Exception:
+            return jsonify({"error": "Invalid column mapping"}), 400
+        for col in df.columns:
+            target = (user_mapping.get(str(col)) or "").strip()
+            if target in TARGET_LEAD_FIELDS:
+                column_map[col] = target
+    else:
+        for col in df.columns:
+            key = normalize_header(col)
+            if key in IMPORT_HEADER_ALIASES:
+                column_map[col] = IMPORT_HEADER_ALIASES[key]
+
     if "name" not in column_map.values():
-        return jsonify({"error": "Could not find a 'Name' column."}), 400
+        return jsonify({"error": "Please map a column to 'Name'."}), 400
+    if "phone" not in column_map.values():
+        return jsonify({"error": "Please map a column to 'Phone'. Name and Phone are required for every lead."}), 400
+
     df = df.rename(columns=column_map)
     inserted, skipped, now, docs = 0, 0, datetime.utcnow(), []
     for _, row in df.iterrows():
-        name = str(row.get("name", "") or "").strip()
-        if not name or name.lower() == "nan": skipped += 1; continue
         def clean(field):
             val = row.get(field, "")
             return "" if pd.isna(val) else str(val).strip()
+        name  = clean("name")
+        phone = clean("phone")
+        if not name or name.lower() == "nan" or not phone or phone.lower() == "nan":
+            skipped += 1
+            continue
         docs.append({
             "owner_id": current_user_id(), "name": name,
             "business_name": clean("business_name"), "email": clean("email").lower(),
-            "phone": clean("phone"), "website": clean("website"),
+            "phone": phone, "website": clean("website"),
             "description": clean("description"), "source": "import",
-            "status": "cold", "assigned_to": None, "ai_task_prompt": "",
+            "status": "pending", "assigned_to": None, "ai_task_prompt": "",
+            "segment_id": segment_id,
             "created_at": now, "updated_at": now,
         })
         inserted += 1
@@ -1235,15 +1461,32 @@ def api_leads_template():
 @login_required
 def api_leads_export():
     """Export the current lead list (respecting the same scoping as the
-    leads list view) as an Excel file."""
-    leads = list(leads_col.find(_leads_scope_query()).sort("created_at", -1))
+    leads list view, plus any q/segment_id/status filters) as an Excel file."""
+    query = _leads_scope_query()
+    q = request.args.get("q", "").strip()
+    segment_id = request.args.get("segment_id", "").strip()
+    status = request.args.get("status", "").strip()
+    if q:
+        query["$or"] = [
+            {"name": {"$regex": q, "$options": "i"}},
+            {"business_name": {"$regex": q, "$options": "i"}},
+            {"email": {"$regex": q, "$options": "i"}},
+            {"phone": {"$regex": q, "$options": "i"}},
+        ]
+    if segment_id:
+        query["segment_id"] = segment_id
+    if status in LEAD_STATUSES:
+        query["status"] = status
+    leads = list(leads_col.find(query).sort("created_at", -1))
+    segment_names = {str(s["_id"]): s.get("name", "") for s in segments_col.find({"owner_id": current_user_id()})}
     rows = [{
         "Name": l.get("name", ""), "Business Name": l.get("business_name", ""),
         "Email": l.get("email", ""), "Phone": l.get("phone", ""),
         "Website": l.get("website", ""), "Description": l.get("description", ""),
-        "Status": l.get("status", "cold"),
+        "Segment": segment_names.get(l.get("segment_id", ""), ""),
+        "Status": l.get("status", "pending"),
     } for l in leads]
-    df = pd.DataFrame(rows, columns=["Name", "Business Name", "Email", "Phone", "Website", "Description", "Status"])
+    df = pd.DataFrame(rows, columns=["Name", "Business Name", "Email", "Phone", "Website", "Description", "Segment", "Status"])
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="Leads")
@@ -1254,6 +1497,105 @@ def api_leads_export():
         as_attachment=True,
         download_name="pravaahai_leads_export.xlsx",
     )
+
+#scraper
+
+
+@app.route("/api/leads/scrape/start", methods=["POST"])
+@login_required
+@owner_required
+def api_start_lead_scrape():
+    """Starts a background job that visits each selected lead's website
+    (sitemap first, falling back to a live crawl), pulls their About page,
+    and fills in email/description only where those fields are empty."""
+    data = request.get_json(silent=True) or {}
+    lead_ids = data.get("lead_ids")
+    select_all = bool(data.get("all"))
+    segment_id = (data.get("segment_id") or "").strip()
+    status = (data.get("status") or "").strip()
+    owner_id = current_user_id()
+
+    if select_all:
+        query = {"owner_id": owner_id, "website": {"$nin": ["", None]}}
+        if segment_id:
+            query["segment_id"] = segment_id
+        if status in LEAD_STATUSES:
+            query["status"] = status
+        lead_ids = [str(l["_id"]) for l in leads_col.find(query, {"_id": 1})]
+    elif not isinstance(lead_ids, list) or not lead_ids:
+        return jsonify({"error": "No leads selected"}), 400
+
+    if not lead_ids:
+        return jsonify({"error": "No leads with a website in this selection"}), 400
+
+    job_id = _new_scrape_job(owner_id, len(lead_ids))
+    threading.Thread(target=run_lead_scrape_job, args=(job_id, owner_id, lead_ids), daemon=True).start()
+    return jsonify({"job_id": job_id, "total": len(lead_ids)}), 201
+
+
+@app.route("/api/leads/scrape/status/<job_id>", methods=["GET"])
+@login_required
+def api_lead_scrape_status(job_id):
+    with _scrape_jobs_lock:
+        job = _scrape_jobs.get(job_id)
+        if not job or job["owner_id"] != current_user_id():
+            return jsonify({"error": "Job not found"}), 404
+        return jsonify(dict(job))
+
+
+@app.route("/api/leads/duplicates", methods=["GET"])
+@login_required
+@owner_required
+def api_find_duplicate_leads():
+    """Groups this account's leads by normalized website. Any group of 2+
+    is a duplicate set — the oldest lead is kept as the 'original', the
+    rest are flagged for deletion."""
+    leads = list(leads_col.find(
+        {"owner_id": current_user_id(), "website": {"$nin": ["", None]}}
+    ).sort("created_at", 1))
+
+    groups = {}
+    for l in leads:
+        key = normalize_website_for_dedupe(l.get("website", ""))
+        if not key:
+            continue
+        groups.setdefault(key, []).append(l)
+
+    duplicate_groups = []
+    for key, group in groups.items():
+        if len(group) < 2:
+            continue
+        original, dupes = group[0], group[1:]
+        duplicate_groups.append({
+            "website": key,
+            "original": serialize_lead(original),
+            "duplicates": [serialize_lead(d) for d in dupes],
+        })
+
+    total_dupes = sum(len(g["duplicates"]) for g in duplicate_groups)
+    return jsonify({
+        "groups": duplicate_groups,
+        "group_count": len(duplicate_groups),
+        "duplicate_count": total_dupes,
+    })
+
+
+@app.route("/api/leads/duplicates/delete", methods=["POST"])
+@login_required
+@owner_required
+def api_delete_duplicate_leads():
+    data = request.get_json(silent=True) or {}
+    lead_ids = data.get("lead_ids", [])
+    if not isinstance(lead_ids, list) or not lead_ids:
+        return jsonify({"error": "No lead ids provided"}), 400
+    oids = []
+    for lid in lead_ids:
+        try:
+            oids.append(ObjectId(lid))
+        except InvalidId:
+            continue
+    result = leads_col.delete_many({"_id": {"$in": oids}, "owner_id": current_user_id()})
+    return jsonify({"deleted": result.deleted_count})
 
 
 @app.route("/api/leads/<lead_id>/messages", methods=["GET"])
@@ -1304,6 +1646,50 @@ def api_send_manual_whatsapp(lead_id):
         "channel": channel, "text": message, "created_at": datetime.utcnow(),
     })
     return jsonify({"sent": True})
+
+
+# ==================================================================
+# SEGMENTS API  (owner + team — both need the list to tag leads)
+# ==================================================================
+
+@app.route("/api/segments", methods=["GET"])
+@login_required
+def api_list_segments():
+    segments = list(segments_col.find({"owner_id": current_user_id()}).sort("created_at", -1))
+    return jsonify({"segments": [serialize_segment(s) for s in segments]})
+
+
+@app.route("/api/segments", methods=["POST"])
+@login_required
+def api_create_segment():
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Segment name is required"}), 400
+    existing = segments_col.find_one({
+        "owner_id": current_user_id(),
+        "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"},
+    })
+    if existing:
+        return jsonify({"segment": serialize_segment(existing)}), 200
+    doc = {"owner_id": current_user_id(), "name": name, "created_at": datetime.utcnow()}
+    result = segments_col.insert_one(doc)
+    saved = segments_col.find_one({"_id": result.inserted_id})
+    return jsonify({"segment": serialize_segment(saved)}), 201
+
+
+@app.route("/api/segments/<segment_id>", methods=["DELETE"])
+@login_required
+def api_delete_segment(segment_id):
+    try: oid = ObjectId(segment_id)
+    except InvalidId: return jsonify({"error": "Invalid segment id"}), 400
+    result = segments_col.delete_one({"_id": oid, "owner_id": current_user_id()})
+    if result.deleted_count == 0:
+        return jsonify({"error": "Segment not found"}), 404
+    # Leads in this segment fall back to "no segment" rather than disappearing
+    leads_col.update_many({"owner_id": current_user_id(), "segment_id": segment_id}, {"$set": {"segment_id": ""}})
+    return jsonify({"deleted": True})
+
 
 
 # ==================================================================
