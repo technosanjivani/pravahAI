@@ -530,6 +530,18 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
           <canvas id="chart-status"></canvas>
         </div>
       </div>
+      <div class="chart-grid" style="grid-template-columns: 2fr 1fr; margin-top:16px;">
+        <div class="chart-card">
+          <h3>📅 Booked Meetings — Last 14 Days</h3>
+          <canvas id="chart-meetings"></canvas>
+        </div>
+        <div class="chart-card" style="display:flex; flex-direction:column;">
+          <h3>Meetings</h3>
+          <div style="font-size:13px; color:var(--text-b); line-height:1.8;" id="meetings-summary-mini"></div>
+          <div style="flex:1;"></div>
+          <button class="btn btn-primary" style="width:100%;" onclick="openMeetingsModal()">📅 View Meetings</button>
+        </div>
+      </div>
     </div>
 
     <!-- ═══ PAGE: LEADS ═══ -->
@@ -1049,6 +1061,55 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
   </div>
 </div>
 
+<!-- View Meetings -->
+<div class="modal-overlay" id="meetings-modal">
+  <div class="modal-box wide" style="max-width:820px;">
+    <div class="modal-title">📅 Meetings</div>
+    <div class="modal-sub">Filter by date range and status, mark meetings completed/missed, or reschedule a missed one.</div>
+    <div class="segmented" id="meetings-range-segmented" style="margin-bottom:12px;">
+      <div class="segmented-opt active" data-val="today" onclick="setMeetingsRange('today')">Today</div>
+      <div class="segmented-opt" data-val="tomorrow" onclick="setMeetingsRange('tomorrow')">Tomorrow</div>
+      <div class="segmented-opt" data-val="week" onclick="setMeetingsRange('week')">Next 7 Days</div>
+      <div class="segmented-opt" data-val="all" onclick="setMeetingsRange('all')">All</div>
+    </div>
+    <div class="filter-row" style="margin-bottom:10px;">
+      <div class="form-row">
+        <label style="font-size:11px;">Status</label>
+        <select class="form-input" id="meetings-status-filter" onchange="loadMeetingsList()">
+          <option value="">All Statuses</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="completed">Completed</option>
+          <option value="missed">Missed</option>
+          <option value="rescheduled">Rescheduled</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+    </div>
+    <div class="logs-table-wrap">
+      <table class="logs-table">
+        <thead><tr><th>Lead</th><th>Phone</th><th>When</th><th>Duration</th><th>Status</th><th></th></tr></thead>
+        <tbody id="meetings-tbody"><tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('meetings-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reschedule Meeting -->
+<div class="modal-overlay" id="reschedule-modal">
+  <div class="modal-box">
+    <div class="modal-title">🔁 Reschedule Meeting</div>
+    <div class="modal-sub">Pick the new date & time yourself. The lead gets notified on WhatsApp, and Eva will also call them about the change.</div>
+    <div class="form-row"><label>New Date & Time</label><input class="form-input" type="datetime-local" id="reschedule-datetime" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('reschedule-modal')">Cancel</button>
+      <button class="btn btn-primary" id="reschedule-confirm-btn" onclick="confirmReschedule()">Confirm Reschedule</button>
+    </div>
+  </div>
+</div>
+
 <!-- Invite Team Member -->
 <div class="modal-overlay" id="invite-modal">
   <div class="modal-box">
@@ -1102,6 +1163,9 @@ let myRole        = "owner";
 let chatLeadId    = null;
 let timeseriesChart = null;
 let statusChart      = null;
+let meetingsChart     = null;
+let meetingsRange     = "today";
+let meetingsRescheduleTargetId = null;
 
 // Flow builder (canvas) state
 let currentCampaignId      = null;
@@ -1693,7 +1757,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadSegments();
   loadLeads();
   loadDashboardStats();
-  if (myRole === "owner") { loadCampaigns(); loadTeam(); loadIntegrations(); }
+  if (myRole === "owner") { loadCampaigns(); loadTeam(); loadIntegrations(); loadMeetingsChart(); }
   loadProfile();
   initRevealAnimations();
 });
@@ -1795,6 +1859,115 @@ async function loadDashboardStats() {
       options: { responsive: true, plugins: { legend: { position: "bottom", labels: { color: "#64748b" } } } }
     });
   } catch { /* silent */ }
+}
+
+async function loadMeetingsChart(){
+  try{
+    const res = await fetch("/api/meetings/stats");
+    if (!res.ok) throw new Error();
+    const d = await res.json();
+    const ctx = document.getElementById("chart-meetings").getContext("2d");
+    if (meetingsChart) meetingsChart.destroy();
+    meetingsChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: d.timeseries.map(p => p.date.slice(5)),
+        datasets: [{
+          label: "Meetings Booked", data: d.timeseries.map(p => p.booked),
+          backgroundColor: "rgba(124,58,237,0.55)", borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#64748b" }, grid: { display: false } },
+          y: { ticks: { color: "#64748b", precision: 0 }, grid: { color: "rgba(15,23,42,0.06)" } },
+        }
+      }
+    });
+    const sc = d.status_counts || {};
+    document.getElementById("meetings-summary-mini").innerHTML = `
+      <div>🟢 Upcoming: <b>${d.upcoming||0}</b></div>
+      <div>✅ Completed: <b>${sc.completed||0}</b></div>
+      <div>❌ Missed: <b>${sc.missed||0}</b></div>
+      <div>🔁 Rescheduled: <b>${sc.rescheduled||0}</b></div>
+    `;
+  } catch { /* silent */ }
+}
+
+function openMeetingsModal(){
+  document.getElementById("meetings-modal").classList.add("open");
+  loadMeetingsList();
+}
+function setMeetingsRange(range){
+  meetingsRange = range;
+  document.querySelectorAll('#meetings-range-segmented .segmented-opt').forEach(el => el.classList.toggle('active', el.dataset.val === range));
+  loadMeetingsList();
+}
+async function loadMeetingsList(){
+  const tbody = document.getElementById("meetings-tbody");
+  tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">Loading…</td></tr>`;
+  try{
+    const status = document.getElementById("meetings-status-filter").value;
+    const params = new URLSearchParams({range: meetingsRange});
+    if (status) params.set("status", status);
+    const res = await fetch(`/api/meetings?${params.toString()}`);
+    const data = await res.json();
+    const meetings = data.meetings || [];
+    if (!meetings.length){
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">No meetings in this range.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = meetings.map(m => `
+      <tr>
+        <td>${esc(m.lead_name||"—")}</td>
+        <td>${esc(m.lead_phone||"—")}</td>
+        <td>${m.scheduled_at ? new Date(m.scheduled_at).toLocaleString() : "—"}</td>
+        <td>${m.duration_minutes||30} min</td>
+        <td><span class="log-status ${m.status==='completed'?'log-sent':(m.status==='missed'?'log-failed':'log-pending')}">${m.status}</span></td>
+        <td style="white-space:nowrap;">
+          ${m.status==='scheduled' ? `
+            <button class="btn btn-ghost btn-sm" onclick="markMeeting('${m._id}','completed')">✓ Completed</button>
+            <button class="btn btn-ghost btn-sm" onclick="markMeeting('${m._id}','missed')">✕ Missed</button>
+          ` : ""}
+          ${m.status==='missed' ? `<button class="btn btn-primary btn-sm" onclick="openRescheduleModal('${m._id}')">🔁 Reschedule</button>` : ""}
+        </td>
+      </tr>`).join("");
+  } catch { showToast("Could not load meetings", "error"); }
+}
+async function markMeeting(id, status){
+  try{
+    const res = await fetch(`/api/meetings/${id}/status`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({status})});
+    if (!res.ok) throw new Error("Could not update meeting");
+    showToast("Meeting updated ✓", "success");
+    loadMeetingsList();
+    loadMeetingsChart();
+  } catch(err) { showToast(err.message, "error"); }
+}
+function openRescheduleModal(id){
+  meetingsRescheduleTargetId = id;
+  const dt = new Date(Date.now() + 60*60*1000);
+  document.getElementById("reschedule-datetime").value = new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  document.getElementById("reschedule-modal").classList.add("open");
+}
+async function confirmReschedule(){
+  const dtVal = document.getElementById("reschedule-datetime").value;
+  if (!dtVal) { showToast("Pick a date and time", "error"); return; }
+  const btn = document.getElementById("reschedule-confirm-btn");
+  btn.disabled = true;
+  try{
+    const isoStr = new Date(dtVal).toISOString();
+    const res = await fetch(`/api/meetings/${meetingsRescheduleTargetId}/reschedule`, {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({scheduled_at: isoStr})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Reschedule failed");
+    showToast(data.call_note ? `Rescheduled ✓ — ${data.call_note}` : "Rescheduled ✓", "success");
+    closeModal("reschedule-modal");
+    loadMeetingsList();
+    loadMeetingsChart();
+  } catch(err) { showToast(err.message, "error"); }
+  finally { btn.disabled = false; }
 }
 
 /* ════════════════════════════════════════════════

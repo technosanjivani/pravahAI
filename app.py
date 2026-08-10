@@ -80,6 +80,8 @@ teams_col      = db["pravah-team"]         # team members (sub-accounts)
 plans_col      = db["pravah-plans"]        # subscription plans (India / International)
 pricing_col    = db["pravah-eva-pricing"]  # global Eva per-minute pricing settings
 segments_col   = db["pravah-segments"]
+meeting_templates_col = db["pravah-meeting-templates"]  # per-owner availability/config
+meetings_col          = db["pravah-meetings"]            # booked meetings
 # ----------------------------------
 # Create Indexes
 # ----------------------------------
@@ -105,6 +107,11 @@ try:
     widgets_col = db["pravah-web-widgets"]
     widgets_col.create_index("owner_id")
     widgets_col.create_index("public_id", unique=True)
+    meeting_templates_col.create_index("owner_id", unique=True)
+    meetings_col.create_index("owner_id")
+    meetings_col.create_index([("owner_id", 1), ("scheduled_at", 1)])
+    meetings_col.create_index([("status", 1), ("reminder_15_sent", 1), ("reminder_5_sent", 1), ("scheduled_at", 1)])
+    meetings_col.create_index("lead_id")
 except Exception:
     pass
 
@@ -740,6 +747,183 @@ def assign_round_robin(owner_id: str):
     users_col.update_one({"_id": ObjectId(owner_id)}, {"$inc": {"team_rr_index": 1}})
     return str(chosen["_id"])
 
+
+
+# ----------------------------------
+# Meeting scheduling helpers
+# ----------------------------------
+
+MEETING_DAYS = {"monday","tuesday","wednesday","thursday","friday","saturday","sunday"}
+MEETING_STATUSES = {"scheduled", "completed", "missed", "rescheduled", "cancelled"}
+
+
+def serialize_meeting_template(t):
+    return {
+        "_id": str(t["_id"]),
+        "duration_minutes": t.get("duration_minutes", 30),
+        "meet_link": t.get("meet_link", ""),
+        "admin_whatsapp": t.get("admin_whatsapp", ""),
+        "slots": t.get("slots", []),
+        "updated_at": t.get("updated_at").isoformat() if t.get("updated_at") else None,
+    }
+
+
+def serialize_meeting(m):
+    return {
+        "_id": str(m["_id"]),
+        "owner_id": m.get("owner_id", ""),
+        "lead_id": m.get("lead_id", ""),
+        "lead_name": m.get("lead_name", ""),
+        "lead_phone": m.get("lead_phone", ""),
+        "call_id": m.get("call_id", ""),
+        "agent_id": m.get("agent_id", ""),
+        "scheduled_at": m.get("scheduled_at").isoformat() if m.get("scheduled_at") else None,
+        "duration_minutes": m.get("duration_minutes", 30),
+        "meet_link": m.get("meet_link", ""),
+        "status": m.get("status", "scheduled"),
+        "reminder_15_sent": m.get("reminder_15_sent", False),
+        "reminder_5_sent": m.get("reminder_5_sent", False),
+        "rescheduled_from": m.get("rescheduled_from", ""),
+        "created_at": m.get("created_at").isoformat() if m.get("created_at") else None,
+    }
+
+
+def _meeting_overlaps(owner_id, start_dt, duration_minutes, exclude_id=None):
+    """True if an existing *scheduled* meeting for this owner overlaps the window."""
+    end_dt = start_dt + timedelta(minutes=duration_minutes)
+    window_start = start_dt - timedelta(hours=6)
+    window_end = start_dt + timedelta(hours=6)
+    query = {
+        "owner_id": owner_id, "status": "scheduled",
+        "scheduled_at": {"$gte": window_start, "$lte": window_end},
+    }
+    if exclude_id:
+        query["_id"] = {"$ne": exclude_id}
+    for m in meetings_col.find(query):
+        existing_start = m["scheduled_at"]
+        existing_end = existing_start + timedelta(minutes=m.get("duration_minutes", 30))
+        if existing_start < end_dt and start_dt < existing_end:
+            return True
+    return False
+
+
+def is_time_available(owner_id: str, dt: datetime, duration_minutes: int = None):
+    """Checks a requested datetime (naive UTC, matching how this app stores time
+    everywhere else) against the owner's weekly availability template and any
+    existing bookings. Returns (ok, reason, template)."""
+    template = meeting_templates_col.find_one({"owner_id": owner_id})
+    if not template:
+        return False, "No meeting availability has been configured yet", None
+    duration_minutes = duration_minutes or template.get("duration_minutes", 30)
+    weekday = dt.strftime("%A").lower()
+    hhmm = dt.strftime("%H:%M")
+    slot_ok = any(
+        s.get("day") == weekday and s.get("available", True)
+        and s.get("start", "00:00") <= hhmm <= s.get("end", "00:00")
+        for s in template.get("slots", [])
+    )
+    if not slot_ok:
+        return False, "That time is outside the available hours", template
+    if _meeting_overlaps(owner_id, dt, duration_minutes):
+        return False, "That slot is already booked", template
+    return True, "", template
+
+
+def suggest_alt_slots(owner_id: str, around_dt: datetime, duration_minutes: int, limit: int = 3):
+    """Best-effort: scans forward in 30-min steps (up to 7 days) within
+    configured hours and returns up to `limit` free slots — useful for
+    offering alternatives when a requested time isn't available."""
+    template = meeting_templates_col.find_one({"owner_id": owner_id})
+    if not template:
+        return []
+    found = []
+    probe = around_dt.replace(minute=(around_dt.minute // 30) * 30, second=0, microsecond=0)
+    for _ in range(7 * 48):
+        probe += timedelta(minutes=30)
+        ok, _, _ = is_time_available(owner_id, probe, duration_minutes)
+        if ok:
+            found.append(probe)
+            if len(found) >= limit:
+                break
+    return found
+
+
+def send_meeting_whatsapp(owner, to_phone, text):
+    if not owner or not to_phone or not text:
+        return {"success": False, "error": "Missing owner/phone/text"}
+    return send_whatsapp_dispatch(owner, to_phone, text)
+
+
+def book_meeting(owner_id, lead, scheduled_at, duration_minutes=None, call_id="", agent_id=""):
+    """Core booking routine — shared by the Eva booking webhook and any future
+    manual booking path. `lead` needs at least name/phone (and optionally _id
+    or lead_id). Returns (success: bool, payload: dict)."""
+    ok, reason, template = is_time_available(owner_id, scheduled_at, duration_minutes)
+    if not ok:
+        alts = suggest_alt_slots(
+            owner_id, scheduled_at,
+            duration_minutes or (template.get("duration_minutes", 30) if template else 30),
+        )
+        return False, {"error": reason, "alternatives": [a.isoformat() for a in alts]}
+
+    duration_minutes = duration_minutes or template.get("duration_minutes", 30)
+    doc = {
+        "owner_id": owner_id,
+        "lead_id": str(lead.get("_id", "")) if lead.get("_id") else lead.get("lead_id", ""),
+        "lead_name": lead.get("name", ""),
+        "lead_phone": lead.get("phone", ""),
+        "call_id": call_id,
+        "agent_id": agent_id,
+        "scheduled_at": scheduled_at,
+        "duration_minutes": duration_minutes,
+        "meet_link": template.get("meet_link", ""),
+        "status": "scheduled",
+        "reminder_15_sent": False,
+        "reminder_5_sent": False,
+        "created_at": datetime.utcnow(),
+    }
+    inserted = meetings_col.insert_one(doc)
+    meeting = meetings_col.find_one({"_id": inserted.inserted_id})
+
+    owner = users_col.find_one({"_id": ObjectId(owner_id)})
+    when_str = scheduled_at.strftime("%A, %d %b %Y at %H:%M UTC")
+    lead_msg = (
+        f"Your meeting is confirmed for {when_str}."
+        + (f" Join here: {template.get('meet_link')}" if template.get("meet_link") else "")
+    )
+    admin_msg = f"📅 New meeting booked with {lead.get('name','a lead')} ({lead.get('phone','')}) for {when_str}."
+
+    if owner and lead.get("phone"):
+        send_meeting_whatsapp(owner, lead["phone"], lead_msg)
+    if owner and template.get("admin_whatsapp"):
+        send_meeting_whatsapp(owner, template["admin_whatsapp"], admin_msg)
+
+    return True, {"meeting": serialize_meeting(meeting)}
+
+
+def get_meeting_context(owner_id):
+    """Builds a plain-English availability summary for Eva's agent prompt.
+    Returns None if the owner hasn't configured a meeting template yet."""
+    template = meeting_templates_col.find_one({"owner_id": owner_id})
+    if not template:
+        return None
+    by_day = {}
+    for s in template.get("slots", []):
+        if s.get("available", True):
+            by_day.setdefault(s["day"], []).append(f"{s['start']}-{s['end']}")
+    if not by_day:
+        return None
+    lines = [f"{day.capitalize()}: {', '.join(times)}" for day, times in by_day.items()]
+    return {
+        "duration_minutes": template.get("duration_minutes", 30),
+        "availability_text": "; ".join(lines) + " (times in UTC)",
+        "booking_webhook_url": f"{PRAVAAH_PUBLIC_BASE_URL}/api/eva-webhook/book-meeting",
+    }
+
+
+# ----------------------------------
+# Wirebase sender + provider dispatch
+# ----------------------------------
 
 # ----------------------------------
 # Wirebase sender + provider dispatch
@@ -1948,6 +2132,223 @@ def api_delete_segment(segment_id):
     return jsonify({"deleted": True})
 
 
+# ==================================================================
+# MEETING TEMPLATES API  (owner only)
+# ==================================================================
+
+DEFAULT_MEETING_SLOTS = [
+    {"day": d, "start": "09:00", "end": "18:00", "available": True}
+    for d in ["monday", "tuesday", "wednesday", "thursday", "friday"]
+]
+
+
+@app.route("/api/meeting-template", methods=["GET"])
+@login_required
+@owner_required
+def api_get_meeting_template():
+    t = meeting_templates_col.find_one({"owner_id": current_user_id()})
+    if not t:
+        return jsonify({"template": None})
+    return jsonify({"template": serialize_meeting_template(t)})
+
+
+@app.route("/api/meeting-template", methods=["POST", "PUT"])
+@login_required
+@owner_required
+def api_save_meeting_template():
+    data = request.get_json(silent=True) or {}
+    duration = int(data.get("duration_minutes", 30) or 30)
+    meet_link = (data.get("meet_link") or "").strip()
+    admin_whatsapp = (data.get("admin_whatsapp") or "").strip()
+
+    slots_in = data.get("slots")
+    if slots_in is None:
+        slots_in = DEFAULT_MEETING_SLOTS
+    slots = []
+    for s in slots_in:
+        day = (s.get("day") or "").strip().lower()
+        if day not in MEETING_DAYS:
+            continue
+        slots.append({
+            "day": day,
+            "start": (s.get("start") or "09:00").strip(),
+            "end": (s.get("end") or "18:00").strip(),
+            "available": bool(s.get("available", True)),
+        })
+
+    update = {
+        "owner_id": current_user_id(),
+        "duration_minutes": duration,
+        "meet_link": meet_link,
+        "admin_whatsapp": admin_whatsapp,
+        "slots": slots,
+        "updated_at": datetime.utcnow(),
+    }
+    meeting_templates_col.update_one({"owner_id": current_user_id()}, {"$set": update}, upsert=True)
+    saved = meeting_templates_col.find_one({"owner_id": current_user_id()})
+    return jsonify({"template": serialize_meeting_template(saved)})
+
+
+@app.route("/api/meeting-template/slots/<int:slot_index>", methods=["PATCH"])
+@login_required
+@owner_required
+def api_toggle_meeting_slot(slot_index):
+    """Quick single-slot edit (toggle available / change hours) for the edit UI."""
+    data = request.get_json(silent=True) or {}
+    t = meeting_templates_col.find_one({"owner_id": current_user_id()})
+    if not t or slot_index < 0 or slot_index >= len(t.get("slots", [])):
+        return jsonify({"error": "Slot not found"}), 404
+    slots = t["slots"]
+    if "available" in data:
+        slots[slot_index]["available"] = bool(data["available"])
+    if "start" in data:
+        slots[slot_index]["start"] = data["start"]
+    if "end" in data:
+        slots[slot_index]["end"] = data["end"]
+    meeting_templates_col.update_one({"_id": t["_id"]}, {"$set": {"slots": slots, "updated_at": datetime.utcnow()}})
+    return jsonify({"slots": slots})
+
+
+# ==================================================================
+# MEETINGS API  (owner only) — list / stats / status / reschedule
+# ==================================================================
+
+@app.route("/api/meetings", methods=["GET"])
+@login_required
+@owner_required
+def api_list_meetings():
+    """?range=today|tomorrow|week|all  &status=scheduled|completed|missed|rescheduled|cancelled"""
+    range_key = request.args.get("range", "all")
+    status = request.args.get("status", "").strip()
+
+    query = {"owner_id": current_user_id()}
+    now = datetime.utcnow()
+    if range_key == "today":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=1)
+        query["scheduled_at"] = {"$gte": start, "$lt": end}
+    elif range_key == "tomorrow":
+        start = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=1)
+        query["scheduled_at"] = {"$gte": start, "$lt": end}
+    elif range_key == "week":
+        query["scheduled_at"] = {"$gte": now, "$lte": now + timedelta(days=7)}
+
+    if status in MEETING_STATUSES:
+        query["status"] = status
+
+    meetings = list(meetings_col.find(query).sort("scheduled_at", 1))
+    return jsonify({"meetings": [serialize_meeting(m) for m in meetings]})
+
+
+@app.route("/api/meetings/stats", methods=["GET"])
+@login_required
+def api_meetings_stats():
+    """14-day booked-meetings timeseries + status breakdown, for the dashboard chart."""
+    owner_id = current_user_id()
+    since = datetime.utcnow() - timedelta(days=14)
+    daily = {}
+    for m in meetings_col.find({"owner_id": owner_id, "created_at": {"$gte": since}}, {"created_at": 1}):
+        day = m["created_at"].strftime("%Y-%m-%d")
+        daily[day] = daily.get(day, 0) + 1
+    timeseries = []
+    for i in range(13, -1, -1):
+        day = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
+        timeseries.append({"date": day, "booked": daily.get(day, 0)})
+
+    status_counts = {s: meetings_col.count_documents({"owner_id": owner_id, "status": s}) for s in MEETING_STATUSES}
+    upcoming = meetings_col.count_documents({
+        "owner_id": owner_id, "status": "scheduled", "scheduled_at": {"$gte": datetime.utcnow()},
+    })
+    return jsonify({"timeseries": timeseries, "status_counts": status_counts, "upcoming": upcoming})
+
+
+@app.route("/api/meetings/<meeting_id>/status", methods=["PATCH"])
+@login_required
+@owner_required
+def api_update_meeting_status(meeting_id):
+    try: oid = ObjectId(meeting_id)
+    except InvalidId: return jsonify({"error": "Invalid meeting id"}), 400
+    data = request.get_json(silent=True) or {}
+    status = (data.get("status") or "").strip()
+    if status not in ("completed", "missed", "cancelled", "scheduled"):
+        return jsonify({"error": "status must be completed, missed, cancelled, or scheduled"}), 400
+    result = meetings_col.update_one({"_id": oid, "owner_id": current_user_id()}, {"$set": {"status": status}})
+    if result.matched_count == 0:
+        return jsonify({"error": "Meeting not found"}), 404
+    return jsonify({"updated": True, "status": status})
+
+
+@app.route("/api/meetings/<meeting_id>/reschedule", methods=["POST"])
+@login_required
+@owner_required
+def api_reschedule_meeting(meeting_id):
+    """Owner manually sets a new date/time — this bypasses the slot-availability
+    check since the owner is overriding by hand. Notifies the lead via WhatsApp,
+    and (best-effort) has Eva place a fresh call about the new time too."""
+    try: oid = ObjectId(meeting_id)
+    except InvalidId: return jsonify({"error": "Invalid meeting id"}), 400
+    data = request.get_json(silent=True) or {}
+    new_dt = parse_iso_utc(data.get("scheduled_at", ""))
+    if not new_dt:
+        return jsonify({"error": "A valid new date/time is required"}), 400
+
+    old = meetings_col.find_one({"_id": oid, "owner_id": current_user_id()})
+    if not old:
+        return jsonify({"error": "Meeting not found"}), 404
+
+    meetings_col.update_one({"_id": oid}, {"$set": {"status": "rescheduled"}})
+
+    template = meeting_templates_col.find_one({"owner_id": current_user_id()}) or {}
+    new_doc = {
+        "owner_id": current_user_id(),
+        "lead_id": old.get("lead_id", ""),
+        "lead_name": old.get("lead_name", ""),
+        "lead_phone": old.get("lead_phone", ""),
+        "call_id": "", "agent_id": old.get("agent_id", ""),
+        "scheduled_at": new_dt,
+        "duration_minutes": old.get("duration_minutes", 30),
+        "meet_link": old.get("meet_link") or template.get("meet_link", ""),
+        "status": "scheduled",
+        "reminder_15_sent": False, "reminder_5_sent": False,
+        "rescheduled_from": str(old["_id"]),
+        "created_at": datetime.utcnow(),
+    }
+    inserted = meetings_col.insert_one(new_doc)
+    new_meeting = meetings_col.find_one({"_id": inserted.inserted_id})
+
+    owner = users_col.find_one({"_id": ObjectId(current_user_id())})
+    when_str = new_dt.strftime("%A, %d %b %Y at %H:%M UTC")
+    if owner and old.get("lead_phone"):
+        send_meeting_whatsapp(owner, old["lead_phone"],
+            f"Your meeting has been rescheduled to {when_str}." +
+            (f" Join here: {new_doc['meet_link']}" if new_doc.get("meet_link") else ""))
+
+    call_note = None
+    try:
+        agents_col_ = db["pravah-agents"]
+        voip_col_ = db["pravah-voip"]
+        calls_col_ = db["pravah-calls"]
+        call_campaigns_col_ = db["pravah-call-campaigns"]
+        agent = agents_col_.find_one({"_id": ObjectId(old["agent_id"])}) if old.get("agent_id") else None
+        voip = voip_col_.find_one({"owner_id": current_user_id()})
+        if agent and voip and voip.get("account_sid") and old.get("lead_phone"):
+            reschedule_agent = dict(agent)
+            reschedule_agent["opening_line"] = (
+                f"Hi {{name}}, quick update — your meeting has been moved to {when_str}. "
+                f"Does that still work for you?"
+            )
+            lead_ctx = {"_id": ObjectId(), "name": old.get("lead_name", ""), "phone": old.get("lead_phone", "")}
+            result = place_outbound_call(
+                current_user_id(), lead_ctx, reschedule_agent, voip,
+                call_campaigns_col_, calls_col_, campaign_id=None,
+            )
+            call_note = "Eva is calling the lead about the new time." if result.get("success") else result.get("error")
+    except Exception as e:
+        call_note = f"Could not place reschedule call: {e}"
+
+    return jsonify({"meeting": serialize_meeting(new_meeting), "call_note": call_note})
+
 
 # ==================================================================
 # CAMPAIGNS API
@@ -3111,6 +3512,46 @@ def wirebase_webhook_receive(token):
 
 
 # ==================================================================
+# MEETING BOOKING WEBHOOK  (called by Eva mid-call, X-Eva-Secret auth)
+# ==================================================================
+
+@app.route("/api/eva-webhook/book-meeting", methods=["POST"])
+def api_eva_webhook_book_meeting():
+    """Eva's calling service calls this the moment a lead agrees on a date/time
+    during a live (or test) call. We check the owner's availability template +
+    existing bookings, confirm or reject, and — on success — send WhatsApp
+    confirmations to both the lead and the account's admin number.
+
+    Expected JSON body:
+      owner_id, lead_id (optional), lead_name, lead_phone,
+      call_id (optional), agent_id (optional),
+      requested_datetime  — ISO string, e.g. "2026-08-12T15:00:00" (UTC, naive)
+    """
+    if not EVA_API_SECRET or request.headers.get("X-Eva-Secret") != EVA_API_SECRET:
+        return jsonify({"error": "Invalid or missing X-Eva-Secret"}), 401
+
+    data = request.get_json(silent=True) or {}
+    owner_id   = data.get("owner_id")
+    lead_id    = data.get("lead_id", "")
+    lead_name  = data.get("lead_name", "")
+    lead_phone = data.get("lead_phone", "")
+    call_id    = data.get("call_id", "")
+    agent_id   = data.get("agent_id", "")
+    requested  = parse_iso_utc(data.get("requested_datetime", ""))
+
+    if not owner_id or not lead_phone or not requested:
+        return jsonify({"error": "owner_id, lead_phone and requested_datetime are required"}), 400
+
+    lead_ctx = {
+        "_id": ObjectId(lead_id) if lead_id and ObjectId.is_valid(lead_id) else None,
+        "lead_id": lead_id, "name": lead_name, "phone": lead_phone,
+    }
+
+    ok, payload = book_meeting(owner_id, lead_ctx, requested, call_id=call_id, agent_id=agent_id)
+    return jsonify(payload), (201 if ok else 409)
+
+
+# ==================================================================
 # DASHBOARD STATS API
 # ==================================================================
 
@@ -3255,13 +3696,27 @@ def summarize_call(transcript, lead, agent=None):
         "send_whatsapp": bool(d.get("send_whatsapp", False)),
         "whatsapp_message": (d.get("whatsapp_message") or "").strip(),
     } 
- 
-def request_call_from_eva(call_id, to_number, twilio_creds, agent, lead):
+
+def request_call_from_eva(call_id, to_number, twilio_creds, agent, lead, owner_id=None):
     """The ONE place this file talks to Eva's separate service."""
     if not EVA_API_BASE_URL:
         return {"success": False, "error": "EVA_API_BASE_URL not set in PravaahAI's .env"}
     if not PRAVAAH_PUBLIC_BASE_URL:
         return {"success": False, "error": "PRAVAAH_PUBLIC_BASE_URL not set in PravaahAI's .env"}
+
+    meeting_ctx = get_meeting_context(owner_id) if owner_id else None
+    agent_system_prompt = agent.get("system_prompt", "")
+    if meeting_ctx:
+        agent_system_prompt += (
+            "\n\nYou can also book meetings on the account owner's calendar. "
+            f"Meetings are {meeting_ctx['duration_minutes']} minutes long. "
+            f"Available windows: {meeting_ctx['availability_text']}. "
+            "The lead's name and phone number are already provided below — never ask for them again. "
+            "If the lead wants to schedule a meeting, ask for their preferred date and time, "
+            "then confirm it by calling the booking webhook with that date/time. "
+            "If the webhook says the slot isn't available, offer one of the alternatives it returns."
+        )
+
     try:
         resp = requests.post(
             f"{EVA_API_BASE_URL}/api/calls",
@@ -3276,7 +3731,7 @@ def request_call_from_eva(call_id, to_number, twilio_creds, agent, lead):
                 },
                 "agent": {
                     "name": agent.get("name", ""),
-                    "system_prompt": agent.get("system_prompt", ""),
+                    "system_prompt": agent_system_prompt,
                     "gender": agent.get("gender", "female"),
                     "language": agent.get("language", "auto"),
                     "speaker": agent.get("speaker", ""),
@@ -3289,6 +3744,12 @@ def request_call_from_eva(call_id, to_number, twilio_creds, agent, lead):
                     "email": lead.get("email", ""), "phone": lead.get("phone", ""),
                     "website": lead.get("website", ""), "description": lead.get("description", ""),
                 },
+                "meeting": ({
+                    "owner_id": owner_id,
+                    "lead_id": str(lead.get("_id", "")) if lead.get("_id") else "",
+                    "agent_id": str(agent.get("_id", "")) if agent.get("_id") else "",
+                    **meeting_ctx,
+                } if meeting_ctx else None),
                 "callback_url": f"{PRAVAAH_PUBLIC_BASE_URL}/api/eva-webhook/call-result",
             },
             timeout=20,
@@ -3298,8 +3759,8 @@ def request_call_from_eva(call_id, to_number, twilio_creds, agent, lead):
             return {"success": False, "error": data.get("error", "Eva rejected the call request")}
         return {"success": True, "call_sid": data.get("call_sid")}
     except Exception as e:
-        return {"success": False, "error": str(e)}
- 
+        return {"success": False, "error": str(e)} 
+
  
 def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, campaign_id=None):
     to_number = _e164(lead.get("phone", ""))
@@ -3319,6 +3780,7 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
     result = request_call_from_eva(
         call_id=call_id, to_number=to_number,
         twilio_creds={**voip, "from_number": from_number}, agent=agent, lead=lead,
+        owner_id=owner_id,
     )
     if result.get("success"):
         calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
@@ -3908,7 +4370,44 @@ def _wa_campaign_scheduler():
                 campaigns_col.update_one({"_id": c["_id"]}, {"$set": {"status": "draft"}})
 
 
+def _meeting_reminder_scanner():
+    """Every minute, sends a 15-min-before and 5-min-before WhatsApp reminder
+    to both the lead and the account's configured admin number."""
+    while True:
+        time.sleep(60)
+        try:
+            now = datetime.utcnow()
+            upcoming = list(meetings_col.find({
+                "status": "scheduled",
+                "scheduled_at": {"$gte": now, "$lte": now + timedelta(minutes=16)},
+            }))
+        except Exception:
+            continue
+        for m in upcoming:
+            minutes_out = (m["scheduled_at"] - now).total_seconds() / 60.0
+            owner = users_col.find_one({"_id": ObjectId(m["owner_id"])})
+            if not owner:
+                continue
+            template = meeting_templates_col.find_one({"owner_id": m["owner_id"]}) or {}
+            when_str = m["scheduled_at"].strftime("%H:%M UTC")
+
+            if not m.get("reminder_15_sent") and 14.5 <= minutes_out <= 15.5:
+                msg_lead = f"Reminder: your meeting is in 15 minutes ({when_str})." + (f" {m.get('meet_link')}" if m.get("meet_link") else "")
+                msg_admin = f"Reminder: meeting with {m.get('lead_name','a lead')} in 15 minutes ({when_str})."
+                if m.get("lead_phone"): send_meeting_whatsapp(owner, m["lead_phone"], msg_lead)
+                if template.get("admin_whatsapp"): send_meeting_whatsapp(owner, template["admin_whatsapp"], msg_admin)
+                meetings_col.update_one({"_id": m["_id"]}, {"$set": {"reminder_15_sent": True}})
+
+            elif not m.get("reminder_5_sent") and 4.5 <= minutes_out <= 5.5:
+                msg_lead = f"Reminder: your meeting starts in 5 minutes ({when_str})." + (f" {m.get('meet_link')}" if m.get("meet_link") else "")
+                msg_admin = f"Reminder: meeting with {m.get('lead_name','a lead')} starts in 5 minutes ({when_str})."
+                if m.get("lead_phone"): send_meeting_whatsapp(owner, m["lead_phone"], msg_lead)
+                if template.get("admin_whatsapp"): send_meeting_whatsapp(owner, template["admin_whatsapp"], msg_admin)
+                meetings_col.update_one({"_id": m["_id"]}, {"$set": {"reminder_5_sent": True}})
+
+
 threading.Thread(target=_wa_campaign_scheduler, daemon=True, name="PravaahCampaignScheduler").start()
+threading.Thread(target=_meeting_reminder_scanner, daemon=True, name="PravaahMeetingReminderScanner").start()
 
 init_eva(app, db, users_col, leads_col)
 if __name__ == "__main__":

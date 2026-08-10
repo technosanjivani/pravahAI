@@ -256,7 +256,10 @@
     <button class="tab-btn" data-tab="testcall">Test Call</button>
     <button class="tab-btn" data-tab="calls">Call Logs</button>
     <button class="tab-btn" data-tab="voip">Calling Settings</button>
-    <button class="tab-btn" style="margin-left:auto;" onclick="openWebWidget()">Web Widget</button>
+    <button class="tab-btn" data-tab="meetings">Meeting Templates</button>
+    <a href="/eva/widgets">
+    <button class="tab-btn" style="margin-left:auto;">Web Widget</button>
+    </a>
   </div>
 
   <!-- ===================== DASHBOARD ===================== -->
@@ -433,6 +436,57 @@
     </form>
   </div>
 
+  <!-- ===================== MEETING TEMPLATES ===================== -->
+  <div class="tab-panel" id="panel-meetings">
+    <div class="row">
+      <div>
+        <h2>Meeting templates</h2>
+        <div class="sub">Set your weekly availability, meeting length and Google Meet link — Eva uses this to book meetings straight from a call.</div>
+      </div>
+      <button class="btn btn-ghost" id="meetingEditToggleBtn" onclick="toggleMeetingEdit()">Edit availability</button>
+    </div>
+
+    <form class="panel-form" id="meetingTemplateForm" onsubmit="saveMeetingTemplate(event)" style="margin-bottom:24px;">
+      <div class="three-col">
+        <div class="field">
+          <label>Meeting duration (minutes)</label>
+          <input type="number" id="mtDuration" min="5" step="5" value="30">
+        </div>
+        <div class="field">
+          <label>Google Meet link</label>
+          <input type="text" id="mtMeetLink" placeholder="https://meet.google.com/xxx-xxxx-xxx">
+        </div>
+        <div class="field">
+          <label>Admin WhatsApp number</label>
+          <input type="text" id="mtAdminWhatsapp" placeholder="+971501234567">
+          <div class="hint">Gets a message every time a meeting is booked, plus reminders.</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Weekly availability</label>
+        <div id="mtSlotsEditor" style="border:1px solid var(--line); border-radius:10px; overflow:hidden;"></div>
+        <button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="addMeetingSlotRow()">+ Add time slot</button>
+      </div>
+
+      <button class="btn btn-primary" type="submit" style="margin-top:6px;">Save meeting template</button>
+      <span class="hint" id="mtStatus" style="margin-left:10px;"></span>
+    </form>
+
+    <div class="row">
+      <div>
+        <h2 style="font-size:16px;">Upcoming meetings</h2>
+        <div class="sub">Quick view — for filters and rescheduling, use "View Meetings" on the main dashboard.</div>
+      </div>
+      <button class="btn btn-ghost" onclick="loadUpcomingMeetingsMini()">Refresh</button>
+    </div>
+    <table>
+      <thead><tr><th>Lead</th><th>Phone</th><th>When</th><th>Status</th><th></th></tr></thead>
+      <tbody id="mtMeetingsBody"></tbody>
+    </table>
+    <div class="empty" id="mtMeetingsEmpty" style="display:none;">No upcoming meetings.</div>
+  </div>
+
 </div>
 
 <!-- ===================== AGENT MODAL ===================== -->
@@ -568,6 +622,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'dashboard') refreshDashboard();
+    if (btn.dataset.tab === 'meetings') { loadMeetingTemplate(); loadUpcomingMeetingsMini(); }
   });
 });
 
@@ -937,9 +992,8 @@ async function loadVoip(){
 }
 
 
-function openwewidget(){
-  window.location.href = '/eva/widgets';
-}
+
+
 
 async function saveVoip(e){
   e.preventDefault();
@@ -956,13 +1010,118 @@ async function saveVoip(e){
   }catch(e){ toast(e.message); }
 }
 
+// ---------------- meeting templates ----------------
+const WEEKDAYS = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"];
+let MEETING_SLOTS = [];
+let meetingEditMode = false;
+
+function toggleMeetingEdit(){
+  meetingEditMode = !meetingEditMode;
+  document.getElementById('meetingEditToggleBtn').textContent = meetingEditMode ? 'Done editing' : 'Edit availability';
+  renderSlotsEditor();
+}
+
+async function loadMeetingTemplate(){
+  try{
+    const d = await api('/api/meeting-template');
+    const t = d.template;
+    if (t){
+      document.getElementById('mtDuration').value = t.duration_minutes;
+      document.getElementById('mtMeetLink').value = t.meet_link;
+      document.getElementById('mtAdminWhatsapp').value = t.admin_whatsapp;
+      MEETING_SLOTS = t.slots || [];
+    } else {
+      MEETING_SLOTS = WEEKDAYS.slice(0,5).map(d => ({day:d, start:"09:00", end:"18:00", available:true}));
+    }
+    renderSlotsEditor();
+  }catch(e){ toast(e.message); }
+}
+
+function renderSlotsEditor(){
+  const box = document.getElementById('mtSlotsEditor');
+  if (!MEETING_SLOTS.length){
+    box.innerHTML = '<div class="hint" style="padding:14px;">No time slots yet — click "+ Add time slot".</div>';
+    return;
+  }
+  box.innerHTML = MEETING_SLOTS.map((s, i) => `
+    <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--line-soft);">
+      <select style="width:140px;" ${meetingEditMode?'':'disabled'} onchange="MEETING_SLOTS[${i}].day=this.value">
+        ${WEEKDAYS.map(d => `<option value="${d}" ${s.day===d?'selected':''}>${d[0].toUpperCase()+d.slice(1)}</option>`).join('')}
+      </select>
+      <input type="text" style="width:90px;" value="${s.start}" ${meetingEditMode?'':'disabled'} onchange="MEETING_SLOTS[${i}].start=this.value" placeholder="09:00">
+      <span class="hint">to</span>
+      <input type="text" style="width:90px;" value="${s.end}" ${meetingEditMode?'':'disabled'} onchange="MEETING_SLOTS[${i}].end=this.value" placeholder="18:00">
+      <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:12.5px;">
+        <input type="checkbox" ${s.available!==false?'checked':''} ${meetingEditMode?'':'disabled'} onchange="MEETING_SLOTS[${i}].available=this.checked">
+        Available
+      </label>
+      ${meetingEditMode ? `<button type="button" class="btn btn-danger" style="margin-left:auto; padding:5px 10px;" onclick="removeMeetingSlotRow(${i})">Remove</button>` : ''}
+    </div>`).join('');
+}
+
+function addMeetingSlotRow(){
+  MEETING_SLOTS.push({day:"monday", start:"09:00", end:"18:00", available:true});
+  meetingEditMode = true;
+  document.getElementById('meetingEditToggleBtn').textContent = 'Done editing';
+  renderSlotsEditor();
+}
+function removeMeetingSlotRow(i){
+  MEETING_SLOTS.splice(i,1);
+  renderSlotsEditor();
+}
+
+async function saveMeetingTemplate(e){
+  e.preventDefault();
+  try{
+    await api('/api/meeting-template', {method:'POST', body: JSON.stringify({
+      duration_minutes: parseInt(document.getElementById('mtDuration').value || '30'),
+      meet_link: document.getElementById('mtMeetLink').value.trim(),
+      admin_whatsapp: document.getElementById('mtAdminWhatsapp').value.trim(),
+      slots: MEETING_SLOTS,
+    })});
+    document.getElementById('mtStatus').textContent = 'Saved ✓';
+    setTimeout(() => document.getElementById('mtStatus').textContent = '', 2500);
+    toast('Meeting template saved');
+  }catch(err){ toast(err.message); }
+}
+
+async function loadUpcomingMeetingsMini(){
+  try{
+    const d = await api('/api/meetings?range=week&status=scheduled');
+    const rows = (d.meetings || []).slice(0, 8);
+    const body = document.getElementById('mtMeetingsBody');
+    const empty = document.getElementById('mtMeetingsEmpty');
+    empty.style.display = rows.length ? 'none' : 'block';
+    body.innerHTML = rows.map(m => `
+      <tr>
+        <td>${escapeHtml(m.lead_name||'—')}</td>
+        <td>${escapeHtml(m.lead_phone||'—')}</td>
+        <td>${m.scheduled_at ? new Date(m.scheduled_at).toLocaleString() : '—'}</td>
+        <td><span class="status-pill status-completed">${m.status}</span></td>
+        <td>
+          <button class="btn btn-ghost" style="padding:5px 9px;" onclick="quickMarkMeeting('${m._id}','completed')">✓</button>
+          <button class="btn btn-ghost" style="padding:5px 9px;" onclick="quickMarkMeeting('${m._id}','missed')">✕</button>
+        </td>
+      </tr>`).join('');
+  }catch(e){ /* silent */ }
+}
+
+async function quickMarkMeeting(id, status){
+  try{
+    await api(`/api/meetings/${id}/status`, {method:'PATCH', body: JSON.stringify({status})});
+    toast('Meeting updated');
+    loadUpcomingMeetingsMini();
+  }catch(e){ toast(e.message); }
+}
+
+
 function escapeHtml(s){
   return (s || '').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
 // ---------------- init ----------------
 (async function init(){
-  await Promise.all([loadMinutes(), loadAgents(), loadCampaigns(), loadCalls(), loadVoip(), loadLeads()]);
+  await Promise.all([loadMinutes(), loadAgents(), loadCampaigns(), loadCalls(), loadVoip(), loadLeads(), loadMeetingTemplate()]);
   computeDashboardStats();
   renderDashCampaigns();
   renderDashRecentCalls();
