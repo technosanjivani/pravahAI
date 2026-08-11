@@ -82,6 +82,7 @@ pricing_col    = db["pravah-eva-pricing"]  # global Eva per-minute pricing setti
 segments_col   = db["pravah-segments"]
 meeting_templates_col = db["pravah-meeting-templates"]  # per-owner availability/config
 meetings_col          = db["pravah-meetings"]            # booked meetings
+webhook_logs_col      = db["pravah-webhook-logs"]         # raw inbound/outbound webhook events, for debugging
 # ----------------------------------
 # Create Indexes
 # ----------------------------------
@@ -112,6 +113,7 @@ try:
     meetings_col.create_index([("owner_id", 1), ("scheduled_at", 1)])
     meetings_col.create_index([("status", 1), ("reminder_15_sent", 1), ("reminder_5_sent", 1), ("scheduled_at", 1)])
     meetings_col.create_index("lead_id")
+    webhook_logs_col.create_index([("owner_id", 1), ("created_at", -1)])
 except Exception:
     pass
 
@@ -297,6 +299,68 @@ def normalize_phone(phone: str) -> str:
 
 def generate_webhook_token() -> str:
     return secrets.token_urlsafe(24)
+
+
+def public_https_url(path: str = "") -> str:
+    """Builds an absolute HTTPS URL for this host, regardless of what scheme
+    the request actually arrived on (e.g. behind an http-only proxy/load
+    balancer). Wirebase/Evolution webhook URLs must always be https://."""
+    host = request.host  # includes port if non-standard, no scheme
+    return f"https://{host}{path}"
+
+
+_REDACT_HEADERS = {"x-webhook-secret", "x-api-key", "authorization", "x-eva-secret", "cookie"}
+
+def safe_request_headers():
+    out = {}
+    for k, v in request.headers.items():
+        out[k] = "●●●●●●●●" if k.lower() in _REDACT_HEADERS else v
+    return out
+
+
+WEBHOOK_LOG_MAX_PER_OWNER = 300
+
+def log_webhook_event(owner_id, source, direction, status, note="", payload=None, headers=None, response=None):
+    """Stores one raw webhook/send event so the WhatsApp Bot dashboard can
+    show exactly what came in and what went out — request payload, headers,
+    our response/decision, and any error — for debugging Wirebase/Evolution."""
+    try:
+        webhook_logs_col.insert_one({
+            "owner_id": owner_id or "",
+            "source": source,        # "wirebase" | "evolution" | "eva"
+            "direction": direction,  # "inbound" | "outbound"
+            "status": status,        # "received" | "skipped" | "sent" | "error" | "info"
+            "note": note or "",
+            "payload": payload if payload is not None else {},
+            "headers": headers or {},
+            "response": response if response is not None else {},
+            "created_at": datetime.utcnow(),
+        })
+        if owner_id:
+            count = webhook_logs_col.count_documents({"owner_id": owner_id})
+            if count > WEBHOOK_LOG_MAX_PER_OWNER:
+                excess = count - WEBHOOK_LOG_MAX_PER_OWNER
+                old_ids = [d["_id"] for d in webhook_logs_col.find(
+                    {"owner_id": owner_id}, {"_id": 1}
+                ).sort("created_at", 1).limit(excess)]
+                if old_ids:
+                    webhook_logs_col.delete_many({"_id": {"$in": old_ids}})
+    except Exception as e:
+        print(f"[WEBHOOK-LOG] failed to store event: {e}", flush=True)
+
+
+def serialize_webhook_log(d):
+    return {
+        "_id": str(d["_id"]),
+        "source": d.get("source", ""),
+        "direction": d.get("direction", ""),
+        "status": d.get("status", ""),
+        "note": d.get("note", ""),
+        "payload": d.get("payload", {}),
+        "headers": d.get("headers", {}),
+        "response": d.get("response", {}),
+        "created_at": d.get("created_at").isoformat() if d.get("created_at") else None,
+    }
 
 
 
@@ -939,10 +1003,20 @@ def send_whatsapp_via_wirebase(base_url: str, api_key: str, instance_name: str, 
             json={"instanceName": instance_name, "to": phone, "type": "text", "message": message},
             timeout=10,
         )
+        status_code = resp.status_code
+        try:
+            body = resp.json()
+        except ValueError:
+            body = resp.text[:500]
         resp.raise_for_status()
-        return {"success": True, "raw": resp.json()}
+        return {"success": True, "raw": body, "status_code": status_code}
     except requests.exceptions.RequestException as e:
-        return {"success": False, "error": str(e)}
+        status_code = e.response.status_code if getattr(e, "response", None) is not None else None
+        try:
+            body = e.response.json() if getattr(e, "response", None) is not None else None
+        except ValueError:
+            body = e.response.text[:500] if getattr(e, "response", None) is not None else None
+        return {"success": False, "error": str(e), "status_code": status_code, "raw": body}
 
 def send_whatsapp_dispatch(user: dict, phone: str, message: str) -> dict:
     """Single entry point for every outbound WhatsApp send in the app.
@@ -2532,18 +2606,17 @@ def api_get_integrations():
         "has_evo":     bool(creds.get("evo_instance")),
         "has_gmail":   bool(creds.get("gmail_app_password")),
         "has_resend":  bool(creds.get("resend_api_key")),
-        "webhook_url": request.host_url.rstrip("/") + "/webhook/" + webhook_token,
+        "webhook_url": public_https_url("/webhook/" + webhook_token),
         # Wirebase
         "wirebase_base_url":      creds.get("wirebase_base_url", ""),
         "wirebase_instance_name": creds.get("wirebase_instance_name", ""),
         "wirebase_api_key":       "●●●●●●●●" if creds.get("wirebase_api_key") else "",
         "has_wirebase":           bool(creds.get("wirebase_api_key")),
-        "wirebase_webhook_url":   request.host_url.rstrip("/") + "/webhook/wirebase/" + wirebase_token,
+        "wirebase_webhook_url":   public_https_url("/webhook/wirebase/" + wirebase_token),
         "wirebase_webhook_secret": "●●●●●●●●" if creds.get("wirebase_webhook_secret") else "",
         "has_wirebase_secret":     bool(creds.get("wirebase_webhook_secret")),
         "active_provider":        creds.get("active_provider", "evo"),
     })
-
 
 @app.route("/api/integrations", methods=["POST"])
 @login_required
@@ -2690,6 +2763,21 @@ def api_save_whatsapp_bot():
     existing["ai_bot_system_prompt"] = (data.get("ai_bot_system_prompt") or "").strip()
     users_col.update_one({"_id": ObjectId(current_user_id())}, {"$set": {"integrations": existing}})
     return jsonify({"saved": True})
+
+
+@app.route("/api/whatsapp-bot/webhook-logs", methods=["GET"])
+@login_required
+@owner_required
+def api_whatsapp_webhook_logs():
+    """Raw inbound/outbound webhook events for this account — request
+    payloads, headers, our decision, and any send response/error — newest
+    first. Used by the WhatsApp Bot dashboard's raw debug panel."""
+    source = request.args.get("source", "").strip()  # "" | "wirebase" | "evolution"
+    query = {"owner_id": current_user_id()}
+    if source in ("wirebase", "evolution", "eva"):
+        query["source"] = source
+    logs = list(webhook_logs_col.find(query).sort("created_at", -1).limit(150))
+    return jsonify({"logs": [serialize_webhook_log(d) for d in logs]})
 
 
 @app.route("/api/whatsapp-bot/inbox", methods=["GET"])
@@ -3442,15 +3530,22 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
 
 @app.route("/webhook/<token>", methods=["POST"])
 def webhook_receive(token):
+    raw_headers = safe_request_headers()
+    payload = request.get_json(silent=True) or {}
+
     user = users_col.find_one({"webhook_token": token, "type": "user"})
     if not user:
+        log_webhook_event(None, "evolution", "inbound", "error",
+                           note="Invalid webhook token in URL", payload=payload, headers=raw_headers)
         return jsonify({"error": "Invalid webhook token"}), 404
 
-    payload = request.get_json(silent=True) or {}
+    owner_id = str(user["_id"])
     data = payload.get("data", payload) or {}
     key = data.get("key", {}) or {}
 
     if key.get("fromMe"):
+        log_webhook_event(owner_id, "evolution", "inbound", "skipped",
+                           note="fromMe echo ignored", payload=payload, headers=raw_headers)
         return jsonify({"ok": True}), 200  # ignore our own outgoing messages echoed back
 
     remote_jid = key.get("remoteJid", "") or data.get("remoteJid", "")
@@ -3458,12 +3553,15 @@ def webhook_receive(token):
     text = _extract_incoming_text(data.get("message", {}))
 
     if not phone or not text:
+        log_webhook_event(owner_id, "evolution", "inbound", "skipped",
+                           note=f"phone={bool(phone)} text={bool(text)}", payload=payload, headers=raw_headers)
         return jsonify({"ok": True}), 200
 
-    owner_id = str(user["_id"])
+    log_webhook_event(owner_id, "evolution", "inbound", "received",
+                       note=f"From {phone}", payload=payload, headers=raw_headers)
+
     threading.Thread(target=_process_incoming_whatsapp, args=(owner_id, phone, text), daemon=True).start()
     return jsonify({"received": True}), 200
-
 
 # ==================================================================
 # WEBHOOK — receives inbound WhatsApp messages from Wirebase
@@ -3527,6 +3625,8 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
         )
         if not reply.get("success"):
             log("WIREBASE-INBOUND", f"owner {owner_id}: AI reply generation failed — {reply.get('error')}")
+            log_webhook_event(owner_id, "wirebase", "outbound", "error",
+                               note="AI reply generation failed", response=reply)
             return
 
         if reply.get("message"):
@@ -3537,26 +3637,42 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
                     "channel": creds.get("active_provider", "evo"), "text": reply["message"],
                     "ai_generated": True, "created_at": datetime.utcnow(),
                 })
+                log_webhook_event(owner_id, "wirebase", "outbound", "sent",
+                                   note=f"AI reply to {lead.get('phone', phone_raw)}",
+                                   payload={"message": reply["message"]}, response=send_result)
             else:
                 log("WIREBASE-INBOUND", f"owner {owner_id}: send failed — {send_result.get('error')}")
+                log_webhook_event(owner_id, "wirebase", "outbound", "error",
+                                   note=f"Send failed to {lead.get('phone', phone_raw)}",
+                                   payload={"message": reply["message"]}, response=send_result)
     except Exception as e:
         log("WIREBASE-INBOUND", f"owner {owner_id}: unhandled error — {e}")
+        log_webhook_event(owner_id, "wirebase", "outbound", "error", note=f"Unhandled error: {e}")
+
 
 
 @app.route("/webhook/wirebase/<token>", methods=["POST"])
 def wirebase_webhook_receive(token):
+    raw_headers = safe_request_headers()
+    payload = request.get_json(silent=True) or {}
+
     user = users_col.find_one({"wirebase_webhook_token": token, "type": "user"})
     if not user:
+        log_webhook_event(None, "wirebase", "inbound", "error",
+                           note="Invalid webhook token in URL", payload=payload, headers=raw_headers)
         return jsonify({"error": "Invalid webhook token"}), 404
+
+    owner_id = str(user["_id"])
 
     # Optional extra check: only enforced if the owner saved a signing
     # secret in Settings (see integrations.wirebase_webhook_secret below).
     configured_secret = (user.get("integrations", {}) or {}).get("wirebase_webhook_secret", "")
     if configured_secret and request.headers.get("X-Webhook-Secret", "") != configured_secret:
         log("WIREBASE-WEBHOOK", f"owner {user['_id']}: bad or missing X-Webhook-Secret")
+        log_webhook_event(owner_id, "wirebase", "inbound", "error",
+                           note="Bad or missing X-Webhook-Secret", payload=payload, headers=raw_headers)
         return jsonify({"error": "Invalid webhook secret"}), 403
 
-    payload = request.get_json(silent=True) or {}
     phone_raw = (payload.get("number") or "").strip()
     text      = (payload.get("message") or "").strip()
     is_group  = payload.get("isGroup", False)
@@ -3565,10 +3681,15 @@ def wirebase_webhook_receive(token):
     wa_msg_id = payload.get("messageId")
 
     if is_group or is_lid or not phone_raw or not text:
-        log("WIREBASE-WEBHOOK", f"owner {user['_id']}: skipped — group={is_group} lid={is_lid} phone={bool(phone_raw)} text={bool(text)}")
+        note = f"skipped — group={is_group} lid={is_lid} phone={bool(phone_raw)} text={bool(text)}"
+        log("WIREBASE-WEBHOOK", f"owner {user['_id']}: {note}")
+        log_webhook_event(owner_id, "wirebase", "inbound", "skipped",
+                           note=note, payload=payload, headers=raw_headers)
         return jsonify({"ok": True}), 200
 
-    owner_id = str(user["_id"])
+    log_webhook_event(owner_id, "wirebase", "inbound", "received",
+                       note=f"From {phone_raw}", payload=payload, headers=raw_headers)
+
     threading.Thread(
         target=_process_incoming_wirebase,
         args=(owner_id, phone_raw, text, push_name, wa_msg_id),
