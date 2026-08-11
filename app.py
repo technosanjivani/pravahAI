@@ -944,7 +944,6 @@ def send_whatsapp_via_wirebase(base_url: str, api_key: str, instance_name: str, 
     except requests.exceptions.RequestException as e:
         return {"success": False, "error": str(e)}
 
-
 def send_whatsapp_dispatch(user: dict, phone: str, message: str) -> dict:
     """Single entry point for every outbound WhatsApp send in the app.
     Routes through Evolution API or Wirebase depending on the user's
@@ -952,7 +951,20 @@ def send_whatsapp_dispatch(user: dict, phone: str, message: str) -> dict:
     creds = user.get("integrations", {}) or {}
     provider = creds.get("active_provider", "evo")
 
+    wirebase_ready = bool(
+        creds.get("wirebase_base_url") and creds.get("wirebase_api_key") and creds.get("wirebase_instance_name")
+    )
+    evo_ready = bool(creds.get("evo_instance"))
+
+    # Safety net: if the toggle says "evo" but evo isn't configured while
+    # Wirebase is fully configured, use Wirebase instead of failing silently.
+    if provider != "wirebase" and wirebase_ready and not evo_ready:
+        log("WA-DISPATCH", f"active_provider={provider!r} but only Wirebase is configured — using Wirebase instead")
+        provider = "wirebase"
+
     if provider == "wirebase":
+        if not wirebase_ready:
+            return {"success": False, "error": "Wirebase is not fully configured in Settings"}
         return send_whatsapp_via_wirebase(
             creds.get("wirebase_base_url", ""),
             creds.get("wirebase_api_key", ""),
@@ -2527,6 +2539,8 @@ def api_get_integrations():
         "wirebase_api_key":       "●●●●●●●●" if creds.get("wirebase_api_key") else "",
         "has_wirebase":           bool(creds.get("wirebase_api_key")),
         "wirebase_webhook_url":   request.host_url.rstrip("/") + "/webhook/wirebase/" + wirebase_token,
+        "wirebase_webhook_secret": "●●●●●●●●" if creds.get("wirebase_webhook_secret") else "",
+        "has_wirebase_secret":     bool(creds.get("wirebase_webhook_secret")),
         "active_provider":        creds.get("active_provider", "evo"),
     })
 
@@ -2552,6 +2566,7 @@ def api_save_integrations():
     maybe_update("wirebase_base_url")
     maybe_update("wirebase_instance_name")
     maybe_update("wirebase_api_key")
+    maybe_update("wirebase_webhook_secret")
 
     if "ai_whatsapp_prompt" in data:
         existing["ai_whatsapp_prompt"] = (data.get("ai_whatsapp_prompt") or "").strip()
@@ -2569,6 +2584,40 @@ def api_save_integrations():
     users_col.update_one({"_id": ObjectId(current_user_id())}, {"$set": update})
     return jsonify({"saved": True})
 
+
+@app.route("/api/whatsapp-bot/diagnose", methods=["GET"])
+@login_required
+@owner_required
+def api_whatsapp_bot_diagnose():
+    """Plain-English checklist for why the AI auto-reply might not be firing."""
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    creds = user.get("integrations", {}) if user else {}
+    provider = creds.get("active_provider", "evo")
+
+    checks = [
+        {"check": "AI bot enabled", "ok": bool(creds.get("ai_bot_enabled"))},
+        {"check": "Active provider", "ok": True, "value": provider},
+    ]
+
+    if provider == "wirebase":
+        checks += [
+            {"check": "Wirebase base URL set", "ok": bool(creds.get("wirebase_base_url"))},
+            {"check": "Wirebase API key set", "ok": bool(creds.get("wirebase_api_key"))},
+            {"check": "Wirebase instance name set", "ok": bool(creds.get("wirebase_instance_name"))},
+        ]
+    else:
+        checks.append({"check": "Evolution instance set", "ok": bool(creds.get("evo_instance"))})
+        if creds.get("wirebase_api_key") and not creds.get("evo_instance"):
+            checks.append({
+                "check": "Mismatch warning",
+                "ok": False,
+                "value": "Wirebase is configured but active_provider is 'evo' — flip the toggle in Settings",
+            })
+
+    checks.append({"check": "MISTRAL_API_KEY set on server", "ok": bool(os.getenv("MISTRAL_API_KEY"))})
+
+    all_ok = all(c["ok"] for c in checks)
+    return jsonify({"provider": provider, "all_ok": all_ok, "checks": checks})
 
 @app.route("/api/integrations/test/whatsapp", methods=["POST"])
 @login_required
@@ -3373,7 +3422,11 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
             task_prompt=lead.get("ai_task_prompt", ""),
             system_prompt=creds.get("ai_bot_system_prompt") or creds.get("ai_whatsapp_prompt", ""),
         )
-        if reply.get("success") and reply.get("message"):
+        if not reply.get("success"):
+            log("WA-INBOUND", f"owner {owner_id}: AI reply generation failed — {reply.get('error')}")
+            return
+
+        if reply.get("message"):
             send_result = send_whatsapp_dispatch(owner, lead.get("phone", phone_raw), reply["message"])
             if send_result.get("success"):
                 messages_col.insert_one({
@@ -3381,11 +3434,10 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
                     "channel": creds.get("active_provider", "evo"), "text": reply["message"],
                     "ai_generated": True, "created_at": datetime.utcnow(),
                 })
-            # if the send fails, we intentionally do NOT log the reply —
-            # DB only reflects messages that were actually delivered
-    except Exception:
-        # Never let a background webhook failure crash the app
-        pass
+            else:
+                log("WA-INBOUND", f"owner {owner_id}: send failed — {send_result.get('error')}")
+    except Exception as e:
+        log("WA-INBOUND", f"owner {owner_id}: unhandled error — {e}")
 
 
 @app.route("/webhook/<token>", methods=["POST"])
@@ -3473,7 +3525,11 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
             task_prompt=lead.get("ai_task_prompt", ""),
             system_prompt=creds.get("ai_bot_system_prompt") or creds.get("ai_whatsapp_prompt", ""),
         )
-        if reply.get("success") and reply.get("message"):
+        if not reply.get("success"):
+            log("WIREBASE-INBOUND", f"owner {owner_id}: AI reply generation failed — {reply.get('error')}")
+            return
+
+        if reply.get("message"):
             send_result = send_whatsapp_dispatch(owner, lead.get("phone", phone_raw), reply["message"])
             if send_result.get("success"):
                 messages_col.insert_one({
@@ -3481,9 +3537,10 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
                     "channel": creds.get("active_provider", "evo"), "text": reply["message"],
                     "ai_generated": True, "created_at": datetime.utcnow(),
                 })
-            # send failed → nothing saved, per spec
-    except Exception:
-        pass
+            else:
+                log("WIREBASE-INBOUND", f"owner {owner_id}: send failed — {send_result.get('error')}")
+    except Exception as e:
+        log("WIREBASE-INBOUND", f"owner {owner_id}: unhandled error — {e}")
 
 
 @app.route("/webhook/wirebase/<token>", methods=["POST"])
@@ -3492,14 +3549,23 @@ def wirebase_webhook_receive(token):
     if not user:
         return jsonify({"error": "Invalid webhook token"}), 404
 
+    # Optional extra check: only enforced if the owner saved a signing
+    # secret in Settings (see integrations.wirebase_webhook_secret below).
+    configured_secret = (user.get("integrations", {}) or {}).get("wirebase_webhook_secret", "")
+    if configured_secret and request.headers.get("X-Webhook-Secret", "") != configured_secret:
+        log("WIREBASE-WEBHOOK", f"owner {user['_id']}: bad or missing X-Webhook-Secret")
+        return jsonify({"error": "Invalid webhook secret"}), 403
+
     payload = request.get_json(silent=True) or {}
     phone_raw = (payload.get("number") or "").strip()
     text      = (payload.get("message") or "").strip()
     is_group  = payload.get("isGroup", False)
+    is_lid    = payload.get("isLid", False)
     push_name = payload.get("pushName") or ""
     wa_msg_id = payload.get("messageId")
 
-    if is_group or not phone_raw or not text:
+    if is_group or is_lid or not phone_raw or not text:
+        log("WIREBASE-WEBHOOK", f"owner {user['_id']}: skipped — group={is_group} lid={is_lid} phone={bool(phone_raw)} text={bool(text)}")
         return jsonify({"ok": True}), 200
 
     owner_id = str(user["_id"])
