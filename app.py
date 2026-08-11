@@ -493,6 +493,7 @@ def serialize_lead(lead):
         "segment_id": lead.get("segment_id", ""),
         "assigned_to": lead.get("assigned_to"),
         "ai_task_prompt": lead.get("ai_task_prompt", ""),
+        "ai_disabled": bool(lead.get("ai_disabled", False)),
         "created_at": lead.get("created_at").isoformat() if lead.get("created_at") else None,
         "updated_at": lead.get("updated_at").isoformat() if lead.get("updated_at") else None,
         "ai_score": lead.get("ai_score", 0),
@@ -729,7 +730,9 @@ def generate_ai_content(lead: dict, content_type: str, instructions: str = "", c
 def generate_chat_reply(lead: dict, incoming_message: str, history: list, task_prompt: str = "", system_prompt: str = "") -> dict:
     """Generates a WhatsApp auto-reply to an inbound message, using the
     lead's assigned task prompt (what this lead should be pitched / how the
-    conversation should be steered) plus the account's general WA style prompt."""
+    conversation should be steered), the account's general WA style prompt,
+    and up to the last 10 messages of real conversation history so the AI
+    doesn't re-introduce itself mid-thread."""
     lead_context = (
         f"Name: {lead.get('name','')}\n"
         f"Business Name: {lead.get('business_name','')}\n"
@@ -739,9 +742,10 @@ def generate_chat_reply(lead: dict, incoming_message: str, history: list, task_p
         f"Description: {lead.get('description','')}\n"
     )
 
+    recent_history = history[-10:]
     history_text = "\n".join(
         f"{'Lead' if h.get('direction')=='in' else 'You'}: {h.get('text','')}"
-        for h in history[-10:]
+        for h in recent_history
     )
 
     base_style = (system_prompt or "").strip() or (
@@ -749,15 +753,24 @@ def generate_chat_reply(lead: dict, incoming_message: str, history: list, task_p
     )
     task = (task_prompt or "").strip() or "Keep the lead engaged and move the conversation toward a sale or a booked call."
 
+    continuity_note = (
+        "You are already mid-conversation with this lead — do NOT say 'Hi', 'Hello', "
+        "introduce yourself, or restate who you are again. Reply as a natural continuation "
+        "of the thread above, referencing what was already discussed where relevant."
+        if recent_history else
+        "This is the very first message in this conversation, so a brief, natural greeting is fine."
+    )
+
     system = (
         f"{base_style}\n\n"
         f"Your specific goal for this lead: {task}\n\n"
+        f"{continuity_note}\n\n"
         "Reply in 1-3 short sentences like a real person texting on WhatsApp. "
         "No signatures, no placeholders. Return ONLY the reply text."
     )
     user_prompt = (
         f"Lead data:\n{lead_context}\n"
-        f"Recent conversation:\n{history_text}\n\n"
+        f"Recent conversation (last {len(recent_history)} messages):\n{history_text}\n\n"
         f"Lead's latest message: {incoming_message}\n\n"
         "Write your reply now."
     )
@@ -1841,6 +1854,27 @@ def api_update_lead_segment(lead_id):
     return jsonify({"updated": True, "segment_id": segment_id})
 
 
+@app.route("/api/leads/<lead_id>/ai-toggle", methods=["PATCH"])
+@login_required
+def api_toggle_lead_ai(lead_id):
+    """Lets the owner OR the assigned team member turn the AI auto-reply
+    bot on/off for this specific lead's WhatsApp number — e.g. once a human
+    has taken over the conversation and shouldn't be interrupted by the bot."""
+    try: oid = ObjectId(lead_id)
+    except InvalidId: return jsonify({"error": "Invalid lead id"}), 400
+    data = request.get_json(silent=True) or {}
+    if "ai_disabled" not in data:
+        return jsonify({"error": "ai_disabled (true/false) is required"}), 400
+    ai_disabled = bool(data.get("ai_disabled"))
+    query = {"_id": oid, "owner_id": current_user_id()}
+    if not is_owner():
+        query["assigned_to"] = current_actor_id()
+    result = leads_col.update_one(query, {"$set": {"ai_disabled": ai_disabled, "updated_at": datetime.utcnow()}})
+    if result.matched_count == 0:
+        return jsonify({"error": "Lead not found"}), 404
+    return jsonify({"updated": True, "ai_disabled": ai_disabled})
+
+
 @app.route("/api/leads/<lead_id>", methods=["DELETE"])
 @login_required
 def api_delete_lead(lead_id):
@@ -2821,6 +2855,7 @@ def api_whatsapp_inbox():
             "last_at": c["last_at"].isoformat() if c.get("last_at") else None,
             "last_direction": c["last_direction"],
             "last_channel": c.get("last_channel", ""),
+            "ai_disabled": bool(lead.get("ai_disabled", False)),
         })
     return jsonify({"conversations": result})
 
@@ -3445,10 +3480,29 @@ def api_test_campaign_whatsapp(campaign_id):
     return jsonify({"sent": True, "to": target_phone, "message": message})
 
 
+
+
+
 # ==================================================================
 # WEBHOOK — receives inbound WhatsApp messages from Evolution API
 # Each user gets a unique URL: /webhook/<their_webhook_token>
 # ==================================================================
+
+
+def trim_message_history(owner_id: str, lead_id: str, keep: int = 10):
+    """Keeps only the most recent `keep` messages (both directions) for this
+    lead's WhatsApp thread. Older messages are deleted so the AI context we
+    send stays bounded to the last N and the inbox stays fast."""
+    ids_to_keep = [
+        m["_id"] for m in messages_col.find(
+            {"owner_id": owner_id, "lead_id": lead_id}
+        ).sort("created_at", -1).limit(keep)
+    ]
+    if ids_to_keep:
+        messages_col.delete_many({
+            "owner_id": owner_id, "lead_id": lead_id,
+            "_id": {"$nin": ids_to_keep},
+        })
 
 def _extract_incoming_text(message_obj: dict) -> str:
     if not message_obj:
@@ -3487,6 +3541,9 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
         if not lead:
             return  # unknown number — nothing further we can automate safely
 
+        # Keep only the last 10 messages for this lead's thread — bounds what
+        # gets sent to the AI and keeps the inbox lightweight.
+        trim_message_history(owner_id, lead_id, keep=10)
         history = list(messages_col.find({"owner_id": owner_id, "lead_id": lead_id}).sort("created_at", 1))
 
         # 1. Score the lead's temperature based on the conversation so far
@@ -3500,9 +3557,12 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
                 update["assigned_to"] = assigned
         leads_col.update_one({"_id": lead["_id"]}, {"$set": update})
 
-        # 3. Generate and send an AI auto-reply — only if the AI Bot toggle is on
+        # 3. Generate and send an AI auto-reply — only if the AI Bot toggle is
+        # on globally AND this specific number hasn't been muted from the inbox
         creds = owner.get("integrations", {})
         if not creds.get("ai_bot_enabled"):
+            return
+        if lead.get("ai_disabled"):
             return
 
         reply = generate_chat_reply(
@@ -3602,6 +3662,9 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
             "channel": "wirebase", "text": text, "created_at": datetime.utcnow(),
         })
 
+        # Keep only the last 10 messages for this lead's thread — bounds what
+        # gets sent to the AI and keeps the inbox lightweight.
+        trim_message_history(owner_id, lead_id, keep=10)
         history = list(messages_col.find({"owner_id": owner_id, "lead_id": lead_id}).sort("created_at", 1))
 
         # 2. Score + round-robin assign on first-ever reply (same as the Evolution flow)
@@ -3613,9 +3676,12 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
                 update["assigned_to"] = assigned
         leads_col.update_one({"_id": lead["_id"]}, {"$set": update})
 
-        # 3. AI auto-reply, only if the bot toggle is on
+        # 3. AI auto-reply, only if the bot toggle is on globally AND this
+        # specific number hasn't been muted from the inbox
         creds = owner.get("integrations", {}) or {}
         if not creds.get("ai_bot_enabled"):
+            return
+        if lead.get("ai_disabled"):
             return
 
         reply = generate_chat_reply(
