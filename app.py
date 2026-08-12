@@ -46,6 +46,103 @@ import requests
 
 from scraper import scrape_website, normalize_website_for_dedupe
 
+import cloudinary
+import cloudinary.uploader
+
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+CLOUDINARY_API_KEY    = os.getenv("CLOUDINARY_API_KEY", "")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
+cloudinary.config(
+    cloud_name=CLOUDINARY_CLOUD_NAME,
+    api_key=CLOUDINARY_API_KEY,
+    api_secret=CLOUDINARY_API_SECRET,
+    secure=True,
+)
+
+SUPABASE_URL          = os.getenv("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY  = os.getenv("SUPABASE_SERVICE_KEY", "")
+SUPABASE_PDF_BUCKET   = os.getenv("SUPABASE_PDF_BUCKET", "property-docs")
+
+BUSINESS_CATEGORIES = {"real_estate", "share_market", "import_export"}
+SITE_VISIT_STATUSES = {"new", "read", "confirmed", "done", "won", "lost", "rescheduled"}
+
+
+def upload_media_to_cloudinary(file_storage, resource_type="auto"):
+    if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):
+        return {"success": False, "error": "Cloudinary is not configured on the server"}
+    try:
+        result = cloudinary.uploader.upload(file_storage, resource_type=resource_type, folder="pravaah-inventory")
+        return {"success": True, "url": result.get("secure_url", ""), "resource_type": result.get("resource_type", "")}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def upload_pdf_to_supabase(file_storage, owner_id):
+    if not (SUPABASE_URL and SUPABASE_SERVICE_KEY):
+        return {"success": False, "error": "Supabase is not configured on the server"}
+    safe_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", file_storage.filename or "document.pdf")
+    filename = f"{owner_id}/{secrets.token_urlsafe(8)}_{safe_name}"
+    url = f"{SUPABASE_URL.rstrip('/')}/storage/v1/object/{SUPABASE_PDF_BUCKET}/{filename}"
+    try:
+        resp = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+                "Content-Type": file_storage.mimetype or "application/pdf",
+                "x-upsert": "true",
+            },
+            data=file_storage.read(),
+            timeout=30,
+        )
+        resp.raise_for_status()
+        public_url = f"{SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{SUPABASE_PDF_BUCKET}/{filename}"
+        return {"success": True, "url": public_url}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def generate_view_id():
+    return secrets.token_urlsafe(9).replace("-", "").replace("_", "")[:12]
+
+
+def serialize_inventory(inv):
+    return {
+        "_id": str(inv["_id"]),
+        "view_id": inv.get("view_id", ""),
+        "headline": inv.get("headline", ""),
+        "description": inv.get("description", ""),
+        "price": inv.get("price", ""),
+        "city": inv.get("city", ""),
+        "area": inv.get("area", ""),
+        "features": inv.get("features", []),
+        "images": inv.get("images", []),
+        "videos": inv.get("videos", []),
+        "pdf_url": inv.get("pdf_url", ""),
+        "status": inv.get("status", "active"),
+        "view_url": public_https_url(f"/view/{inv.get('view_id','')}"),
+        "created_at": inv.get("created_at").isoformat() if inv.get("created_at") else None,
+        "updated_at": inv.get("updated_at").isoformat() if inv.get("updated_at") else None,
+    }
+
+
+def serialize_site_visit(v):
+    return {
+        "_id": str(v["_id"]),
+        "lead_id": v.get("lead_id", ""),
+        "lead_name": v.get("lead_name", ""),
+        "lead_phone": v.get("lead_phone", ""),
+        "budget": v.get("budget", ""),
+        "preferred_location": v.get("preferred_location", ""),
+        "property_id": v.get("property_id", ""),
+        "property_headline": v.get("property_headline", ""),
+        "view_url": v.get("view_url", ""),
+        "visit_date": v.get("visit_date", ""),
+        "visit_time": v.get("visit_time", ""),
+        "status": v.get("status", "new"),
+        "created_at": v.get("created_at").isoformat() if v.get("created_at") else None,
+    }
+
+
 # ----------------------------------
 # Load Environment Variables
 # ----------------------------------
@@ -61,7 +158,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "change-me")
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
 # ----------------------------------
 # MongoDB
@@ -83,6 +180,10 @@ segments_col   = db["pravah-segments"]
 meeting_templates_col = db["pravah-meeting-templates"]  # per-owner availability/config
 meetings_col          = db["pravah-meetings"]            # booked meetings
 webhook_logs_col      = db["pravah-webhook-logs"]         # raw inbound/outbound webhook events, for debugging
+
+webhook_logs_col      = db["pravah-webhook-logs"]         # raw inbound/outbound webhook events, for debugging
+inventory_col         = db["pravah-inventory"]             # real-estate property listings
+site_visits_col       = db["pravah-site-visits"]
 # ----------------------------------
 # Create Indexes
 # ----------------------------------
@@ -114,6 +215,11 @@ try:
     meetings_col.create_index([("status", 1), ("reminder_15_sent", 1), ("reminder_5_sent", 1), ("scheduled_at", 1)])
     meetings_col.create_index("lead_id")
     webhook_logs_col.create_index([("owner_id", 1), ("created_at", -1)])
+    inventory_col.create_index("owner_id")
+    inventory_col.create_index("view_id", unique=True)
+    inventory_col.create_index([("owner_id", 1), ("city", 1)])
+    site_visits_col.create_index("owner_id")
+    site_visits_col.create_index([("owner_id", 1), ("status", 1)])
 except Exception:
     pass
 
@@ -781,6 +887,113 @@ def generate_chat_reply(lead: dict, incoming_message: str, history: list, task_p
     return {"success": True, "message": result["text"]}
 
 
+
+def real_estate_extract(lead, incoming_message, history, known_budget="", known_location=""):
+    """One AI call that both figures out the next action and drafts the reply,
+    for a real-estate owner's WhatsApp bot."""
+    history_text = "\n".join(
+        f"{'Lead' if h.get('direction')=='in' else 'You'}: {h.get('text','')}"
+        for h in history[-10:]
+    )
+    system = (
+        "You are a real-estate sales assistant chatting with a lead over WhatsApp. "
+        "Figure out the next best action and return ONLY valid JSON, no markdown fences, "
+        "in this exact shape: "
+        '{"budget": "extracted budget or empty string", '
+        '"preferred_location": "extracted city/area or empty string", '
+        '"ready_for_recommendations": true or false — true once you know BOTH budget and location and the lead has not yet been shown options, '
+        '"wants_to_book_visit": true or false — true only if the lead has picked a property AND given a date/time to visit, '
+        '"chosen_property_hint": "any property name/number the lead referenced, else empty", '
+        '"visit_date": "date the lead gave for a visit, else empty", '
+        '"visit_time": "time the lead gave for a visit, else empty", '
+        '"reply": "your natural 1-3 sentence WhatsApp reply, warm and concise"}'
+    )
+    user_prompt = (
+        f"Lead: {lead.get('name','')}\n"
+        f"Known so far — budget: {known_budget or '(not yet known)'}, location: {known_location or '(not yet known)'}\n\n"
+        f"Recent conversation:\n{history_text}\n\nLead's latest message: {incoming_message}\n\n"
+        "If budget or location is still missing, your reply should politely ask for whichever is missing "
+        "(ask for both together if neither is known yet). Never invent property details yourself — "
+        "the app will attach real listings separately."
+    )
+    result = _mistral_chat(system, user_prompt, force_json=True)
+    if not result.get("success"):
+        return None
+    return result["data"]
+
+
+def find_matching_properties(owner_id, budget, location, limit=3):
+    query = {"owner_id": owner_id, "status": "active"}
+    if location:
+        query["$or"] = [
+            {"city": {"$regex": re.escape(location), "$options": "i"}},
+            {"area": {"$regex": re.escape(location), "$options": "i"}},
+        ]
+    return list(inventory_col.find(query).limit(limit))
+
+
+def real_estate_chat_reply(owner_id, lead, incoming_message, history):
+    """Real-estate-specific replacement for generate_chat_reply(): asks for
+    budget+location, matches inventory, sends view links, then books a site visit."""
+    known_budget = lead.get("re_budget", "")
+    known_location = lead.get("re_location", "")
+    extracted = real_estate_extract(lead, incoming_message, history, known_budget, known_location)
+    if not extracted:
+        return {"success": False, "error": "AI extraction failed"}
+
+    budget = (extracted.get("budget") or known_budget or "").strip()
+    location = (extracted.get("preferred_location") or known_location or "").strip()
+    slot_update = {}
+    if budget and budget != known_budget: slot_update["re_budget"] = budget
+    if location and location != known_location: slot_update["re_location"] = location
+    if slot_update:
+        leads_col.update_one({"_id": lead["_id"]}, {"$set": slot_update})
+
+    reply_text = (extracted.get("reply") or "").strip()
+
+    # Lead picked a property + gave a date/time -> book the site visit
+    if extracted.get("wants_to_book_visit") and (extracted.get("visit_date") or extracted.get("visit_time")):
+        matched = find_matching_properties(owner_id, budget, location, limit=5)
+        chosen = None
+        hint = (extracted.get("chosen_property_hint") or "").strip().lower()
+        if hint:
+            for m in matched:
+                if hint in (m.get("headline", "") or "").lower():
+                    chosen = m
+                    break
+        if not chosen and matched:
+            chosen = matched[0]
+
+        site_visits_col.insert_one({
+            "owner_id": owner_id,
+            "lead_id": str(lead["_id"]), "lead_name": lead.get("name", ""), "lead_phone": lead.get("phone", ""),
+            "budget": budget, "preferred_location": location,
+            "property_id": str(chosen["_id"]) if chosen else "",
+            "property_headline": chosen.get("headline", "") if chosen else "",
+            "view_url": public_https_url(f"/view/{chosen.get('view_id','')}") if chosen else "",
+            "visit_date": extracted.get("visit_date", ""), "visit_time": extracted.get("visit_time", ""),
+            "status": "new", "created_at": datetime.utcnow(),
+        })
+        reply_text = (reply_text + " " if reply_text else "") + \
+            "Great — our team will call and confirm your site visit shortly! 🏠"
+        return {"success": True, "message": reply_text.strip()}
+
+    # Have both budget & location -> show matching listings
+    if extracted.get("ready_for_recommendations") and budget and location:
+        matched = find_matching_properties(owner_id, budget, location, limit=3)
+        if matched:
+            lines = [reply_text, "", "Here are a few options for you:"]
+            for m in matched:
+                view_url = public_https_url(f"/view/{m.get('view_id','')}")
+                lines.append(f"🏠 {m.get('headline','')} — {m.get('price','')} ({m.get('city','')}) {view_url}")
+            lines.append("")
+            lines.append("Let me know which one you'd like to visit, and your preferred date & time!")
+            return {"success": True, "message": "\n".join(l for l in lines if l is not None)}
+        return {"success": True, "message": (reply_text + " " if reply_text else "") +
+                "I couldn't find a perfect match right now — let me check with the team and get back to you."}
+
+    return {"success": True, "message": reply_text or "Could you share your budget and preferred location?"}
+
 def classify_lead_temperature(lead: dict, incoming_message: str, history: list, current_status: str = "cold") -> str:
     """Asks the AI to classify a lead as cold / warm / hot based on the
     conversation so far. Falls back to the current status on any failure."""
@@ -1333,9 +1546,10 @@ def signup():
             "email_verified": False,
             "plan": {"name": "Free", "credits": 100},
             "integrations": {},
-            "webhook_token": generate_webhook_token(),
+             "webhook_token": generate_webhook_token(),
             "wirebase_webhook_token": generate_webhook_token(),
             "team_rr_index": 0,
+            "category": "",
             "created_at": datetime.utcnow(),
             "last_login": None,
         })
@@ -1694,6 +1908,7 @@ def api_eva_webhook_widget_session_result():
 
     return jsonify({"received": True, "minutes_used": minutes_used})
 
+
 @app.route("/api/me", methods=["GET"])
 @login_required
 def api_me():
@@ -1705,6 +1920,7 @@ def api_me():
         "display_name": session.get("username"),
         "business_name": user.get("business_name", ""),
         "username": user.get("username", ""),
+        "category": user.get("category", ""),
     })
 
 
@@ -2251,6 +2467,172 @@ def api_delete_segment(segment_id):
     leads_col.update_many({"owner_id": current_user_id(), "segment_id": segment_id}, {"$set": {"segment_id": ""}})
     return jsonify({"deleted": True})
 
+
+# ==================================================================
+# REAL ESTATE — INVENTORY API  (owner only)
+# ==================================================================
+
+@app.route("/api/inventory", methods=["GET"])
+@login_required
+@owner_required
+def api_list_inventory():
+    items = list(inventory_col.find({"owner_id": current_user_id(), "status": {"$ne": "deleted"}}).sort("created_at", -1))
+    return jsonify({"inventory": [serialize_inventory(i) for i in items]})
+
+
+@app.route("/api/inventory", methods=["POST"])
+@login_required
+@owner_required
+def api_create_inventory():
+    data = request.get_json(silent=True) or {}
+    city = (data.get("city") or "").strip()
+    headline = (data.get("headline") or "").strip()
+    if not headline:
+        return jsonify({"error": "Headline is required"}), 400
+    if not city:
+        return jsonify({"error": "City is required"}), 400
+    doc = {
+        "owner_id": current_user_id(),
+        "view_id": generate_view_id(),
+        "headline": headline,
+        "description": (data.get("description") or "").strip(),
+        "price": (data.get("price") or "").strip(),
+        "city": city,
+        "area": (data.get("area") or "").strip(),
+        "features": data.get("features") or [],
+        "images": data.get("images") or [],
+        "videos": data.get("videos") or [],
+        "pdf_url": (data.get("pdf_url") or "").strip(),
+        "status": "active",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+    }
+    result = inventory_col.insert_one(doc)
+    return jsonify({"inventory": serialize_inventory(inventory_col.find_one({"_id": result.inserted_id}))}), 201
+
+
+@app.route("/api/inventory/<inv_id>", methods=["PUT", "PATCH"])
+@login_required
+@owner_required
+def api_update_inventory(inv_id):
+    try: oid = ObjectId(inv_id)
+    except InvalidId: return jsonify({"error": "Invalid inventory id"}), 400
+    data = request.get_json(silent=True) or {}
+    update = {"updated_at": datetime.utcnow()}
+    for f in ("headline", "description", "price", "city", "area", "pdf_url"):
+        if f in data: update[f] = (data.get(f) or "").strip()
+    if "status" in data and data["status"] in ("active", "paused", "deleted"):
+        update["status"] = data["status"]
+    if "features" in data: update["features"] = data["features"] or []
+    if "images" in data: update["images"] = data["images"] or []
+    if "videos" in data: update["videos"] = data["videos"] or []
+    result = inventory_col.update_one({"_id": oid, "owner_id": current_user_id()}, {"$set": update})
+    if result.matched_count == 0:
+        return jsonify({"error": "Property not found"}), 404
+    return jsonify({"inventory": serialize_inventory(inventory_col.find_one({"_id": oid}))})
+
+
+@app.route("/api/inventory/<inv_id>", methods=["DELETE"])
+@login_required
+@owner_required
+def api_delete_inventory(inv_id):
+    try: oid = ObjectId(inv_id)
+    except InvalidId: return jsonify({"error": "Invalid inventory id"}), 400
+    result = inventory_col.delete_one({"_id": oid, "owner_id": current_user_id()})
+    if result.deleted_count == 0:
+        return jsonify({"error": "Property not found"}), 404
+    return jsonify({"deleted": True})
+
+
+@app.route("/api/inventory/upload/media", methods=["POST"])
+@login_required
+@owner_required
+def api_upload_inventory_media():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "No file selected"}), 400
+    result = upload_media_to_cloudinary(f)
+    if not result.get("success"):
+        return jsonify({"error": result.get("error", "Upload failed")}), 400
+    return jsonify(result)
+
+
+@app.route("/api/inventory/upload/pdf", methods=["POST"])
+@login_required
+@owner_required
+def api_upload_inventory_pdf():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "No file selected"}), 400
+    result = upload_pdf_to_supabase(f, current_user_id())
+    if not result.get("success"):
+        return jsonify({"error": result.get("error", "Upload failed")}), 400
+    return jsonify(result)
+
+
+# ==================================================================
+# PUBLIC PROPERTY VIEW PAGE  (no auth — public link shared with leads)
+# ==================================================================
+
+@app.route("/view/<view_id>")
+def public_inventory_view(view_id):
+    item = inventory_col.find_one({"view_id": view_id, "status": {"$ne": "deleted"}})
+    if not item:
+        return render_template("inventory_not_found.html"), 404
+    owner = users_col.find_one({"_id": ObjectId(item["owner_id"])}) if item.get("owner_id") else None
+    return render_template(
+        "inventory_view.html",
+        item=serialize_inventory(item),
+        business_name=(owner.get("business_name") or owner.get("username") or "") if owner else "",
+        owner_phone=(owner.get("phone", "") if owner else ""),
+    )
+
+
+# ==================================================================
+# SITE VISITS API  (owner only)
+# ==================================================================
+
+@app.route("/api/site-visits", methods=["GET"])
+@login_required
+@owner_required
+def api_list_site_visits():
+    status = request.args.get("status", "").strip()
+    query = {"owner_id": current_user_id()}
+    if status in SITE_VISIT_STATUSES:
+        query["status"] = status
+    visits = list(site_visits_col.find(query).sort("created_at", -1))
+    return jsonify({"visits": [serialize_site_visit(v) for v in visits]})
+
+
+@app.route("/api/site-visits/unread-count", methods=["GET"])
+@login_required
+@owner_required
+def api_site_visits_unread_count():
+    count = site_visits_col.count_documents({"owner_id": current_user_id(), "status": "new"})
+    return jsonify({"count": count})
+
+
+@app.route("/api/site-visits/<visit_id>/status", methods=["PATCH"])
+@login_required
+@owner_required
+def api_update_site_visit_status(visit_id):
+    try: oid = ObjectId(visit_id)
+    except InvalidId: return jsonify({"error": "Invalid visit id"}), 400
+    data = request.get_json(silent=True) or {}
+    status = (data.get("status") or "").strip()
+    if status not in SITE_VISIT_STATUSES:
+        return jsonify({"error": "Invalid status"}), 400
+    update = {"status": status}
+    if data.get("visit_date"): update["visit_date"] = data["visit_date"]
+    if data.get("visit_time"): update["visit_time"] = data["visit_time"]
+    result = site_visits_col.update_one({"_id": oid, "owner_id": current_user_id()}, {"$set": update})
+    if result.matched_count == 0:
+        return jsonify({"error": "Visit not found"}), 404
+    return jsonify({"updated": True})
 
 # ==================================================================
 # MEETING TEMPLATES API  (owner only)
@@ -2877,6 +3259,7 @@ def api_get_profile():
         "business_type": user.get("business_type", ""),
         "website": user.get("website", ""),
         "address": user.get("address", ""),
+        "category": user.get("category", ""),
         "plan": user.get("plan", {}),
         "editable": is_owner(),
     })
@@ -2891,6 +3274,11 @@ def api_save_profile():
     for field in ("phone", "business_name", "business_type", "website", "address"):
         if field in data:
             update[field] = (data.get(field) or "").strip()
+    if "category" in data:
+        cat = (data.get("category") or "").strip()
+        if cat and cat not in BUSINESS_CATEGORIES:
+            return jsonify({"error": "Invalid category"}), 400
+        update["category"] = cat
     if "email" in data and data["email"]:
         new_email = data["email"].strip().lower()
         clash = users_col.find_one({"email": new_email, "type": "user", "_id": {"$ne": ObjectId(current_user_id())}})
@@ -3565,11 +3953,14 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
         if lead.get("ai_disabled"):
             return
 
-        reply = generate_chat_reply(
-            lead, text, history,
-            task_prompt=lead.get("ai_task_prompt", ""),
-            system_prompt=creds.get("ai_bot_system_prompt") or creds.get("ai_whatsapp_prompt", ""),
-        )
+        if owner.get("category") == "real_estate":
+            reply = real_estate_chat_reply(owner_id, lead, text, history)
+        else:
+            reply = generate_chat_reply(
+                lead, text, history,
+                task_prompt=lead.get("ai_task_prompt", ""),
+                system_prompt=creds.get("ai_bot_system_prompt") or creds.get("ai_whatsapp_prompt", ""),
+            )
         if not reply.get("success"):
             log("WA-INBOUND", f"owner {owner_id}: AI reply generation failed — {reply.get('error')}")
             return
@@ -3684,11 +4075,14 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
         if lead.get("ai_disabled"):
             return
 
-        reply = generate_chat_reply(
-            lead, text, history,
-            task_prompt=lead.get("ai_task_prompt", ""),
-            system_prompt=creds.get("ai_bot_system_prompt") or creds.get("ai_whatsapp_prompt", ""),
-        )
+        if owner.get("category") == "real_estate":
+            reply = real_estate_chat_reply(owner_id, lead, text, history)
+        else:
+            reply = generate_chat_reply(
+                lead, text, history,
+                task_prompt=lead.get("ai_task_prompt", ""),
+                system_prompt=creds.get("ai_bot_system_prompt") or creds.get("ai_whatsapp_prompt", ""),
+            )
         if not reply.get("success"):
             log("WIREBASE-INBOUND", f"owner {owner_id}: AI reply generation failed — {reply.get('error')}")
             log_webhook_event(owner_id, "wirebase", "outbound", "error",

@@ -485,6 +485,15 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
       <span class="nav-icon">🧑‍🤝‍🧑</span> Team
     </a>
 
+    <div class="nav-label" id="nav-label-realestate" style="display:none;">Real Estate</div>
+    <a class="nav-item" href="#" onclick="showPage('inventory', this)" id="nav-inventory" style="display:none;">
+      <span class="nav-icon">🏘️</span> Inventory
+    </a>
+    <a class="nav-item" href="#" onclick="showPage('sitevisits', this)" id="nav-sitevisits" style="display:none;">
+      <span class="nav-icon">📍</span> Site Visits
+      <span class="role-badge" id="sitevisits-badge" style="display:none;background:#dc2626;color:#fff;">0</span>
+    </a>
+
     <div class="nav-label">Automation</div>
 <a class="nav-item" href="#" onclick="showPage('whatsapp-bot', this)" id="nav-whatsapp-bot">
   <span class="nav-icon">🤖</span> WhatsApp Bot
@@ -756,6 +765,30 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
     </div>
 
 
+    <!-- ═══ PAGE: INVENTORY (Real Estate) ═══ -->
+    <div class="page" id="page-inventory">
+      <div class="page-header">
+        <h1>Property Inventory 🏘️</h1>
+        <p>Add listings with photos, videos, and a brochure PDF. Each gets a shareable public view page.</p>
+      </div>
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="openAddInventoryModal()">＋ Add Property</button>
+      </div>
+      <div class="campaigns-grid" id="inventory-grid">
+        <div class="empty-state">No properties yet. Add your first one!</div>
+      </div>
+    </div>
+
+    <!-- ═══ PAGE: SITE VISITS (Real Estate) ═══ -->
+    <div class="page" id="page-sitevisits">
+      <div class="page-header">
+        <h1>Site Visits 📍</h1>
+        <p>Every site visit requested by a lead through WhatsApp shows up here.</p>
+      </div>
+      <div class="campaigns-grid" id="sitevisits-grid">
+        <div class="empty-state">No site visits yet.</div>
+      </div>
+    </div>
 
 
     <!-- ═══ PAGE: PROFILE ═══ -->
@@ -769,6 +802,15 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
           <div class="settings-card-title">🏢 Business Details</div>
           <div class="settings-card-sub" id="profile-readonly-note" style="display:none;">Only the account owner can edit these details.</div>
           <div class="form-row"><label>Business Name</label><input class="form-input" id="p-business-name" /></div>
+          <div class="form-row">
+            <label>Category</label>
+            <select class="form-input" id="p-category" onchange="onCategoryChange()">
+              <option value="">— Select —</option>
+              <option value="real_estate">Real Estate</option>
+              <option value="share_market">Share Market</option>
+              <option value="import_export">Import / Export</option>
+            </select>
+          </div>
           <div class="form-row"><label>Business Type</label><input class="form-input" id="p-business-type" placeholder="e.g. Import/Export Trading" /></div>
           <div class="form-row"><label>Website</label><input class="form-input" id="p-website" placeholder="https://…" /></div>
           <div class="form-row"><label>Address</label><input class="form-input" id="p-address" /></div>
@@ -1189,6 +1231,57 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
     </div>
   </div>
 </div>
+
+
+<!-- Add/Edit Inventory -->
+<div class="modal-overlay" id="inventory-modal">
+  <div class="modal-box wide">
+    <div class="modal-title" id="inventory-modal-title">Add Property</div>
+    <div class="modal-sub">Images/videos upload to Cloudinary, the brochure PDF uploads to Supabase.</div>
+    <div class="form-row"><label>Headline</label><input class="form-input" id="inv-headline" placeholder="3BHK Sea View Apartment" /></div>
+    <div class="form-row"><label>Price</label><input class="form-input" id="inv-price" placeholder="e.g. AED 1,200,000" /></div>
+    <div class="filter-row">
+      <div class="form-row"><label>City *</label><input class="form-input" id="inv-city" placeholder="Dubai" /></div>
+      <div class="form-row"><label>Area / Locality</label><input class="form-input" id="inv-area" placeholder="Downtown" /></div>
+    </div>
+    <div class="form-row"><label>Description</label><textarea class="form-input" id="inv-description" rows="3" style="resize:vertical;"></textarea></div>
+    <div class="form-row"><label>Other Features <span style="color:var(--text-dim);font-size:11px;">(comma separated)</span></label><input class="form-input" id="inv-features" placeholder="Pool, Gym, Parking, Balcony" /></div>
+    <div class="form-row">
+      <label>Images</label>
+      <input type="file" accept="image/*" multiple id="inv-images-file" onchange="uploadInvFiles('inv-images-file','image')" />
+      <div id="inv-images-preview" style="margin-top:6px;"></div>
+    </div>
+    <div class="form-row">
+      <label>Videos</label>
+      <input type="file" accept="video/*" multiple id="inv-videos-file" onchange="uploadInvFiles('inv-videos-file','video')" />
+      <div id="inv-videos-preview" style="margin-top:6px;"></div>
+    </div>
+    <div class="form-row">
+      <label>Brochure / Details PDF</label>
+      <input type="file" accept="application/pdf" id="inv-pdf-file" onchange="uploadInvPdf()" />
+      <div id="inv-pdf-preview" style="margin-top:6px;"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('inventory-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveInventory()">Save Property</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reschedule Site Visit -->
+<div class="modal-overlay" id="sv-reschedule-modal">
+  <div class="modal-box">
+    <div class="modal-title">🔁 Reschedule Site Visit</div>
+    <div class="form-row"><label>New Date</label><input class="form-input" type="date" id="sv-reschedule-date" /></div>
+    <div class="form-row"><label>New Time</label><input class="form-input" type="time" id="sv-reschedule-time" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('sv-reschedule-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmSvReschedule()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
 
 <div id="toast"></div>
 
@@ -1810,20 +1903,32 @@ document.addEventListener("DOMContentLoaded", async () => {
   initRevealAnimations();
 });
 
+
+let myCategory = "";
+
 async function loadMe() {
   try {
     const res = await fetch("/api/me");
     const data = await res.json();
     myRole = data.role || "owner";
+    myCategory = data.category || "";
     if (myRole !== "owner") {
       document.getElementById("nav-team").style.display = "none";
       document.getElementById("nav-settings").style.display = "none";
       document.getElementById("nav-whatsapp-bot").style.display = "none";
       document.getElementById("sidebar-role-label").textContent = "Team Member";
     }
+    if (myRole === "owner" && myCategory === "real_estate") {
+      document.getElementById("nav-label-realestate").style.display = "block";
+      document.getElementById("nav-inventory").style.display = "flex";
+      document.getElementById("nav-sitevisits").style.display = "flex";
+      loadSiteVisitsBadge();
+      setInterval(loadSiteVisitsBadge, 30000);
+    }
   } catch { /* default owner view */ }
 }
 
+function onCategoryChange() { /* visibility refreshed after Save via loadMe() */ }
 
 /* ════════════════════════════════════════════════
    PAGE ROUTING
@@ -1838,6 +1943,8 @@ function showPage(name, navEl) {
   if (name === 'team') loadTeam();
   if (name === 'dashboard') loadDashboardStats();
   if (name === 'profile') loadProfile();
+  if (name === 'inventory') loadInventory();
+  if (name === 'sitevisits') { loadSiteVisits(); loadSiteVisitsBadge(); }
   if (name === 'whatsapp-bot') { loadWhatsappBot(); loadInbox(); loadWebhookLogs(); startWlogPolling(); }
   else { stopWlogPolling(); }
   initRevealAnimations();
@@ -2648,6 +2755,7 @@ async function loadProfile() {
     const res = await fetch("/api/profile");
     const data = await res.json();
     document.getElementById("p-business-name").value = data.business_name || "";
+    document.getElementById("p-category").value = data.category || "";
     document.getElementById("p-business-type").value = data.business_type || "";
     document.getElementById("p-website").value        = data.website || "";
     document.getElementById("p-address").value        = data.address || "";
@@ -2666,6 +2774,7 @@ async function loadProfile() {
 async function saveProfile() {
   const payload = {
     business_name: document.getElementById("p-business-name").value.trim(),
+    category: document.getElementById("p-category").value,
     business_type: document.getElementById("p-business-type").value.trim(),
     website: document.getElementById("p-website").value.trim(),
     address: document.getElementById("p-address").value.trim(),
@@ -2680,6 +2789,7 @@ async function saveProfile() {
     if (!res.ok) throw new Error(data.error || "Save failed");
     showToast("Profile saved ✓", "success");
     document.getElementById("p-password").value = "";
+    await loadMe();
   } catch(err) { showToast(err.message, "error"); }
 }
 
@@ -2946,6 +3056,238 @@ function stopWlogPolling() {
 function onWlogAutoRefreshToggle() {
   const cb = document.getElementById("wlog-autorefresh");
   if (cb && cb.checked) startWlogPolling(); else stopWlogPolling();
+}
+
+
+
+/* ════════════════════════════════════════════════
+   INVENTORY (Real Estate)
+════════════════════════════════════════════════ */
+let inventoryItems = [];
+let editingInventoryId = null;
+window._invImages = []; window._invVideos = []; window._invPdf = "";
+
+async function loadInventory() {
+  try {
+    const res = await fetch("/api/inventory");
+    const data = await res.json();
+    inventoryItems = data.inventory;
+    renderInventory();
+  } catch { showToast("Could not load inventory", "error"); }
+}
+
+function renderInventory() {
+  const grid = document.getElementById("inventory-grid");
+  if (!inventoryItems.length) { grid.innerHTML = `<div class="empty-state">No properties yet. Add your first one!</div>`; return; }
+  grid.innerHTML = inventoryItems.map(i => `
+    <div class="campaign-card">
+      <div class="camp-header">
+        <div class="camp-name">${esc(i.headline)}</div>
+        <span class="badge badge-active">${esc(i.status)}</span>
+      </div>
+      <div class="camp-desc">📍 ${esc(i.city)}${i.area?', '+esc(i.area):''} &nbsp; 💰 ${esc(i.price||'—')}</div>
+      <div class="camp-desc">${esc((i.description||'').slice(0,120))}</div>
+      <div class="camp-meta">
+        <span class="camp-stat">🖼 ${i.images.length} photos</span>
+        <span class="camp-stat">🎬 ${i.videos.length} videos</span>
+        <span class="camp-stat">${i.pdf_url ? "📄 Brochure attached" : "📄 No brochure"}</span>
+      </div>
+      <div class="camp-actions">
+        <a class="btn btn-ghost btn-sm" href="${i.view_url}" target="_blank">👁 View</a>
+        <button class="btn btn-ghost btn-sm" onclick="openEditInventory('${i._id}')">✏️ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteInventory('${i._id}')">🗑 Delete</button>
+      </div>
+    </div>`).join("");
+}
+
+function openAddInventoryModal() {
+  editingInventoryId = null;
+  ["inv-headline","inv-price","inv-city","inv-area","inv-description","inv-features"].forEach(id=>document.getElementById(id).value="");
+  window._invImages = []; window._invVideos = []; window._invPdf = "";
+  renderMediaPreviews();
+  document.getElementById("inventory-modal-title").textContent = "Add Property";
+  document.getElementById("inventory-modal").classList.add("open");
+}
+
+function openEditInventory(id) {
+  const item = inventoryItems.find(i=>i._id===id);
+  if (!item) return;
+  editingInventoryId = id;
+  document.getElementById("inv-headline").value = item.headline;
+  document.getElementById("inv-price").value = item.price;
+  document.getElementById("inv-city").value = item.city;
+  document.getElementById("inv-area").value = item.area;
+  document.getElementById("inv-description").value = item.description;
+  document.getElementById("inv-features").value = (item.features||[]).join(", ");
+  window._invImages = [...(item.images||[])];
+  window._invVideos = [...(item.videos||[])];
+  window._invPdf = item.pdf_url || "";
+  renderMediaPreviews();
+  document.getElementById("inventory-modal-title").textContent = "Edit Property";
+  document.getElementById("inventory-modal").classList.add("open");
+}
+
+function renderMediaPreviews() {
+  document.getElementById("inv-images-preview").innerHTML = (window._invImages||[]).map((u,idx)=>
+    `<span class="badge badge-active" style="margin:2px;display:inline-flex;gap:4px;">Image ${idx+1} <span style="cursor:pointer;" onclick="removeInvMedia('image',${idx})">✕</span></span>`).join("");
+  document.getElementById("inv-videos-preview").innerHTML = (window._invVideos||[]).map((u,idx)=>
+    `<span class="badge badge-active" style="margin:2px;display:inline-flex;gap:4px;">Video ${idx+1} <span style="cursor:pointer;" onclick="removeInvMedia('video',${idx})">✕</span></span>`).join("");
+  document.getElementById("inv-pdf-preview").innerHTML = window._invPdf
+    ? `<span class="badge badge-active" style="display:inline-flex;gap:4px;">Brochure attached <span style="cursor:pointer;" onclick="window._invPdf='';renderMediaPreviews();">✕</span></span>` : "";
+}
+function removeInvMedia(type, idx) {
+  if (type === 'image') window._invImages.splice(idx,1); else window._invVideos.splice(idx,1);
+  renderMediaPreviews();
+}
+
+async function uploadInvFiles(inputId, resourceType) {
+  const input = document.getElementById(inputId);
+  if (!input.files.length) return;
+  showToast("Uploading…");
+  for (const f of input.files) {
+    const fd = new FormData(); fd.append("file", f);
+    try {
+      const res = await fetch("/api/inventory/upload/media", {method:"POST", body: fd});
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      if (resourceType === "video") window._invVideos.push(data.url); else window._invImages.push(data.url);
+    } catch(err) { showToast(err.message, "error"); }
+  }
+  input.value = "";
+  renderMediaPreviews();
+  showToast("Uploaded ✓", "success");
+}
+
+async function uploadInvPdf() {
+  const input = document.getElementById("inv-pdf-file");
+  if (!input.files.length) return;
+  const fd = new FormData(); fd.append("file", input.files[0]);
+  showToast("Uploading PDF…");
+  try {
+    const res = await fetch("/api/inventory/upload/pdf", {method:"POST", body: fd});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Upload failed");
+    window._invPdf = data.url;
+    renderMediaPreviews();
+    showToast("PDF uploaded ✓", "success");
+  } catch(err) { showToast(err.message, "error"); }
+  input.value = "";
+}
+
+async function saveInventory() {
+  const payload = {
+    headline: document.getElementById("inv-headline").value.trim(),
+    price: document.getElementById("inv-price").value.trim(),
+    city: document.getElementById("inv-city").value.trim(),
+    area: document.getElementById("inv-area").value.trim(),
+    description: document.getElementById("inv-description").value.trim(),
+    features: document.getElementById("inv-features").value.split(",").map(s=>s.trim()).filter(Boolean),
+    images: window._invImages || [],
+    videos: window._invVideos || [],
+    pdf_url: window._invPdf || "",
+  };
+  if (!payload.headline) { showToast("Headline is required", "error"); return; }
+  if (!payload.city) { showToast("City is required", "error"); return; }
+  try {
+    const url = editingInventoryId ? `/api/inventory/${editingInventoryId}` : "/api/inventory";
+    const method = editingInventoryId ? "PATCH" : "POST";
+    const res = await fetch(url, {method, headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Save failed");
+    closeModal("inventory-modal");
+    showToast("Property saved ✓", "success");
+    loadInventory();
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+async function deleteInventory(id) {
+  if (!confirm("Delete this property listing? Its public view link will stop working.")) return;
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {method:"DELETE"});
+    if (!res.ok) throw new Error();
+    showToast("Property deleted");
+    loadInventory();
+  } catch { showToast("Could not delete property", "error"); }
+}
+
+/* ════════════════════════════════════════════════
+   SITE VISITS (Real Estate)
+════════════════════════════════════════════════ */
+let siteVisits = [];
+let rescheduleVisitId = null;
+const SV_STATUS_LABEL = {new:"🆕 New", read:"👁 Read", confirmed:"✅ Confirmed", done:"🏁 Done", won:"🏆 Won", lost:"❌ Lost", rescheduled:"🔁 Rescheduled"};
+
+async function loadSiteVisits() {
+  try {
+    const res = await fetch("/api/site-visits");
+    const data = await res.json();
+    siteVisits = data.visits;
+    renderSiteVisits();
+  } catch { showToast("Could not load site visits", "error"); }
+}
+
+async function loadSiteVisitsBadge() {
+  try {
+    const res = await fetch("/api/site-visits/unread-count");
+    const data = await res.json();
+    const badge = document.getElementById("sitevisits-badge");
+    if (!badge) return;
+    if (data.count > 0) { badge.style.display = "inline-block"; badge.textContent = data.count; }
+    else badge.style.display = "none";
+  } catch { /* silent */ }
+}
+
+function renderSiteVisits() {
+  const grid = document.getElementById("sitevisits-grid");
+  if (!siteVisits.length) { grid.innerHTML = `<div class="empty-state">No site visits yet.</div>`; return; }
+  grid.innerHTML = siteVisits.map(v => `
+    <div class="campaign-card">
+      <div class="camp-header">
+        <div class="camp-name">${esc(v.lead_name||"Lead")}</div>
+        <span class="badge badge-active">${SV_STATUS_LABEL[v.status]||v.status}</span>
+      </div>
+      <div class="camp-desc">📞 ${esc(v.lead_phone||"—")}</div>
+      <div class="camp-desc">💰 ${esc(v.budget||"—")} &nbsp; 📍 ${esc(v.preferred_location||"—")}</div>
+      <div class="camp-desc">🏠 ${esc(v.property_headline||"—")} ${v.view_url ? `— <a href="${v.view_url}" target="_blank">view link</a>` : ""}</div>
+      <div class="camp-desc">🗓 ${esc(v.visit_date||"—")} ${esc(v.visit_time||"")}</div>
+      <div class="camp-actions">
+        <button class="btn btn-ghost btn-sm" onclick="updateSiteVisitStatus('${v._id}','read')">👁 Mark Read</button>
+        <button class="btn btn-ghost btn-sm" onclick="updateSiteVisitStatus('${v._id}','confirmed')">✅ Confirm</button>
+        <button class="btn btn-ghost btn-sm" onclick="updateSiteVisitStatus('${v._id}','done')">🏁 Visit Done</button>
+        <button class="btn btn-primary btn-sm" onclick="updateSiteVisitStatus('${v._id}','won')">🏆 Won</button>
+        <button class="btn btn-danger btn-sm" onclick="updateSiteVisitStatus('${v._id}','lost')">❌ Lost</button>
+        <button class="btn btn-ghost btn-sm" onclick="openRescheduleVisit('${v._id}')">🔁 Reschedule</button>
+      </div>
+    </div>`).join("");
+}
+
+async function updateSiteVisitStatus(id, status) {
+  try {
+    const res = await fetch(`/api/site-visits/${id}/status`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({status})});
+    if (!res.ok) throw new Error();
+    loadSiteVisits(); loadSiteVisitsBadge();
+  } catch { showToast("Could not update visit", "error"); }
+}
+function openRescheduleVisit(id) {
+  rescheduleVisitId = id;
+  document.getElementById("sv-reschedule-date").value = "";
+  document.getElementById("sv-reschedule-time").value = "";
+  document.getElementById("sv-reschedule-modal").classList.add("open");
+}
+async function confirmSvReschedule() {
+  const visit_date = document.getElementById("sv-reschedule-date").value;
+  const visit_time = document.getElementById("sv-reschedule-time").value;
+  if (!visit_date) { showToast("Pick a date", "error"); return; }
+  try {
+    const res = await fetch(`/api/site-visits/${rescheduleVisitId}/status`, {
+      method:"PATCH", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({status:"rescheduled", visit_date, visit_time})
+    });
+    if (!res.ok) throw new Error();
+    closeModal("sv-reschedule-modal");
+    loadSiteVisits();
+    showToast("Rescheduled ✓", "success");
+  } catch { showToast("Could not reschedule", "error"); }
 }
 
 /* ════════════════════════════════════════════════

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ item.headline }} — {{ business_name }}</title>
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background:#0f172a; color:#0f172a; }
+  .hero { position:relative; height: 58vh; min-height:340px; background:#1e293b; overflow:hidden; }
+  .hero img { width:100%; height:100%; object-fit:cover; }
+  .hero-overlay { position:absolute; inset:0; background:linear-gradient(to top, rgba(15,23,42,0.92), rgba(15,23,42,0.15)); display:flex; align-items:flex-end; padding:32px; }
+  .hero-title { color:#fff; }
+  .hero-title h1 { font-size:28px; font-weight:800; margin-bottom:6px; }
+  .hero-title .loc { font-size:14px; opacity:.85; }
+  .price-badge { display:inline-block; background:#2563eb; color:#fff; font-weight:700; padding:6px 14px; border-radius:99px; margin-top:10px; font-size:15px; }
+  .wrap { max-width: 920px; margin: -40px auto 60px; background:#fff; border-radius:18px; box-shadow:0 20px 50px rgba(0,0,0,.25); padding:32px; position:relative; }
+  .section { margin-bottom:28px; }
+  .section h2 { font-size:17px; margin-bottom:10px; color:#0f172a; }
+  .desc { font-size:14.5px; line-height:1.7; color:#334155; white-space:pre-wrap; }
+  .gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; }
+  .gallery img { width:100%; height:130px; object-fit:cover; border-radius:10px; cursor:pointer; }
+  video { width:100%; border-radius:10px; margin-bottom:10px; background:#000; }
+  .features { display:flex; flex-wrap:wrap; gap:8px; }
+  .feature-chip { background:#eef2f9; color:#1d4ed8; font-size:12.5px; font-weight:600; padding:6px 12px; border-radius:99px; }
+  .pdf-btn, .contact-btn { display:inline-flex; align-items:center; gap:8px; background:#2563eb; color:#fff; text-decoration:none; padding:12px 20px; border-radius:10px; font-weight:700; font-size:14px; }
+  .footer-note { text-align:center; color:#94a3b8; font-size:12px; margin-top:30px; }
+  .lightbox { display:none; position:fixed; inset:0; background:rgba(0,0,0,.9); z-index:999; align-items:center; justify-content:center; padding:20px; }
+  .lightbox.open { display:flex; }
+  .lightbox img { max-width:100%; max-height:90vh; border-radius:8px; }
+</style>
+</head>
+<body>
+  <div class="hero">
+    {% if item.images and item.images|length > 0 %}
+      <img src="{{ item.images[0] }}" alt="{{ item.headline }}" />
+    {% endif %}
+    <div class="hero-overlay">
+      <div class="hero-title">
+        <h1>{{ item.headline }}</h1>
+        <div class="loc">📍 {{ item.city }}{% if item.area %}, {{ item.area }}{% endif %}</div>
+        {% if item.price %}<div class="price-badge">{{ item.price }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    {% if item.description %}
+    <div class="section">
+      <h2>About this property</h2>
+      <div class="desc">{{ item.description }}</div>
+    </div>
+    {% endif %}
+
+    {% if item.features and item.features|length > 0 %}
+    <div class="section">
+      <h2>Features</h2>
+      <div class="features">
+        {% for f in item.features %}<span class="feature-chip">✓ {{ f }}</span>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if item.images and item.images|length > 0 %}
+    <div class="section">
+      <h2>Photos</h2>
+      <div class="gallery">
+        {% for img in item.images %}
+          <img src="{{ img }}" onclick="openLightbox('{{ img }}')" />
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if item.videos and item.videos|length > 0 %}
+    <div class="section">
+      <h2>Video Walkthrough</h2>
+      {% for v in item.videos %}
+        <video controls src="{{ v }}"></video>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="section" style="display:flex; gap:12px; flex-wrap:wrap;">
+      {% if item.pdf_url %}
+        <a class="pdf-btn" href="{{ item.pdf_url }}" target="_blank">📄 View Brochure / Details PDF</a>
+      {% endif %}
+      {% if owner_phone %}
+        <a class="contact-btn" href="https://wa.me/{{ owner_phone }}" target="_blank">💬 Chat on WhatsApp</a>
+      {% endif %}
+    </div>
+
+    <div class="footer-note">Listed by {{ business_name or "PravaahAI" }}</div>
+  </div>
+
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <img id="lightbox-img" src="" />
+  </div>
+  <script>
+    function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox').classList.add('open'); }
+    function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+  </script>
+</body>
+</html>
