@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pricing — PravahAI | AI Sales & Automation Platform</title>
+<meta name="description" content="Simple, transparent pricing for PravahAI — automate WhatsApp, Email, Voice and Lead Qualification from one platform.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+    --ink:#10182b;
+    --muted:#6b7688;
+    --faint:#a6afbd;
+    --paper:#f5f7fb;
+    --card:#ffffff;
+    --line:rgba(16,24,43,.08);
+    --accent-1:#155eef;
+    --accent-2:#00b8d9;
+    --accent-3:#22c55e;
+    --dark:#0b1220;
+    --dark-card:#141c2e;
+    --dark-line:rgba(255,255,255,.08);
+    --shadow-sm:0 1px 2px rgba(16,24,40,.04);
+    --shadow-lg:0 24px 48px -16px rgba(16,24,40,.16);
+    --ease:cubic-bezier(.22,1,.36,1);
+    --container:1180px;
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+body{
+    font-family:'Manrope',sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+}
+img{max-width:100%; display:block;}
+a{color:inherit;}
+.wrap{ max-width:var(--container); margin:0 auto; padding:0 28px; }
+h1,h2,h3{ font-family:'Fraunces',serif; font-weight:600; letter-spacing:-.01em; }
+section{ position:relative; }
+.eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:12.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent-1); margin-bottom:14px;
+}
+.eyebrow::before{ content:""; width:16px; height:1.5px; background:var(--accent-1); }
+
+/* ---------- loader ---------- */
+.loader{
+    position:fixed; inset:0; z-index:999; background:var(--dark);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px;
+    transition:opacity .6s var(--ease), visibility .6s var(--ease);
+}
+.loader.hide{ opacity:0; visibility:hidden; pointer-events:none; }
+.loader-mark{ display:flex; gap:10px; }
+.loader-dot{
+    width:13px; height:13px; border-radius:50%;
+    background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+    animation:loader-bounce 1.1s var(--ease) infinite;
+}
+.loader-dot:nth-child(2){ animation-delay:.12s; }
+.loader-dot:nth-child(3){ animation-delay:.24s; }
+.loader-dot:nth-child(4){ animation-delay:.36s; }
+@keyframes loader-bounce{
+    0%,80%,100%{ transform:translateY(0) scale(.85); opacity:.5; }
+    40%{ transform:translateY(-14px) scale(1); opacity:1; }
+}
+.loader-text{ font-family:'Fraunces',serif; font-style:italic; color:rgba(255,255,255,.65); font-size:14.5px; letter-spacing:.01em; }
+.loader-bar{ width:180px; height:2px; background:rgba(255,255,255,.1); border-radius:2px; overflow:hidden; }
+.loader-bar span{ display:block; height:100%; width:0%; background:linear-gradient(120deg,var(--accent-1),var(--accent-2)); animation:loader-fill 1.4s var(--ease) forwards; }
+@keyframes loader-fill{ to{ width:100%; } }
+
+/* ---------- reveal on scroll ---------- */
+.reveal{ opacity:0; transform:translateY(28px); transition:opacity .8s var(--ease), transform .8s var(--ease); }
+.reveal.visible{ opacity:1; transform:translateY(0); }
+.stagger.visible > *{ transition-delay:calc(var(--i,0) * 90ms); }
+
+/* ---------- nav ---------- */
+.nav{
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    padding:20px 0;
+    transition:background .35s var(--ease), box-shadow .35s var(--ease), padding .35s var(--ease), border-color .35s var(--ease);
+    border-bottom:1px solid transparent;
+}
+.nav.scrolled{
+    background:rgba(245,247,251,.82);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    padding:14px 0;
+    border-bottom:1px solid var(--line);
+    box-shadow:var(--shadow-sm);
+}
+.nav .wrap{ display:flex; align-items:center; justify-content:space-between; }
+.brand{ display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:600; font-size:20px; text-decoration:none; color:var(--ink); }
+.brand .mark{ width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); display:flex; align-items:center; justify-content:center; }
+.brand .mark svg{ width:16px; height:16px; stroke:#fff; }
+.brand em{ font-style:italic; font-weight:500; color:var(--accent-1); }
+.nav-links{ display:flex; align-items:center; gap:36px; list-style:none; }
+.nav-links a{ text-decoration:none; font-size:14.5px; font-weight:600; color:var(--muted); position:relative; padding:4px 0; transition:color .2s; cursor:pointer; }
+.nav-links a::after{ content:""; position:absolute; left:0; bottom:0; width:100%; height:1.5px; background:var(--accent-1); transform:scaleX(0); transform-origin:left; transition:transform .25s var(--ease); }
+.nav-links a:hover{ color:var(--ink); }
+.nav-links a:hover::after{ transform:scaleX(1); }
+.nav-cta{ display:flex; align-items:center; gap:14px; }
+.btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    font-family:'Manrope',sans-serif; font-weight:700; font-size:14.5px;
+    padding:11px 22px; border-radius:11px; text-decoration:none; cursor:pointer; border:none;
+    transition:transform .18s var(--ease), box-shadow .25s var(--ease), background .25s var(--ease);
+    white-space:nowrap;
+}
+.btn-ghost{ color:var(--ink); background:transparent; border:1.5px solid var(--line); }
+.btn-ghost:hover{ border-color:var(--accent-1); color:var(--accent-1); }
+.btn-primary{
+    position:relative; overflow:hidden;
+    color:#fff; background:linear-gradient(120deg, var(--accent-1), var(--accent-2));
+    box-shadow:0 8px 20px -8px rgba(21,94,239,.5);
+}
+.btn-primary::after{
+    content:""; position:absolute; top:0; left:-60%; width:40%; height:100%;
+    background:linear-gradient(120deg, transparent, rgba(255,255,255,.35), transparent);
+    transform:skewX(-20deg); transition:left .55s var(--ease);
+}
+.btn-primary:hover::after{ left:130%; }
+.btn-primary:hover{ transform:translateY(-2px); box-shadow:0 14px 28px -8px rgba(21,94,239,.58); }
+.btn-primary:active{ transform:translateY(0) scale(.98); }
+.btn-lg{ padding:15px 28px; font-size:15.5px; border-radius:12px; }
+.btn-block{ width:100%; }
+.btn:focus-visible, a:focus-visible, input:focus-visible, .plan-tab:focus-visible, .faq-q:focus-visible{ outline:2px solid var(--accent-1); outline-offset:3px; }
+
+.burger{ display:none; flex-direction:column; gap:5px; background:none; border:none; cursor:pointer; padding:6px; }
+.burger span{ width:22px; height:2px; background:var(--ink); border-radius:2px; transition:transform .3s var(--ease), opacity .3s; }
+.burger.open span:nth-child(1){ transform:translateY(7px) rotate(45deg); }
+.burger.open span:nth-child(2){ opacity:0; }
+.burger.open span:nth-child(3){ transform:translateY(-7px) rotate(-45deg); }
+.mobile-menu{
+    display:none; position:fixed; inset:0; z-index:99; background:var(--paper);
+    flex-direction:column; align-items:center; justify-content:center; gap:28px;
+    opacity:0; visibility:hidden; transition:opacity .3s var(--ease);
+}
+.mobile-menu.open{ display:flex; opacity:1; visibility:visible; }
+.mobile-menu a{ font-family:'Fraunces',serif; font-size:26px; text-decoration:none; color:var(--ink); }
+
+/* ---------- pricing hero ---------- */
+.pricing-hero{ padding:168px 0 70px; overflow:hidden; text-align:center; }
+.pricing-hero .wrap{ max-width:760px; }
+.pricing-hero h1{ font-size:clamp(36px,5.4vw,58px); line-height:1.1; margin-bottom:20px; }
+.pricing-hero h1 .flow-word{ font-style:italic; font-weight:500; background:linear-gradient(120deg,var(--accent-1),var(--accent-2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.pricing-hero p.lead{ font-size:17.5px; color:var(--muted); line-height:1.65; max-width:560px; margin:0 auto 30px; }
+.hero-stats-strip{ display:flex; justify-content:center; gap:44px; flex-wrap:wrap; margin-top:44px; }
+.hero-stats-strip div{ text-align:center; }
+.hero-stats-strip strong{ display:block; font-family:'Fraunces',serif; font-size:30px; font-weight:600;
+    background:linear-gradient(120deg,var(--accent-1),var(--accent-2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero-stats-strip span{ font-size:12.5px; color:var(--muted); font-weight:600; letter-spacing:.02em; }
+
+/* billing meta note pill */
+.inr-pill{
+    display:inline-flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line);
+    padding:8px 16px; border-radius:100px; font-size:13px; font-weight:700; color:var(--muted); box-shadow:var(--shadow-sm);
+}
+.inr-pill .dot{ width:7px; height:7px; border-radius:50%; background:var(--accent-3); box-shadow:0 0 0 3px rgba(34,197,94,.18); animation:pulse-dot 1.8s infinite; }
+@keyframes pulse-dot{ 0%,100%{ box-shadow:0 0 0 3px rgba(34,197,94,.18);} 50%{ box-shadow:0 0 0 6px rgba(34,197,94,.1);} }
+
+/* ---------- section shell ---------- */
+.section{ padding:100px 0; }
+.section-head{ max-width:640px; margin-bottom:52px; }
+.section-head h2{ font-size:clamp(28px,3.4vw,40px); line-height:1.15; margin-bottom:16px; }
+.section-head p{ color:var(--muted); font-size:16.5px; line-height:1.65; }
+.section-head.center{ margin-left:auto; margin-right:auto; text-align:center; }
+
+/* ---------- pricing cards ---------- */
+.pricing-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:22px; align-items:stretch; }
+.price-card{
+    background:var(--card); border:1.5px solid var(--line); border-radius:20px; padding:32px 26px;
+    display:flex; flex-direction:column; transition:transform .35s var(--ease), box-shadow .35s var(--ease), border-color .35s var(--ease);
+    position:relative; will-change:transform;
+}
+.price-card:hover{ box-shadow:var(--shadow-lg); border-color:rgba(21,94,239,.22); }
+.price-card.featured{ border-color:var(--accent-1); background:linear-gradient(180deg, #fff, #f5f9ff); }
+.price-card.enterprise{ background:var(--dark); border-color:var(--dark-line); color:#fff; }
+.price-card.enterprise .desc{ color:rgba(255,255,255,.55); }
+.price-card.enterprise .price{ color:#fff; }
+.price-card.enterprise li{ border-bottom-color:var(--dark-line); }
+.price-card.enterprise li svg{ stroke:var(--accent-2); }
+.price-card.enterprise .plan{ color:rgba(255,255,255,.55); }
+.price-card.enterprise .rate-note{ color:rgba(255,255,255,.45); }
+.price-badge{ position:absolute; top:-13px; left:50%; transform:translateX(-50%); background:linear-gradient(120deg,var(--accent-1),var(--accent-2)); color:#fff; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:6px 15px; border-radius:20px; white-space:nowrap; box-shadow:0 8px 18px -6px rgba(21,94,239,.55); }
+.price-card .plan{ font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:16px; }
+.price-card .price{ font-family:'Fraunces',serif; font-size:38px; margin-bottom:4px; display:flex; align-items:baseline; gap:4px; }
+.price-card .price small{ font-family:'Manrope',sans-serif; font-size:17px; font-weight:700; color:var(--faint); }
+.price-card .price span{ font-family:'Manrope',sans-serif; font-size:13.5px; color:var(--muted); font-weight:600; }
+.price-card .desc{ color:var(--muted); font-size:13.5px; margin-bottom:22px; line-height:1.55; min-height:40px; }
+.price-card ul{ list-style:none; margin-bottom:24px; flex:1; }
+.price-card li{ display:flex; align-items:flex-start; gap:9px; font-size:13.8px; padding:8.5px 0; border-bottom:1px dashed var(--line); line-height:1.4; }
+.price-card li svg{ width:15px; height:15px; stroke:var(--accent-1); flex-shrink:0; margin-top:1px; }
+.rate-note{ font-size:11.5px; color:var(--faint); margin-top:14px; text-align:center; }
+
+/* ---------- toggle: view mode ---------- */
+.view-toggle{ display:flex; justify-content:center; margin-bottom:44px; }
+.view-toggle-inner{ display:inline-flex; background:var(--card); border:1px solid var(--line); border-radius:100px; padding:5px; box-shadow:var(--shadow-sm); }
+.view-toggle button{
+    border:none; background:transparent; padding:10px 22px; border-radius:100px; font-family:'Manrope',sans-serif;
+    font-size:13.5px; font-weight:700; color:var(--muted); cursor:pointer; transition:color .25s var(--ease); position:relative; z-index:1;
+}
+.view-toggle button.active{ color:#fff; }
+.view-toggle-inner{ position:relative; }
+.view-toggle-glider{ position:absolute; top:5px; bottom:5px; left:5px; width:calc(50% - 5px); background:linear-gradient(120deg,var(--accent-1),var(--accent-2)); border-radius:100px; transition:transform .35s var(--ease); z-index:0; }
+
+/* ---------- calculator (signature element) ---------- */
+.calc-section{ background:var(--dark); color:#fff; padding:110px 0; overflow:hidden; }
+.calc-section .section-head p{ color:rgba(255,255,255,.55); }
+.calc-section .section-head h2{ color:#fff; }
+.calc-shell{
+    background:var(--dark-card); border:1px solid var(--dark-line); border-radius:22px; padding:40px;
+    display:grid; grid-template-columns:.85fr 1.15fr; gap:46px; align-items:center;
+}
+.calc-left h3{ color:#fff; font-size:20px; margin-bottom:10px; }
+.calc-left p{ color:rgba(255,255,255,.55); font-size:14px; line-height:1.65; margin-bottom:26px; }
+.calc-slider-wrap{ margin-bottom:10px; }
+.calc-slider-label{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; }
+.calc-slider-label span{ font-size:12.5px; color:rgba(255,255,255,.5); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.calc-slider-label strong{ font-family:'Fraunces',serif; font-size:26px; color:var(--accent-2); font-weight:600; }
+input[type="range"]{
+    -webkit-appearance:none; width:100%; height:5px; border-radius:4px; background:rgba(255,255,255,.12); outline:none; cursor:pointer;
+}
+input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:20px; height:20px; border-radius:50%; background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+    border:3px solid #fff; box-shadow:0 4px 12px rgba(0,0,0,.35); cursor:pointer; transition:transform .2s var(--ease);
+}
+input[type="range"]::-webkit-slider-thumb:hover{ transform:scale(1.15); }
+input[type="range"]::-moz-range-thumb{ width:20px; height:20px; border-radius:50%; background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); border:3px solid #fff; cursor:pointer; }
+.calc-marks{ display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:rgba(255,255,255,.35); }
+.calc-hint{ margin-top:22px; font-size:12.5px; color:rgba(255,255,255,.4); display:flex; gap:8px; align-items:flex-start; line-height:1.5; }
+.calc-hint svg{ width:15px; height:15px; stroke:var(--accent-2); flex-shrink:0; margin-top:2px; }
+
+.calc-bars{ display:flex; flex-direction:column; gap:16px; }
+.calc-bar-row{ display:grid; grid-template-columns:100px 1fr 108px; align-items:center; gap:14px; }
+.calc-bar-name{ font-size:13.5px; font-weight:700; color:rgba(255,255,255,.7); }
+.calc-bar-track{ height:34px; border-radius:9px; background:rgba(255,255,255,.06); overflow:hidden; position:relative; }
+.calc-bar-fill{ height:100%; border-radius:9px; background:linear-gradient(90deg, var(--accent-1), var(--accent-2)); width:10%; transition:width .5s var(--ease), background .3s var(--ease); }
+.calc-bar-row.best .calc-bar-fill{ background:linear-gradient(90deg, #22c55e, #00b8d9); }
+.calc-bar-row.best .calc-bar-name{ color:#fff; }
+.calc-bar-row.best .calc-bar-name::after{ content:"BEST VALUE"; display:block; font-size:9px; letter-spacing:.05em; color:var(--accent-3); font-weight:800; margin-top:2px; }
+.calc-bar-total{ font-family:'Fraunces',serif; font-size:16.5px; text-align:right; color:#fff; font-weight:600; }
+.calc-bar-total small{ display:block; font-family:'Manrope',sans-serif; font-size:10.5px; color:rgba(255,255,255,.35); font-weight:600; }
+
+/* ---------- comparison table ---------- */
+.compare-section{ background:var(--card); }
+.table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow-sm); background:#fff; }
+table.compare{ width:100%; border-collapse:collapse; min-width:760px; }
+table.compare thead th{
+    text-align:left; padding:20px 22px; font-size:12px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--muted);
+    border-bottom:1.5px solid var(--line); background:var(--paper); position:sticky; top:0;
+}
+table.compare thead th:first-child{ border-top-left-radius:18px; }
+table.compare thead th:last-child{ border-top-right-radius:18px; }
+table.compare thead th.hl{ color:var(--accent-1); }
+table.compare tbody td{ padding:15px 22px; font-size:14px; border-bottom:1px solid var(--line); color:var(--ink); }
+table.compare tbody td:first-child{ color:var(--muted); font-weight:700; font-size:13px; }
+table.compare tbody tr:last-child td{ border-bottom:none; }
+table.compare tbody tr{ transition:background .2s var(--ease); }
+table.compare tbody tr:hover{ background:var(--paper); }
+table.compare td.hl{ background:rgba(21,94,239,.035); }
+table.compare svg.yes{ width:17px; height:17px; stroke:var(--accent-3); }
+table.compare .no{ color:var(--faint); }
+
+/* ---------- meta callout ---------- */
+.meta-callout{
+    display:flex; gap:20px; align-items:flex-start; background:linear-gradient(120deg, rgba(21,94,239,.05), rgba(0,184,217,.05));
+    border:1px solid rgba(21,94,239,.15); border-radius:18px; padding:28px 30px; margin-top:40px;
+}
+.meta-callout .icon{ width:44px; height:44px; border-radius:12px; background:#fff; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:var(--shadow-sm); }
+.meta-callout .icon svg{ width:20px; height:20px; stroke:var(--accent-1); }
+.meta-callout h4{ font-family:'Fraunces',serif; font-size:16.5px; margin-bottom:6px; }
+.meta-callout p{ font-size:13.8px; color:var(--muted); line-height:1.65; }
+
+/* ---------- faq ---------- */
+.faq-list{ max-width:780px; margin:0 auto; }
+.faq-item{ border-bottom:1px solid var(--line); }
+.faq-q{
+    width:100%; display:flex; justify-content:space-between; align-items:center; gap:20px; background:none; border:none;
+    padding:24px 4px; text-align:left; cursor:pointer; font-family:'Fraunces',serif; font-size:17.5px; color:var(--ink);
+}
+.faq-q .plus{ width:26px; height:26px; border-radius:50%; border:1.5px solid var(--line); flex-shrink:0; position:relative; transition:transform .35s var(--ease), border-color .3s; }
+.faq-q .plus::before, .faq-q .plus::after{ content:""; position:absolute; background:var(--accent-1); top:50%; left:50%; transform:translate(-50%,-50%); transition:transform .3s var(--ease); }
+.faq-q .plus::before{ width:10px; height:1.5px; }
+.faq-q .plus::after{ width:1.5px; height:10px; }
+.faq-item.open .plus{ transform:rotate(90deg); border-color:var(--accent-1); }
+.faq-item.open .plus::after{ transform:translate(-50%,-50%) scaleY(0); }
+.faq-a{ max-height:0; overflow:hidden; transition:max-height .4s var(--ease); }
+.faq-a p{ padding:0 4px 24px; color:var(--muted); font-size:14.5px; line-height:1.7; max-width:640px; }
+
+/* ---------- cta banner ---------- */
+.cta-banner{ background:var(--dark); color:#fff; padding:90px 0; text-align:center; position:relative; overflow:hidden; }
+.cta-banner::before{
+    content:""; position:absolute; width:600px; height:600px; border-radius:50%; top:-320px; left:50%; transform:translateX(-50%);
+    background:radial-gradient(circle, rgba(21,94,239,.25), transparent 65%); pointer-events:none;
+}
+.cta-banner h2{ color:#fff; font-size:clamp(28px,4vw,42px); margin-bottom:16px; }
+.cta-banner p{ color:rgba(255,255,255,.6); margin-bottom:34px; font-size:16px; }
+.cta-actions{ display:flex; justify-content:center; gap:16px; flex-wrap:wrap; position:relative; z-index:1; }
+
+/* ---------- footer ---------- */
+footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px; }
+.footer-grid{ display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:40px; margin-bottom:50px; }
+.footer-grid .brand{ color:#fff; margin-bottom:14px; }
+.footer-grid p{ font-size:14px; line-height:1.6; max-width:280px; }
+.footer-col h4{ color:#fff; font-size:13px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:16px; }
+.footer-col a{ display:block; text-decoration:none; font-size:14px; color:rgba(255,255,255,.55); margin-bottom:11px; transition:color .2s; }
+.footer-col a:hover{ color:#fff; }
+.footer-bottom{ border-top:1px solid var(--dark-line); padding-top:26px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:14px; font-size:13px; }
+
+/* ---------- responsive ---------- */
+@media (max-width:1080px){
+    .pricing-grid{ grid-template-columns:repeat(2,1fr); }
+    .calc-shell{ grid-template-columns:1fr; }
+}
+@media (max-width:980px){
+    .footer-grid{ grid-template-columns:1fr 1fr; }
+}
+@media (max-width:680px){
+    .nav-links{ display:none; }
+    .burger{ display:flex; }
+    .nav-cta .btn-ghost{ display:none; }
+    .pricing-grid{ grid-template-columns:1fr; }
+    .hero-stats-strip{ gap:28px; }
+    .calc-bar-row{ grid-template-columns:74px 1fr 84px; gap:10px; }
+    .calc-shell{ padding:26px 20px; }
+    .footer-grid{ grid-template-columns:1fr; }
+    .section{ padding:70px 0; }
+    .meta-callout{ flex-direction:column; }
+}
+
+@media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div class="loader" id="loader">
+    <div class="loader-mark">
+        <div class="loader-dot"></div>
+        <div class="loader-dot"></div>
+        <div class="loader-dot"></div>
+        <div class="loader-dot"></div>
+    </div>
+    <div class="loader-text">Preparing your pricing, flow by flow…</div>
+    <div class="loader-bar"><span></span></div>
+</div>
+
+<!-- NAV -->
+<nav class="nav" id="nav">
+    <div class="wrap">
+        <a href="#" class="brand">
+            <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h8l-1 8 10-12h-8l1-8z"/></svg></span>
+            Pravah<em>AI</em>
+        </a>
+        <ul class="nav-links">
+            <li><a data-scroll="#plans">Plans</a></li>
+            <li><a data-scroll="#calculator">EVA Calculator</a></li>
+            <li><a data-scroll="#compare">Compare</a></li>
+            <li><a data-scroll="#faq">FAQ</a></li>
+        </ul>
+        <div class="nav-cta">
+            <a href="#" class="btn btn-ghost">Book a demo</a>
+            <a href="#plans" class="btn btn-primary" data-scroll="#plans">Get started</a>
+        </div>
+        <button class="burger" id="burger" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+    <a data-scroll="#plans">Plans</a>
+    <a data-scroll="#calculator">EVA Calculator</a>
+    <a data-scroll="#compare">Compare</a>
+    <a data-scroll="#faq">FAQ</a>
+    <a href="#" class="btn btn-primary btn-lg" style="margin-top:12px;">Book a demo</a>
+</div>
+
+<!-- HERO -->
+<header class="pricing-hero">
+    <div class="wrap">
+        <div class="reveal visible" style="display:flex; justify-content:center; margin-bottom:22px;">
+            <span class="inr-pill"><span class="dot"></span> Pricing in ₹ INR · billed monthly · cancel anytime</span>
+        </div>
+        <h1 class="reveal visible">One platform. Every <span class="flow-word">flow</span>, priced simply.</h1>
+        <p class="lead reveal visible">From your first automated WhatsApp reply to a fully AI-run sales desk — pick the plan that matches your lead volume today, and grow into the next one when you need it.</p>
+        <div class="hero-cta reveal visible" style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
+            <a href="#plans" class="btn btn-primary btn-lg" data-scroll="#plans">Compare plans</a>
+            <a href="#calculator" class="btn btn-ghost btn-lg" data-scroll="#calculator">Estimate EVA cost</a>
+        </div>
+        <div class="hero-stats-strip">
+            <div><strong class="counter" data-target="4">0</strong><span>Plan tiers</span></div>
+            <div><strong class="counter" data-target="5000">0</strong><span>Max EVA mins/mo</span></div>
+            <div><strong class="counter" data-target="40">0</strong><span>WA msgs/hour, Starter</span></div>
+            <div><strong>₹3<small style="font-size:16px;">/min</small></strong><span>Lowest EVA overage</span></div>
+        </div>
+    </div>
+</header>
+
+<!-- PLANS -->
+<section class="section" id="plans">
+    <div class="wrap">
+        <div class="section-head center reveal">
+            <div class="eyebrow" style="justify-content:center;">Choose your plan</div>
+            <h2>Built for every stage of your sales motion</h2>
+            <p>Every plan includes WhatsApp automation, email campaigns and EVA voice AI — the difference is scale, official API access, and how much of the journey runs itself.</p>
+        </div>
+
+        <div class="pricing-grid stagger reveal" id="pricingGrid">
+
+            <!-- STARTER -->
+            <div class="price-card" style="--i:0">
+                <div class="plan">Starter</div>
+                <div class="price">₹3,999<span>/month</span></div>
+                <p class="desc">Getting started with AI-powered sales automation.</p>
+                <ul>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Unofficial WhatsApp API · 30–40 msgs/hr</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>1,000 emails/month</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>WhatsApp AI bot & lead capture</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>EVA voice AI · 500 mins, 1 agent</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Basic lead qualification</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Centralized dashboard</li>
+                </ul>
+                <a href="#" class="btn btn-ghost btn-block">Start with Starter</a>
+                <div class="rate-note">Extra EVA minutes · ₹6/min</div>
+            </div>
+
+            <!-- GROWTH -->
+            <div class="price-card featured" style="--i:1">
+                <span class="price-badge">Most popular</span>
+                <div class="plan">Growth</div>
+                <div class="price">₹5,999<span>/month</span></div>
+                <p class="desc">Official WhatsApp, AI lead assistance & scheduling.</p>
+                <ul>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Official Meta WhatsApp Business API</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3,000 emails/month</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Real-estate inventory matching AI</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>EVA voice AI · 1,500 mins, 3 agents</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Meeting & site-visit booking</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Advanced lead qualification</li>
+                </ul>
+                <a href="#" class="btn btn-primary btn-block">Start with Growth</a>
+                <div class="rate-note">Extra EVA minutes · ₹5/min</div>
+            </div>
+
+            <!-- SCALE -->
+            <div class="price-card" style="--i:2">
+                <div class="plan">Scale</div>
+                <div class="price">₹9,999<span>/month</span></div>
+                <p class="desc">Complete lead-to-booking automation, cross-channel.</p>
+                <ul>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Full lead journey automation</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>5,000 emails/month</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Cross-channel WhatsApp + Email + Voice</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>EVA voice AI · 2,000 mins, 5 agents</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Lead qualification & routing</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Multi-step AI workflows</li>
+                </ul>
+                <a href="#" class="btn btn-ghost btn-block">Start with Scale</a>
+                <div class="rate-note">Extra EVA minutes · ₹4/min</div>
+            </div>
+
+            <!-- CUSTOM -->
+            <div class="price-card enterprise" style="--i:3">
+                <div class="plan">Custom</div>
+                <div class="price">₹15,000<small>+</small><span>/month</span></div>
+                <p class="desc">Custom-built around your integrations & workflows.</p>
+                <ul>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Everything in Scale, extended</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>5,000 EVA mins, custom agents</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Custom CRM / ERP / API integrations</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Custom lead-routing logic</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Dedicated implementation support</li>
+                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Priority support</li>
+                </ul>
+                <a href="#" class="btn btn-primary btn-block">Talk to sales</a>
+                <div class="rate-note">Extra EVA minutes · ₹3/min</div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<!-- EVA CALCULATOR (signature interactive element) -->
+<section class="calc-section" id="calculator">
+    <div class="wrap">
+        <div class="section-head reveal">
+            <div class="eyebrow">EVA voice AI</div>
+            <h2>See exactly what your call volume costs</h2>
+            <p>Drag the slider to your expected monthly voice-calling minutes. Watch how included minutes and falling per-minute overage rates shift the best-value plan as you scale.</p>
+        </div>
+
+        <div class="calc-shell reveal">
+            <div class="calc-left">
+                <h3>Monthly EVA minutes needed</h3>
+                <p>EVA qualifies leads, answers questions, follows up and books site visits over voice. Every plan includes a bucket of minutes — anything beyond that is billed per minute, at a rate that drops as you move up a tier.</p>
+                <div class="calc-slider-wrap">
+                    <div class="calc-slider-label">
+                        <span>Minutes / month</span>
+                        <strong id="calcValue">1,500</strong>
+                    </div>
+                    <input type="range" id="calcSlider" min="0" max="6000" step="50" value="1500">
+                    <div class="calc-marks"><span>0</span><span>1,500</span><span>3,000</span><span>4,500</span><span>6,000</span></div>
+                </div>
+                <div class="calc-hint">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    Bars below recalculate live — base subscription plus any overage minutes beyond each plan's included bucket.
+                </div>
+            </div>
+            <div class="calc-bars" id="calcBars">
+                <div class="calc-bar-row" data-plan="Starter" data-base="3999" data-included="500" data-rate="6">
+                    <div class="calc-bar-name">Starter</div>
+                    <div class="calc-bar-track"><div class="calc-bar-fill"></div></div>
+                    <div class="calc-bar-total">₹0<small>total / mo</small></div>
+                </div>
+                <div class="calc-bar-row" data-plan="Growth" data-base="5999" data-included="1500" data-rate="5">
+                    <div class="calc-bar-name">Growth</div>
+                    <div class="calc-bar-track"><div class="calc-bar-fill"></div></div>
+                    <div class="calc-bar-total">₹0<small>total / mo</small></div>
+                </div>
+                <div class="calc-bar-row" data-plan="Scale" data-base="9999" data-included="2000" data-rate="4">
+                    <div class="calc-bar-name">Scale</div>
+                    <div class="calc-bar-track"><div class="calc-bar-fill"></div></div>
+                    <div class="calc-bar-total">₹0<small>total / mo</small></div>
+                </div>
+                <div class="calc-bar-row" data-plan="Custom" data-base="15000" data-included="5000" data-rate="3">
+                    <div class="calc-bar-name">Custom</div>
+                    <div class="calc-bar-track"><div class="calc-bar-fill"></div></div>
+                    <div class="calc-bar-total">₹0<small>total / mo</small></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- COMPARISON TABLE -->
+<section class="section compare-section" id="compare">
+    <div class="wrap">
+        <div class="section-head center reveal">
+            <div class="eyebrow" style="justify-content:center;">Full comparison</div>
+            <h2>Every feature, side by side</h2>
+            <p>Scroll sideways on smaller screens — Growth is highlighted as the plan most teams grow into.</p>
+        </div>
+
+        <div class="table-wrap reveal">
+            <table class="compare">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Starter</th>
+                        <th class="hl">Growth</th>
+                        <th>Scale</th>
+                        <th>Custom</th>
+                    </tr>
+                </thead>
+                <tbody id="compareBody">
+                    <tr><td>Monthly price</td><td>₹3,999</td><td class="hl">₹5,999</td><td>₹9,999</td><td>₹15,000+</td></tr>
+                    <tr><td>WhatsApp API</td><td>Unofficial</td><td class="hl">Official Meta API</td><td>Official Meta API</td><td>Custom</td></tr>
+                    <tr><td>WhatsApp AI bot</td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>Interactive buttons</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>Emails / month</td><td>1,000</td><td class="hl">3,000</td><td>5,000</td><td>Custom</td></tr>
+                    <tr><td>AI sales automation</td><td>Basic</td><td class="hl">Advanced</td><td>Complete</td><td>Custom</td></tr>
+                    <tr><td>EVA voice minutes</td><td>500</td><td class="hl">1,500</td><td>2,000</td><td>5,000</td></tr>
+                    <tr><td>EVA agents</td><td>1</td><td class="hl">3</td><td>5</td><td>Custom</td></tr>
+                    <tr><td>Meeting booking</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>Site-visit booking</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>Real-estate inventory AI</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>End-to-end lead automation</td><td class="no">—</td><td class="hl no">—</td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>EVA extra minute rate</td><td>₹6/min</td><td class="hl">₹5/min</td><td>₹4/min</td><td>₹3/min</td></tr>
+                    <tr><td>Custom APIs & integrations</td><td class="no">—</td><td class="hl no">—</td><td class="no">—</td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>Priority support</td><td class="no">—</td><td class="hl no">—</td><td class="no">—</td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="meta-callout reveal">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4.5 8-11.8V5l-8-3-8 3v5.2C4 17.5 12 22 12 22z"/></svg></div>
+            <div>
+                <h4>Meta WhatsApp API charges are billed separately</h4>
+                <p>On the Growth, Scale and Custom plans, official Meta WhatsApp Business API conversation and template charges are set by Meta and billed directly to you — they're not part of the PravahAI subscription. When your 24-hour customer service window closes, approved message templates may apply. Meta's pricing and policies can change; PravahAI does not control these fees.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" id="faq">
+    <div class="wrap">
+        <div class="section-head center reveal">
+            <div class="eyebrow" style="justify-content:center;">Questions</div>
+            <h2>Everything about pricing, answered</h2>
+        </div>
+        <div class="faq-list reveal">
+            <div class="faq-item open">
+                <button class="faq-q"><span>Can I switch plans later?</span><span class="plus"></span></button>
+                <div class="faq-a"><p>Yes — upgrade or downgrade any time from your dashboard. Changes apply from your next billing cycle, and unused minutes or emails don't carry over between plans.</p></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q"><span>What happens if I go over my EVA voice minutes?</span><span class="plus"></span></button>
+                <div class="faq-a"><p>Calls simply continue — you're billed for extra minutes at your plan's overage rate (₹6 on Starter down to ₹3 on Custom), shown on your monthly invoice. No calls are cut off mid-conversation.</p></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q"><span>What's the difference between the unofficial and official WhatsApp API?</span><span class="plus"></span></button>
+                <div class="faq-a"><p>Starter uses an unofficial WhatsApp API, capped at roughly 30–40 outgoing messages per hour. Growth and above use the official Meta WhatsApp Business API, which unlocks interactive buttons, higher reliability and template messaging — but Meta's own messaging fees apply separately.</p></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q"><span>Do I need a real-estate business to use the inventory AI?</span><span class="plus"></span></button>
+                <div class="faq-a"><p>No — it's built for real estate, but Growth, Scale and Custom's AI qualification, scheduling and follow-up workflows work well for any business with a structured product or service catalog.</p></div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q"><span>Is there a setup fee or long-term contract?</span><span class="plus"></span></button>
+                <div class="faq-a"><p>No setup fee on Starter, Growth or Scale — it's a straightforward monthly subscription you can cancel any time. Custom plans include dedicated implementation support scoped to your integrations, discussed with our team.</p></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-banner">
+    <div class="wrap">
+        <h2 class="reveal">Ready to put your sales flow on autopilot?</h2>
+        <p class="reveal">Start on Starter or Growth today — upgrade the moment your lead volume asks for it.</p>
+        <div class="cta-actions reveal">
+            <a href="#plans" class="btn btn-primary btn-lg" data-scroll="#plans">Choose a plan</a>
+            <a href="#" class="btn btn-ghost btn-lg" style="border-color:rgba(255,255,255,.25); color:#fff;">Talk to sales</a>
+        </div>
+    </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+    <div class="wrap">
+        <div class="footer-grid">
+            <div>
+                <a href="#" class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h8l-1 8 10-12h-8l1-8z"/></svg></span>Pravah<em style="color:var(--accent-2);">AI</em></a>
+                <p>AI sales & automation across WhatsApp, Email and Voice — built to move leads from first message to booked meeting.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Product</h4>
+                <a data-scroll="#plans">Plans</a>
+                <a data-scroll="#calculator">EVA Calculator</a>
+                <a data-scroll="#compare">Compare</a>
+            </div>
+            <div class="footer-col">
+                <h4>Company</h4>
+                <a href="#">About</a>
+                <a href="#">Careers</a>
+                <a href="#">Contact</a>
+            </div>
+            <div class="footer-col">
+                <h4>Legal</h4>
+                <a href="#">Privacy policy</a>
+                <a href="#">Terms of service</a>
+                <a href="#">Meta API terms</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <span>© 2026 PravahAI. All rights reserved.</span>
+            <span>Prices in INR · Meta WhatsApp fees billed separately</span>
+        </div>
+    </div>
+</footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+
+    /* ---------- loader ---------- */
+    var loader = document.getElementById('loader');
+    var loaderStart = Date.now();
+    window.addEventListener('load', function(){
+        var elapsed = Date.now() - loaderStart;
+        var wait = Math.max(0, 900 - elapsed);
+        setTimeout(function(){ loader.classList.add('hide'); }, wait);
+    });
+    // fallback in case load event is delayed
+    setTimeout(function(){ loader.classList.add('hide'); }, 2200);
+
+    /* ---------- nav scroll state ---------- */
+    var nav = document.getElementById('nav');
+    function onScroll(){
+        if(window.scrollY > 30){ nav.classList.add('scrolled'); } else { nav.classList.remove('scrolled'); }
+    }
+    document.addEventListener('scroll', onScroll, { passive:true });
+    onScroll();
+
+    /* ---------- mobile menu ---------- */
+    var burger = document.getElementById('burger');
+    var mobileMenu = document.getElementById('mobileMenu');
+    burger.addEventListener('click', function(){
+        burger.classList.toggle('open');
+        mobileMenu.classList.toggle('open');
+    });
+
+    /* ---------- smooth scroll ---------- */
+    document.querySelectorAll('[data-scroll]').forEach(function(el){
+        el.addEventListener('click', function(e){
+            e.preventDefault();
+            var target = document.querySelector(el.getAttribute('data-scroll'));
+            if(target){ target.scrollIntoView({ behavior:'smooth', block:'start' }); }
+            burger.classList.remove('open');
+            mobileMenu.classList.remove('open');
+        });
+    });
+
+    /* ---------- reveal on scroll ---------- */
+    var revealEls = document.querySelectorAll('.reveal');
+    var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+            if(entry.isIntersecting){
+                entry.target.classList.add('visible');
+                io.unobserve(entry.target);
+            }
+        });
+    }, { threshold:0.12, rootMargin:'0px 0px -60px 0px' });
+    revealEls.forEach(function(el){ io.observe(el); });
+
+    /* stagger index for pricing cards */
+    document.querySelectorAll('.pricing-grid .price-card').forEach(function(card, i){
+        card.style.setProperty('--i', i);
+    });
+
+    /* ---------- counters ---------- */
+    var counters = document.querySelectorAll('.counter');
+    var counterIO = new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+            if(entry.isIntersecting){
+                animateCounter(entry.target);
+                counterIO.unobserve(entry.target);
+            }
+        });
+    }, { threshold:0.5 });
+    counters.forEach(function(c){ counterIO.observe(c); });
+
+    function animateCounter(el){
+        var target = parseInt(el.getAttribute('data-target'), 10);
+        var duration = 1100;
+        var startTime = null;
+        function step(ts){
+            if(!startTime) startTime = ts;
+            var progress = Math.min((ts - startTime) / duration, 1);
+            var eased = 1 - Math.pow(1 - progress, 3);
+            el.textContent = Math.round(eased * target).toLocaleString('en-IN');
+            if(progress < 1){ requestAnimationFrame(step); }
+        }
+        requestAnimationFrame(step);
+    }
+
+    /* ---------- price card tilt on hover ---------- */
+    document.querySelectorAll('.price-card').forEach(function(card){
+        card.addEventListener('mousemove', function(e){
+            var rect = card.getBoundingClientRect();
+            var x = e.clientX - rect.left;
+            var y = e.clientY - rect.top;
+            var cx = rect.width / 2, cy = rect.height / 2;
+            var rotX = ((y - cy) / cy) * -4;
+            var rotY = ((x - cx) / cx) * 4;
+            card.style.transform = 'perspective(900px) rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) translateY(-4px)';
+        });
+        card.addEventListener('mouseleave', function(){
+            card.style.transform = '';
+        });
+    });
+
+    /* ---------- EVA calculator ---------- */
+    var slider = document.getElementById('calcSlider');
+    var calcValue = document.getElementById('calcValue');
+    var barRows = document.querySelectorAll('.calc-bar-row');
+
+    function formatINR(n){
+        return '₹' + Math.round(n).toLocaleString('en-IN');
+    }
+
+    function updateCalculator(){
+        var minutes = parseInt(slider.value, 10);
+        calcValue.textContent = minutes.toLocaleString('en-IN');
+
+        var totals = [];
+        barRows.forEach(function(row){
+            var base = parseFloat(row.getAttribute('data-base'));
+            var included = parseFloat(row.getAttribute('data-included'));
+            var rate = parseFloat(row.getAttribute('data-rate'));
+            var extra = Math.max(0, minutes - included);
+            var total = base + extra * rate;
+            totals.push(total);
+            row.setAttribute('data-total', total);
+        });
+
+        var maxTotal = Math.max.apply(null, totals);
+        var minTotal = Math.min.apply(null, totals);
+
+        barRows.forEach(function(row, i){
+            var total = totals[i];
+            var pct = maxTotal > 0 ? Math.max(8, (total / maxTotal) * 100) : 8;
+            var fill = row.querySelector('.calc-bar-fill');
+            var totalEl = row.querySelector('.calc-bar-total');
+            fill.style.width = pct + '%';
+            totalEl.innerHTML = formatINR(total) + '<small>total / mo</small>';
+            row.classList.toggle('best', total === minTotal);
+        });
+    }
+
+    slider.addEventListener('input', updateCalculator);
+    updateCalculator();
+
+    /* ---------- FAQ accordion ---------- */
+    document.querySelectorAll('.faq-item').forEach(function(item){
+        var q = item.querySelector('.faq-q');
+        var a = item.querySelector('.faq-a');
+        function setState(open){
+            if(open){
+                item.classList.add('open');
+                a.style.maxHeight = a.scrollHeight + 'px';
+            } else {
+                item.classList.remove('open');
+                a.style.maxHeight = 0;
+            }
+        }
+        setState(item.classList.contains('open'));
+        q.addEventListener('click', function(){
+            var isOpen = item.classList.contains('open');
+            document.querySelectorAll('.faq-item').forEach(function(other){ setState.call(other, false); });
+            setState(!isOpen);
+        });
+        // fix: rebind setState per item correctly
+        q.onclick = function(){
+            var willOpen = !item.classList.contains('open');
+            document.querySelectorAll('.faq-item').forEach(function(other){
+                other.classList.remove('open');
+                other.querySelector('.faq-a').style.maxHeight = 0;
+            });
+            if(willOpen){
+                item.classList.add('open');
+                a.style.maxHeight = a.scrollHeight + 'px';
+            }
+        };
+    });
+
+    window.addEventListener('resize', function(){
+        document.querySelectorAll('.faq-item.open .faq-a').forEach(function(a){
+            a.style.maxHeight = a.scrollHeight + 'px';
+        });
+    });
+
+});
+</script>
+</body>
+</html>
