@@ -1507,56 +1507,118 @@ def home():
     return render_template("/index.html")
 
 
-@app.route("/signup", methods=["GET", "POST"])
+@app.route("/signup", methods=["GET"])
 def signup():
-    if request.method == "POST":
-        username      = request.form.get("username", "").strip().lower()
-        email         = request.form.get("email", "").strip().lower()
-        phone         = request.form.get("phone", "").strip()
-        business_name = request.form.get("business_name", "").strip()
-        business_type = request.form.get("business_type", "").strip()
-        password      = request.form.get("password", "")
-
-        if not username:
-            flash("Username required"); return redirect("/signup")
-        if not password:
-            flash("Password required"); return redirect("/signup")
-
-        if users_col.find_one({"username": username, "type": "user"}):
-            flash("Username already exists"); return redirect("/signup")
-        if users_col.find_one({"email": email, "type": "user"}):
-            flash("Email already exists"); return redirect("/signup")
-
-        users_col.insert_one({
-            "type": "user",
-            "account_type": "user",
-            "region": "international",
-            "plan_id": None,
-            "eva_minutes": 0.0,
-            "eva_minutes_used": 0.0,
-            "username": username,
-            "email": email,
-            "phone": phone,
-            "business_name": business_name,
-            "business_type": business_type,
-            "website": "",
-            "address": "",
-            "password": generate_password_hash(password),
-            "status": "active",
-            "email_verified": False,
-            "plan": {"name": "Free", "credits": 100},
-            "integrations": {},
-             "webhook_token": generate_webhook_token(),
-            "wirebase_webhook_token": generate_webhook_token(),
-            "team_rr_index": 0,
-            "category": "",
-            "created_at": datetime.utcnow(),
-            "last_login": None,
-        })
-        flash("Account created successfully")
-        return redirect("/login")
-
+    if "user_id" in session:
+        return redirect("/dashboard")
     return render_template("signup.html")
+
+
+@app.route("/api/signup/check", methods=["POST"])
+def api_signup_check():
+    """Live-availability check while typing on Step 1 (username / email)."""
+    data = request.get_json(silent=True) or {}
+    field = (data.get("field") or "").strip().lower()
+    value = (data.get("value") or "").strip().lower()
+    if field not in ("username", "email") or not value:
+        return jsonify({"available": True})
+    if field == "username":
+        taken = bool(users_col.find_one({"username": value, "type": "user"}))
+    else:
+        taken = bool(users_col.find_one({"email": value, "type": "user"}))
+    return jsonify({"available": not taken})
+
+
+@app.route("/api/signup/account", methods=["POST"])
+def api_signup_account():
+    """Step 1 — creates the account with just the essentials and logs the
+    user in immediately, so the rest of onboarding is just an authenticated
+    profile-completion flow."""
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip().lower()
+    email    = (data.get("email") or "").strip().lower()
+    phone    = (data.get("phone") or "").strip()
+    password = data.get("password") or ""
+
+    if not username or len(username) < 3:
+        return jsonify({"error": "Username must be at least 3 characters"}), 400
+    if not re.match(r"^[a-z0-9_.]+$", username):
+        return jsonify({"error": "Username can only contain letters, numbers, dots and underscores"}), 400
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        return jsonify({"error": "A valid email is required"}), 400
+    if not phone or len(phone) < 6:
+        return jsonify({"error": "A valid phone number is required"}), 400
+    if not password or len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    if users_col.find_one({"username": username, "type": "user"}):
+        return jsonify({"error": "That username is already taken"}), 400
+    if users_col.find_one({"email": email, "type": "user"}):
+        return jsonify({"error": "That email is already registered"}), 400
+
+    doc = {
+        "type": "user",
+        "account_type": "user",
+        "region": "international",
+        "plan_id": None,
+        "eva_minutes": 0.0,
+        "eva_minutes_used": 0.0,
+        "username": username,
+        "email": email,
+        "phone": phone,
+        "business_name": "",
+        "business_type": "",
+        "business_description": "",
+        "website": "",
+        "address": "",
+        "password": generate_password_hash(password),
+        "status": "active",
+        "email_verified": False,
+        "plan": {"name": "Free", "credits": 100},
+        "integrations": {},
+        "webhook_token": generate_webhook_token(),
+        "wirebase_webhook_token": generate_webhook_token(),
+        "team_rr_index": 0,
+        "category": "",
+        "onboarding_complete": False,
+        "created_at": datetime.utcnow(),
+        "last_login": datetime.utcnow(),
+    }
+    result = users_col.insert_one(doc)
+
+    # Auto-login right away — the rest of onboarding runs as this user.
+    session["user_id"]      = str(result.inserted_id)
+    session["actor_id"]     = str(result.inserted_id)
+    session["username"]     = username
+    session["role"]         = "owner"
+    session["account_type"] = "user"
+
+    return jsonify({"success": True}), 201
+
+
+@app.route("/api/signup/profile", methods=["POST"])
+@login_required
+@owner_required
+def api_signup_profile():
+    """Step 2/3 — saves the category + business details collected across
+    the rest of the onboarding wizard and marks onboarding complete."""
+    data = request.get_json(silent=True) or {}
+    category = (data.get("category") or "").strip()
+    allowed_categories = BUSINESS_CATEGORIES | {"other"}
+    if category and category not in allowed_categories:
+        return jsonify({"error": "Invalid category"}), 400
+
+    update = {
+        "category": category,
+        "business_name":        (data.get("business_name") or "").strip(),
+        "business_description": (data.get("business_description") or "").strip(),
+        "business_type":        (data.get("business_type") or "").strip(),
+        "website":              (data.get("website") or "").strip(),
+        "address":              (data.get("address") or "").strip(),
+        "onboarding_complete":  True,
+    }
+    users_col.update_one({"_id": ObjectId(current_user_id())}, {"$set": update})
+    return jsonify({"success": True})
 
 ADMIN_SIGNUP_KEY = os.getenv("ADMIN_SIGNUP_KEY", "")  # set this in .env so randoms can't self-promote to admin
 

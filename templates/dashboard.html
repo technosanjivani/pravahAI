@@ -4,135 +4,274 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>PravaahAI – Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --bg-base:     #f1f5f9;
+  /* ── Blue-only palette ─────────────────────────── */
+  --bg-base:     #eef3fb;
   --bg-surface:  #ffffff;
   --bg-card:     #ffffff;
-  --bg-hover:    #eef2f9;
-  --border:      rgba(15, 23, 42, 0.08);
+  --bg-hover:    #e9f1fc;
+  --border:      rgba(29, 78, 216, 0.10);
   --accent-1:    #2563eb;
-  --accent-2:    #1d4ed8;
-  --accent-grad: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  --text-h:      #0f172a;
-  --text-b:      #64748b;
-  --text-dim:    #94a3b8;
-  --green:       #16a34a;
-  --red:         #dc2626;
-  --yellow:      #d97706;
-  --purple:      #7c3aed;
-  --orange:      #ea580c;
-  --sidebar-w:   220px;
-  --topbar-h:    60px;
-  --radius:      12px;
-  --radius-sm:   8px;
-  --shadow-sm: 0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.06);
-  --shadow-md: 0 8px 20px rgba(15,23,42,0.08), 0 2px 6px rgba(15,23,42,0.05);
+  --accent-2:    #1e3a8a;
+  --accent-3:    #0ea5e9;
+  --accent-grad: linear-gradient(135deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%);
+  --accent-grad-soft: linear-gradient(135deg, rgba(56,189,248,.14) 0%, rgba(37,99,235,.14) 100%);
+  --text-h:      #0b1e3d;
+  --text-b:      #5c6b8a;
+  --text-dim:    #93a3c2;
+  /* semantic blues (replace old green/red/yellow/purple/orange) */
+  --green:       #0891b2;   /* success / sent / completed → cyan-blue  */
+  --red:         #dc2626;   /* kept as a true, minimal exception: destructive / error states only */
+  --yellow:      #3b82f6;   /* pending / running / warm  → mid blue    */
+  --purple:      #4f46e5;   /* paused / hot              → indigo     */
+  --orange:      #1d4ed8;   /* condition-branch accent   → royal blue */
+  --sidebar-w:   226px;
+  --topbar-h:    64px;
+  --radius:      14px;
+  --radius-sm:   9px;
+  --gap:         16px;
+  --shadow-sm: 0 1px 2px rgba(11,30,61,0.05), 0 2px 6px rgba(11,30,61,0.06);
+  --shadow-md: 0 10px 26px rgba(15,58,138,0.10), 0 3px 8px rgba(15,58,138,0.06);
+  --shadow-glow: 0 0 0 1px rgba(37,99,235,.08), 0 14px 34px rgba(37,99,235,.16);
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
 html { scroll-behavior: smooth; }
-body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(--text-h); min-height: 100vh; display: flex; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-base);
+  color: var(--text-h);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  gap: var(--gap);
+  padding: var(--gap);
+  box-sizing: border-box;
+  background-image:
+    radial-gradient(920px 760px at 242px -60px, rgba(37,99,235,.32), rgba(56,189,248,.16) 42%, transparent 68%),
+    radial-gradient(680px 420px at 8% -6%, rgba(56,189,248,.10), transparent 60%),
+    radial-gradient(560px 380px at 96% 0%, rgba(37,99,235,.08), transparent 55%);
+  background-attachment: fixed;
+}
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: #b9cdf0; border-radius: 99px; }
+:focus-visible { outline: 2px solid var(--accent-1); outline-offset: 2px; border-radius: 4px; }
+svg.ic { width: 18px; height: 18px; flex-shrink: 0; display: block; }
 
 /* ─── SIDEBAR ──────────────────────────────────── */
 #sidebar {
-  width: var(--sidebar-w); background: var(--bg-surface); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0;
-  z-index: 200; transition: transform .3s ease; overflow-y: auto;
-  box-shadow: 1px 0 6px rgba(15,23,42,0.03);
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  z-index: 200;
+  transition: transform .3s ease;
 }
-.sidebar-logo { padding: 20px 18px 16px; border-bottom: 1px solid var(--border); }
-.logo-wrap { display: flex; align-items: center; gap: 10px; }
-.logo-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px; background: var(--bg-hover); border: 1px solid var(--border); }
-.logo-icon img { width: 30px; height: 35px; }
-.logo-text h2 { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-h); }
-.logo-text p  { font-size: 10px; color: var(--text-b); margin-top: 1px; }
-.nav-section { padding: 12px 10px 0; flex: 1; }
-.nav-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 600; padding: 10px 10px 4px; }
+.sidebar-logo {
+  padding: 14px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+  position: relative;
+}
+.logo-wrap { display: flex; align-items: center; gap: 11px; position: relative; z-index: 1; }
+.logo-icon { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  background: var(--accent-grad); box-shadow: 0 6px 16px rgba(37,99,235,.35); position: relative; overflow: hidden; }
+.logo-icon img { width: 26px; height: auto; filter: brightness(0) invert(1); position: relative; z-index: 1; }
+.logo-icon::after { content:''; position:absolute; inset:-40%; background: conic-gradient(from 0deg, transparent, rgba(255,255,255,.55), transparent 30%);
+  animation: spinSheen 4.5s linear infinite; }
+@keyframes spinSheen { to { transform: rotate(360deg); } }
+.logo-text h2 { font-family: 'Space Grotesk', sans-serif; font-size: 15.5px; font-weight: 700; color: var(--text-h); letter-spacing: -.2px; }
+.logo-text p  { font-size: 10px; color: var(--text-b); margin-top: 1px; letter-spacing: .02em; }
+
+.sidebar-nav-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.nav-section {
+  padding: 12px 10px 0;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.nav-section::-webkit-scrollbar { display: none; }
+.nav-label { display: none; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); font-weight: 700; padding: 14px 10px 6px; }
 .nav-item {
-  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; gap: 11px; padding: 9.5px 10px; border-radius: var(--radius-sm);
   cursor: pointer; color: var(--text-b); font-size: 13.5px; font-weight: 500;
-  transition: background .18s, color .18s; text-decoration: none; position: relative;
+  transition: background .2s, color .2s, padding-left .2s, transform .15s; text-decoration: none; position: relative;
 }
-.nav-item:hover { background: var(--bg-hover); color: var(--text-h); }
-.nav-item.active { background: rgba(37,99,235,.1); color: var(--accent-1); }
+.nav-item:hover { background: var(--bg-hover); color: var(--accent-2); padding-left: 14px; }
+.nav-item.active { background: linear-gradient(90deg, rgba(37,99,235,.12), rgba(37,99,235,.02)); color: var(--accent-1); font-weight: 600; }
 .nav-item.active::before {
-  content: ''; position: absolute; left: 0; top: 20%; bottom: 20%;
-  width: 3px; border-radius: 0 3px 3px 0; background: var(--accent-1);
+  content: ''; position: absolute; left: 0; top: 18%; bottom: 18%;
+  width: 3px; border-radius: 0 4px 4px 0; background: var(--accent-grad);
+  box-shadow: 0 0 8px rgba(37,99,235,.6);
 }
-.nav-icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
-.role-badge { margin-left: auto; background: var(--bg-hover); color: var(--accent-1); font-size: 9.5px; font-weight: 600; padding: 2px 7px; border-radius: 99px; }
-.sidebar-footer { padding: 14px 10px; border-top: 1px solid var(--border); }
-.user-row { display: flex; align-items: center; gap: 10px; padding: 6px 2px; }
-.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; }
+.nav-icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: inherit; transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
+.nav-item:hover .nav-icon { transform: scale(1.16) rotate(-6deg); }
+.nav-item.active .nav-icon { color: var(--accent-1); }
+.role-badge { margin-left: auto; background: var(--bg-hover); color: var(--accent-1); font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+.sidebar-footer { padding: 14px 10px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.user-row { display: flex; align-items: center; gap: 10px; padding: 6px 2px; position: relative; z-index: 1; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; box-shadow: 0 4px 10px rgba(37,99,235,.3); }
 .user-name { font-size: 12.5px; font-weight: 600; color: var(--text-h); }
 .user-email { font-size: 10.5px; color: var(--text-b); }
-.logout-link { margin-left: auto; color: var(--text-dim); font-size: 16px; text-decoration: none; }
-.logout-link:hover { color: var(--red); }
+.logout-link { margin-left: auto; color: var(--text-dim); text-decoration: none; display: flex; align-items: center; transition: color .2s, transform .2s; }
+.logout-link:hover { color: var(--red); transform: rotate(-14deg); }
 
 /* ─── MAIN ─────────────────────────────────────── */
-#main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+#main {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
 #topbar {
-  height: var(--topbar-h); background: var(--bg-surface); border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; padding: 0 24px; gap: 14px; position: sticky; top: 0; z-index: 100;
-  box-shadow: 0 1px 3px rgba(15,23,42,0.03);
+  height: var(--topbar-h);
+  background: rgba(255,255,255,.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  padding: 0 26px;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
 }
 .search-wrap {
-  flex: 1; max-width: 340px; background: var(--bg-hover); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 36px;
+  flex: 1; max-width: 360px; background: var(--bg-hover); border: 1px solid var(--border);
+  border-radius: 99px; display: flex; align-items: center; gap: 9px; padding: 0 14px; height: 38px;
+  transition: box-shadow .2s, border-color .2s;
 }
+.search-wrap:focus-within { border-color: var(--accent-1); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.search-wrap svg { color: var(--text-dim); }
 .search-wrap input { background: none; border: none; outline: none; color: var(--text-h); font-size: 13px; width: 100%; }
 .search-wrap input::placeholder { color: var(--text-dim); }
 .topbar-right { display: flex; align-items: center; gap: 14px; margin-left: auto; }
-.top-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; }
-.ham-btn { display: none; background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 36px; height: 36px; align-items: center; justify-content: center; cursor: pointer; color: var(--text-h); font-size: 18px; }
+.top-avatar { width: 37px; height: 37px; border-radius: 50%; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; box-shadow: 0 6px 14px rgba(37,99,235,.32); transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
+.top-avatar:hover { transform: scale(1.08) rotate(-4deg); }
+.ham-btn { display: none; background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 36px; height: 36px; align-items: center; justify-content: center; cursor: pointer; color: var(--text-h); }
 
 /* ─── PAGES ─────────────────────────────────────── */
-#content { padding: 28px 28px 60px; }
+#content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 28px 30px 40px;
+}
+#content::-webkit-scrollbar { display: none; }
 .page { display: none; }
 .page.active { display: block; }
 .page-header { margin-bottom: 24px; }
-.page-header h1 { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: var(--text-h); }
-.page-header p { font-size: 13.5px; color: var(--text-b); margin-top: 4px; }
+.page-header-top { display: flex; align-items: flex-start; gap: 14px; }
+.page-icon { width: 46px; height: 46px; border-radius: 14px; background: var(--accent-grad); display: flex; align-items: center; justify-content: center;
+  color: #fff; flex-shrink: 0; box-shadow: 0 10px 22px rgba(37,99,235,.28); animation: floatIcon 4.5s ease-in-out infinite; }
+.page-icon svg { width: 22px; height: 22px; }
+@keyframes floatIcon { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.page-header h1 { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: var(--text-h); letter-spacing: -.3px; }
+.page-header p { font-size: 13.5px; color: var(--text-b); margin-top: 4px; max-width: 620px; }
+.eyebrow { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--accent-1); background: rgba(37,99,235,.08); border: 1px solid rgba(37,99,235,.18); padding: 5px 11px; border-radius: 99px; margin-bottom: 10px; }
+.eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-3); box-shadow: 0 0 0 3px rgba(14,165,233,.25); animation: dotPulse 2s ease-in-out infinite; }
+@keyframes dotPulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+.hero-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: -.6px; color: var(--text-h); line-height: 1.15; }
+.hero-title .grad-text { background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
 /* ─── STAT CARDS ─────────────────────────────────── */
 .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
-.stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; transition: border-color .2s, transform .2s, box-shadow .2s; box-shadow: var(--shadow-sm); }
-.stat-card:hover { border-color: rgba(37,99,235,.25); transform: translateY(-2px); box-shadow: var(--shadow-md); }
-.stat-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.stat-icon { font-size: 18px; }
-.stat-label { font-size: 12px; color: var(--text-b); font-weight: 500; }
-.stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -.5px; color: var(--text-h); }
+.stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; transition: border-color .25s, transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s; box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
+.stat-card::before { content:''; position:absolute; inset:0; background: var(--accent-grad-soft); opacity:0; transition: opacity .3s; }
+.stat-card:hover { border-color: rgba(37,99,235,.3); transform: translateY(-4px); box-shadow: var(--shadow-glow); }
+.stat-card:hover::before { opacity: 1; }
+.stat-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; position: relative; }
+.stat-icon-wrap { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(37,99,235,.1); color: var(--accent-1); transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
+.stat-card:hover .stat-icon-wrap { transform: scale(1.12) rotate(-6deg); background: var(--accent-grad); color: #fff; }
+.stat-icon-wrap svg { width: 17px; height: 17px; }
+.stat-label { font-size: 12px; color: var(--text-b); font-weight: 600; }
+.stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -.5px; color: var(--text-h); position: relative; }
 .stat-value.green { color: var(--green); }
 .stat-value.red { color: var(--red); }
 .stat-value.yellow { color: var(--yellow); }
 
+/* ─── DASHBOARD LAYOUT (mirrors reference: main + calendar aside) ──── */
+.dashboard-layout { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: start; }
+.dashboard-main { min-width: 0; }
+@media (max-width: 1150px) { .dashboard-layout { grid-template-columns: 1fr; } }
+
 /* ─── DASHBOARD CHART GRID ────────────────────────── */
 .chart-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
-.chart-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow-sm); }
-.chart-card h3 { font-family: 'Space Grotesk', sans-serif; font-size: 14.5px; font-weight: 700; margin-bottom: 14px; color: var(--text-h); }
+.chart-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow-sm); transition: box-shadow .3s, transform .3s; }
+.chart-card:hover { box-shadow: var(--shadow-md); }
+.chart-card h3 { font-family: 'Space Grotesk', sans-serif; font-size: 14.5px; font-weight: 700; margin-bottom: 14px; color: var(--text-h); display: flex; align-items: center; gap: 8px; }
+.chart-card h3 .chart-icon { width: 28px; height: 28px; border-radius: 8px; background: rgba(37,99,235,.1); color: var(--accent-1); display: flex; align-items: center; justify-content: center; }
+.chart-card h3 .chart-icon svg { width: 15px; height: 15px; }
 .chart-card canvas { max-height: 260px; }
 @media (max-width: 1000px) { .chart-grid { grid-template-columns: 1fr; } }
+
+/* ─── CALENDAR ASIDE (matches reference "Meetings" panel) ─────────── */
+.cal-card { background: linear-gradient(165deg, #ffffff 0%, #f3f8ff 100%); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; box-shadow: var(--shadow-sm); position: sticky; top: 18px; }
+.cal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.cal-head svg { width: 17px; height: 17px; color: var(--accent-1); }
+.cal-head h3 { font-family: 'Space Grotesk', sans-serif; font-size: 14.5px; font-weight: 700; color: var(--text-h); }
+.cal-month { font-size: 12px; color: var(--text-b); font-weight: 600; text-align: center; margin-bottom: 10px; }
+.mini-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; margin-bottom: 16px; }
+.mc-dow { font-size: 10px; color: var(--text-dim); font-weight: 700; padding-bottom: 4px; }
+.mc-day { font-size: 11.5px; color: var(--text-h); padding: 6px 0; border-radius: 8px; cursor: default; transition: background .2s, transform .2s; }
+.mc-day:hover { background: var(--bg-hover); transform: scale(1.08); }
+.mc-today { background: var(--accent-grad); color: #fff; font-weight: 700; box-shadow: 0 4px 10px rgba(37,99,235,.35); }
+.cal-divider { height: 1px; background: var(--border); margin: 14px 0; }
+.cal-meetings-summary { font-size: 12.5px; color: var(--text-b); line-height: 2; margin-bottom: 12px; }
+.cal-meetings-summary b { color: var(--text-h); font-weight: 700; }
+.cal-meetings-summary .dot-ind { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; }
 
 /* ─── TOOLBAR / BUTTONS ───────────────────────────── */
 .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 .btn {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600;
   border-radius: var(--radius-sm); padding: 9px 16px; cursor: pointer; border: 1px solid var(--border);
-  transition: opacity .15s, transform .15s, background .15s, box-shadow .15s; font-family: inherit; text-decoration: none;
+  transition: opacity .15s, transform .15s cubic-bezier(.34,1.56,.64,1), background .15s, box-shadow .15s; font-family: inherit; text-decoration: none;
+  position: relative; overflow: hidden;
 }
+.btn svg { width: 15px; height: 15px; flex-shrink: 0; }
 .btn:hover { transform: translateY(-1px); }
-.btn-primary { background: var(--accent-grad); color: #fff; border: none; box-shadow: 0 2px 8px rgba(37,99,235,.28); }
-.btn-primary:hover { opacity: .92; box-shadow: 0 4px 12px rgba(37,99,235,.35); }
+.btn-primary { background: var(--accent-grad); color: #fff; border: none; box-shadow: 0 4px 12px rgba(37,99,235,.3); }
+.btn-primary:hover { opacity: .95; box-shadow: 0 6px 16px rgba(37,99,235,.4); }
 .btn-ghost { background: var(--bg-hover); color: var(--text-h); }
-.btn-ghost:hover { background: #e2e8f0; }
-.btn-danger { background: rgba(220,38,38,.1); color: var(--red); border-color: rgba(220,38,38,.25); }
+.btn-ghost:hover { background: #dbe9fc; }
+.btn-danger { background: rgba(220,38,38,.08); color: var(--red); border-color: rgba(220,38,38,.22); }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
 .btn[disabled] { opacity: .5; cursor: not-allowed; transform: none; }
+.btn:active { transform: scale(.96); }
+.ripple { position: absolute; border-radius: 50%; transform: scale(0); pointer-events: none; animation: rippleAnim .6s ease-out; }
+@keyframes rippleAnim { to { transform: scale(2.6); opacity: 0; } }
 .spacer { flex: 1; }
 .search-box-mini {
   background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -144,13 +283,14 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
 .sheet-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
 .sheet-scroll { overflow-x: auto; }
 table.sheet { width: 100%; border-collapse: collapse; min-width: 1180px; }
-table.sheet thead th { font-size: 11.5px; color: var(--text-b); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; padding: 10px 4px; background: var(--bg-hover); text-align: left; position: sticky; top: 0; }
+table.sheet thead th { font-size: 11.5px; color: var(--text-b); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 10px 4px; background: var(--bg-hover); text-align: left; position: sticky; top: 0; }
 table.sheet thead th.col-num { width: 36px; text-align: center; }
 table.sheet thead th.col-actions { width: 70px; text-align: center; }
 table.sheet thead th.col-status { width: 100px; }
-table.sheet tbody tr { border-top: 1px solid var(--border); }
-table.sheet tbody tr.is-dirty { background: rgba(37,99,235,.04); }
-table.sheet tbody tr.is-new   { background: rgba(22,163,74,.05); }
+table.sheet tbody tr { border-top: 1px solid var(--border); transition: background .15s; }
+table.sheet tbody tr:hover { background: rgba(37,99,235,.025); }
+table.sheet tbody tr.is-dirty { background: rgba(37,99,235,.05); }
+table.sheet tbody tr.is-new   { background: rgba(14,165,233,.06); }
 table.sheet td { padding: 0; vertical-align: middle; }
 table.sheet td.row-num { text-align: center; font-size: 11.5px; color: var(--text-dim); padding: 8px 4px; }
 .cell-input { width: 100%; background: transparent; border: 1px solid transparent; outline: none; color: var(--text-h); font-size: 13px; font-family: inherit; padding: 11px 10px; border-radius: 0; }
@@ -166,18 +306,20 @@ td.col-aitask .cell-input { min-width: 160px; }
 .status-select.pending { color: var(--text-b); }
 .status-select.cold { color: var(--accent-1); }
 .status-select.warm { color: var(--yellow); }
-.status-select.hot  { color: var(--red); }
+.status-select.hot  { color: var(--purple); }
 .segment-select {
   width: 100%; background: transparent; border: 1px solid var(--border); border-radius: 6px;
   color: var(--text-h); font-size: 12px; font-family: inherit; padding: 6px 8px; outline: none; cursor: pointer;
 }
 .assigned-tag { font-size: 11px; color: var(--text-b); padding: 8px 6px; display: block; }
 .row-actions { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 6px; }
-.row-act-btn { width: 26px; height: 26px; border-radius: 6px; background: var(--bg-hover); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; transition: background .15s; }
-.row-act-btn:hover { background: rgba(220,38,38,.15); }
+.row-act-btn { width: 27px; height: 27px; border-radius: 7px; background: var(--bg-hover); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, transform .15s; color: var(--text-b); }
+.row-act-btn svg { width: 13px; height: 13px; }
+.row-act-btn:hover { background: rgba(37,99,235,.14); color: var(--accent-1); transform: translateY(-1px); }
+.row-act-btn.danger:hover { background: rgba(220,38,38,.14); color: var(--red); }
 .sheet-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); }
 
-.dirty-note { font-size: 12px; color: var(--yellow); }
+.dirty-note { font-size: 12px; color: var(--accent-1); font-weight: 600; }
 .filter-badge {
   display: none; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600;
   color: var(--accent-1); background: rgba(37,99,235,.1); border: 1px solid rgba(37,99,235,.25);
@@ -188,30 +330,29 @@ td.col-aitask .cell-input { min-width: 160px; }
 .filter-row .form-row { flex: 1; margin-bottom: 0; }
 
 .empty-state { padding: 50px 20px; text-align: center; color: var(--text-b); font-size: 13.5px; }
+.empty-state svg { width: 34px; height: 34px; color: var(--text-dim); margin-bottom: 10px; }
 
 /* ─── CAMPAIGNS LIST ──────────────────────────────── */
 .campaigns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
 .campaign-card {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 20px; transition: border-color .2s, transform .2s, box-shadow .2s; cursor: pointer; box-shadow: var(--shadow-sm);
+  padding: 20px; transition: border-color .25s, transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s; cursor: pointer; box-shadow: var(--shadow-sm);
 }
-.campaign-card:hover { border-color: rgba(37,99,235,.3); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.campaign-card:hover { border-color: rgba(37,99,235,.3); transform: translateY(-3px); box-shadow: var(--shadow-glow); }
 .camp-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .camp-name { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-h); }
 .camp-desc { font-size: 12.5px; color: var(--text-b); margin-bottom: 14px; line-height: 1.5; }
 .camp-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
-.badge-draft     { background: rgba(100,116,139,.14); color: var(--text-b); }
+.badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
+.badge-draft     { background: rgba(92,107,138,.14); color: var(--text-b); }
 .badge-active    { background: rgba(37,99,235,.12);  color: var(--accent-1); }
-.badge-running   { background: rgba(217,119,6,.12);  color: var(--yellow); }
-.badge-completed { background: rgba(22,163,74,.12);  color: var(--green); }
-.badge-paused    { background: rgba(124,58,237,.12); color: var(--purple); }
+.badge-running   { background: rgba(59,130,246,.14);  color: var(--yellow); }
+.badge-completed { background: rgba(8,145,178,.12);  color: var(--green); }
+.badge-paused    { background: rgba(79,70,229,.12); color: var(--purple); }
 .camp-stat { font-size: 11.5px; color: var(--text-b); }
 .camp-stat.ok   { color: var(--green); }
 .camp-stat.bad  { color: var(--red); }
 .camp-actions { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
-
-/* ─── FLOW BUILDER ────────────────────────────────── */
 
 /* ─── CANVAS FLOW BUILDER ─────────────────────────── */
 .canvas-builder-wrap { display: flex; gap: 14px; height: calc(100vh - 170px); min-height: 600px; }
@@ -220,20 +361,20 @@ td.col-aitask .cell-input { min-width: 160px; }
   width: 190px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 14px; overflow-y: auto; box-shadow: var(--shadow-sm);
 }
-.palette-title { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 600; margin-bottom: 10px; }
+.palette-title { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 700; margin-bottom: 10px; }
 .palette-item {
   display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: var(--radius-sm);
   background: var(--bg-hover); border: 1px solid var(--border); margin-bottom: 8px; cursor: grab;
-  font-size: 13px; font-weight: 500; color: var(--text-h); user-select: none;
+  font-size: 13px; font-weight: 500; color: var(--text-h); user-select: none; transition: border-color .2s, transform .2s;
 }
-.palette-item:hover { border-color: var(--accent-1); }
+.palette-item:hover { border-color: var(--accent-1); transform: translateX(2px); }
 .palette-item:active { cursor: grabbing; }
-.pi-icon { font-size: 16px; flex-shrink: 0; }
+.pi-icon { width: 17px; height: 17px; flex-shrink: 0; color: var(--accent-1); }
 
 .canvas-viewport {
   flex: 1; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
   overflow: auto; position: relative; box-shadow: var(--shadow-sm);
-  background-image: radial-gradient(circle, rgba(15,23,42,0.07) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(37,99,235,0.10) 1px, transparent 1px);
   background-size: 22px 22px;
   width:45vw;
 }
@@ -253,17 +394,18 @@ td.col-aitask .cell-input { min-width: 160px; }
 .node-card:hover { box-shadow: var(--shadow-md); }
 .node-card.selected { border-color: var(--accent-1); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
 .node-card.dragging { cursor: grabbing; opacity: .85; z-index: 50; }
-.node-card[data-type="start"]     { border-left: 4px solid #64748b; }
+.node-card[data-type="start"]     { border-left: 4px solid #5c6b8a; }
 .node-card[data-type="whatsapp"]  { border-left: 4px solid var(--green); }
 .node-card[data-type="email"]     { border-left: 4px solid var(--accent-1); }
 .node-card[data-type="wait"]      { border-left: 4px solid var(--yellow); }
 .node-card[data-type="condition"] { border-left: 4px solid var(--orange); }
 
 .node-head { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--border); }
-.node-head .ni { font-size: 15px; }
+.node-head .ni { width: 16px; height: 16px; color: var(--accent-1); }
 .node-head .nt { font-size: 11.5px; font-weight: 700; color: var(--text-h); flex: 1; }
-.node-del { width: 20px; height: 20px; border-radius: 5px; background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.node-del { width: 20px; height: 20px; border-radius: 5px; background: transparent; border: none; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .node-del:hover { color: var(--red); background: rgba(220,38,38,.12); }
+.node-del svg { width: 11px; height: 11px; }
 .node-body { padding: 9px 10px; font-size: 11.5px; color: var(--text-b); line-height: 1.5; min-height: 20px; max-height: 60px; overflow: hidden; }
 
 .port { position: absolute; width: 13px; height: 13px; border-radius: 50%; background: var(--bg-card); border: 2px solid var(--accent-1); cursor: crosshair; z-index: 5; }
@@ -282,8 +424,9 @@ td.col-aitask .cell-input { min-width: 160px; }
 }
 .inspector-empty { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; padding-top: 20px; text-align: center; }
 .inspector-title { display: flex; align-items: center; gap: 8px; font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 14px; color: var(--text-h); }
+.inspector-title svg { width: 17px; height: 17px; color: var(--accent-1); }
 .step-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
-.step-field label { font-size: 11px; color: var(--text-b); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.step-field label { font-size: 11px; color: var(--text-b); font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .step-input, .step-textarea, .step-select {
   background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius-sm);
   color: var(--text-h); font-family: inherit; font-size: 12.5px; padding: 7px 10px; outline: none; width: 100%;
@@ -304,26 +447,28 @@ td.col-aitask .cell-input { min-width: 160px; }
   .node-inspector { width: 100%; }
 }
 
-
-
 /* ─── SETTINGS ────────────────────────────────────── */
 .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.settings-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow-sm); }
-.settings-card-title { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; color: var(--text-h); }
+.settings-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow-sm); transition: box-shadow .3s; }
+.settings-card:hover { box-shadow: var(--shadow-md); }
+.settings-card-title { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 9px; color: var(--text-h); }
+.settings-card-title .sic { width: 30px; height: 30px; border-radius: 9px; background: rgba(37,99,235,.1); color: var(--accent-1); display: flex; align-items: center; justify-content: center; }
+.settings-card-title .sic svg { width: 15px; height: 15px; }
 .settings-card-sub { font-size: 12.5px; color: var(--text-b); margin-bottom: 18px; }
 .form-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
-.form-row label { font-size: 12px; color: var(--text-b); font-weight: 500; }
+.form-row label { font-size: 12px; color: var(--text-b); font-weight: 600; }
 .form-input {
   background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 9px 12px; color: var(--text-h); font-size: 13px; outline: none; font-family: inherit; width: 100%;
+  transition: border-color .2s, box-shadow .2s;
 }
-.form-input:focus { border-color: var(--accent-1); background: #fff; }
+.form-input:focus { border-color: var(--accent-1); background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
 .form-input[readonly] { color: var(--text-b); cursor: text; }
 .copy-row { display: flex; gap: 8px; }
 .copy-row .form-input { flex: 1; }
 .integration-status { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 0; color: var(--text-b); }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; }
-.status-dot.ok     { background: var(--green); box-shadow: 0 0 6px rgba(22,163,74,.5); }
+.status-dot.ok     { background: var(--green); box-shadow: 0 0 6px rgba(8,145,178,.5); }
 .status-dot.off    { background: var(--text-dim); }
 .status-dot.error  { background: var(--red); }
 .settings-actions { display: flex; gap: 8px; margin-top: 6px; }
@@ -331,18 +476,20 @@ td.col-aitask .cell-input { min-width: 160px; }
 /* ─── LOGS / TEAM TABLE ───────────────────────────── */
 .logs-table-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
 table.logs-table { width: 100%; border-collapse: collapse; }
-table.logs-table th { font-size: 11px; color: var(--text-b); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; padding: 10px 14px; background: var(--bg-hover); text-align: left; }
+table.logs-table th { font-size: 11px; color: var(--text-b); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 10px 14px; background: var(--bg-hover); text-align: left; }
 table.logs-table td { font-size: 12.5px; padding: 10px 14px; border-top: 1px solid var(--border); color: var(--text-b); }
 table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
-.log-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
-.log-sent    { background: rgba(22,163,74,.12);  color: var(--green); }
+.log-status { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+.log-sent    { background: rgba(8,145,178,.12);  color: var(--green); }
 .log-failed  { background: rgba(220,38,38,.12);  color: var(--red); }
-.log-pending { background: rgba(217,119,6,.12); color: var(--yellow); }
+.log-pending { background: rgba(59,130,246,.14); color: var(--yellow); }
 
 /* ─── MODAL ──────────────────────────────────────── */
-.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 500; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(2px); }
-.modal-overlay.open { display: flex; }
-.modal-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; max-width: 480px; padding: 24px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(15,23,42,.18); }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(11,30,61,.45); z-index: 500; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(3px); }
+.modal-overlay.open { display: flex; animation: fadeIn .2s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; max-width: 480px; padding: 24px; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 60px rgba(11,30,61,.22); animation: modalPop .28s cubic-bezier(.16,1,.3,1); }
+@keyframes modalPop { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .modal-box.wide { max-width: 640px; }
 .modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 700; margin-bottom: 4px; color: var(--text-h); }
 .modal-sub { font-size: 12.5px; color: var(--text-b); margin-bottom: 18px; }
@@ -365,20 +512,24 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
   position: fixed; bottom: 22px; right: 22px; z-index: 700;
   background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--accent-1);
   border-radius: var(--radius-sm); padding: 12px 18px; font-size: 13px; color: var(--text-h);
-  box-shadow: 0 10px 30px rgba(15,23,42,.15); display: none; max-width: 320px;
+  box-shadow: 0 14px 34px rgba(11,30,61,.18); display: none; max-width: 320px;
 }
-#toast.show { display: block; }
+#toast.show { display: block; animation: toastIn .35s cubic-bezier(.34,1.56,.64,1); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(16px) scale(.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
 #toast.error { border-left-color: var(--red); }
 #toast.success { border-left-color: var(--green); }
 
-#sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.4); z-index: 190; }
+#sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(11,30,61,.35); z-index: 190; }
 
 @media (max-width: 1200px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .settings-grid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) {
-  #sidebar { transform: translateX(-100%); }
+  #sidebar {
+    position: fixed;
+    top: var(--gap); left: var(--gap); bottom: var(--gap);
+    transform: translateX(-120%);
+  }
   #sidebar.open { transform: translateX(0); }
   #sidebar-overlay.open { display: block; }
-  #main { margin-left: 0; }
   .ham-btn { display: flex; }
   #content { padding: 20px 16px 60px; }
   .flow-builder-wrap { flex-direction: column; height: auto; }
@@ -388,24 +539,20 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 }
 @media (max-width: 560px) { .stats-row { grid-template-columns: 1fr; } .campaigns-grid { grid-template-columns: 1fr; } }
 
-
 /* ── Animations & polish ── */
-@keyframes fadeInUp { from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:translateY(0);} }
-.page.active { animation: fadeInUp .45s cubic-bezier(.16,1,.3,1); }
-.reveal { opacity:0; transform:translateY(16px); transition:opacity .5s ease, transform .5s ease; }
+@keyframes fadeInUp { from{opacity:0;transform:translateY(16px);} to{opacity:1;transform:translateY(0);} }
+.page.active { animation: fadeInUp .5s cubic-bezier(.16,1,.3,1); }
+.reveal { opacity:0; transform:translateY(18px); transition:opacity .55s cubic-bezier(.16,1,.3,1), transform .55s cubic-bezier(.16,1,.3,1); }
 .reveal.in { opacity:1; transform:translateY(0); }
 .stat-card, .campaign-card, .settings-card, .chart-card {
   transition: transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s ease, border-color .25s ease;
 }
-.nav-item { transition: background .2s, color .2s, padding-left .2s; }
-.nav-item:hover { padding-left: 14px; }
 .btn { transition: transform .15s cubic-bezier(.34,1.56,.64,1), box-shadow .15s, opacity .15s, background .15s; }
-.btn:active { transform: scale(.96); }
 
 /* Toggle switch */
 .switch { position:relative; display:inline-block; width:42px; height:24px; flex-shrink:0; }
 .switch input { opacity:0; width:0; height:0; position:absolute; }
-.switch-track { position:absolute; inset:0; background:#cbd5e1; border-radius:99px; cursor:pointer; transition:background .25s; }
+.switch-track { position:absolute; inset:0; background:#c7d6f2; border-radius:99px; cursor:pointer; transition:background .25s; }
 .switch-thumb { position:absolute; top:3px; left:3px; width:18px; height:18px; background:#fff; border-radius:50%; transition:transform .25s cubic-bezier(.34,1.56,.64,1); box-shadow:0 1px 3px rgba(0,0,0,.2); }
 .switch input:checked + .switch-track { background: var(--accent-grad); }
 .switch input:checked + .switch-track .switch-thumb { transform: translateX(18px); }
@@ -438,21 +585,21 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 .wlog-list { max-height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
 .wlog-item { border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg-hover); overflow:hidden; }
 .wlog-head { display:flex; align-items:center; gap:8px; padding:9px 12px; cursor:pointer; font-size:12px; }
-.wlog-head:hover { background:#e2e8f0; }
+.wlog-head:hover { background:#dbe9fc; }
 .wlog-badge { font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:99px; text-transform:uppercase; letter-spacing:.03em; }
 .wlog-badge.received { background:rgba(37,99,235,.12); color:var(--accent-1); }
-.wlog-badge.sent     { background:rgba(22,163,74,.12); color:var(--green); }
-.wlog-badge.skipped  { background:rgba(100,116,139,.14); color:var(--text-b); }
+.wlog-badge.sent     { background:rgba(8,145,178,.12); color:var(--green); }
+.wlog-badge.skipped  { background:rgba(92,107,138,.14); color:var(--text-b); }
 .wlog-badge.error    { background:rgba(220,38,38,.12); color:var(--red); }
-.wlog-badge.info     { background:rgba(124,58,237,.12); color:var(--purple); }
-.wlog-source { font-size:10.5px; font-weight:600; color:var(--text-dim); text-transform:uppercase; }
+.wlog-badge.info     { background:rgba(79,70,229,.12); color:var(--purple); }
+.wlog-source { font-size:10.5px; font-weight:700; color:var(--text-dim); text-transform:uppercase; }
 .wlog-dir { font-size:11px; color:var(--text-b); }
 .wlog-note { flex:1; font-size:12px; color:var(--text-h); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .wlog-time { font-size:10.5px; color:var(--text-dim); white-space:nowrap; }
-.wlog-body { display:none; padding:10px 12px; border-top:1px solid var(--border); background:#0f172a; }
+.wlog-body { display:none; padding:10px 12px; border-top:1px solid var(--border); background:#0b1e3d; }
 .wlog-body.open { display:block; }
-.wlog-body pre { margin:0 0 8px; font-size:11px; line-height:1.5; color:#e2e8f0; white-space:pre-wrap; word-break:break-word; font-family:'Space Grotesk',monospace; }
-.wlog-body .wlog-section-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin-bottom:3px; display:block; }
+.wlog-body pre { margin:0 0 8px; font-size:11px; line-height:1.5; color:#dbe9fc; white-space:pre-wrap; word-break:break-word; font-family:'Space Grotesk',monospace; }
+.wlog-body .wlog-section-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#93a3c2; margin-bottom:3px; display:block; }
 
 </style>
 </head>
@@ -467,52 +614,53 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
       <div class="logo-text"><h2>PravaahAI</h2><p>Global Trade Intelligence</p></div>
     </div>
   </div>
+  <div class="sidebar-nav-card">
   <div class="nav-section">
     <div class="nav-label">Overview</div>
     <a class="nav-item active" href="#" onclick="showPage('dashboard', this)">
-      <span class="nav-icon">📊</span> Dashboard
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4.5" height="8" rx="1"/><rect x="9.75" y="7" width="4.5" height="13" rx="1"/><rect x="16.5" y="3" width="4.5" height="17" rx="1"/></svg></span> Dashboard
     </a>
     <div class="nav-label">Leads</div>
     <a class="nav-item" href="#" onclick="showPage('leads', this)">
-      <span class="nav-icon">👥</span> My Leads
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> My Leads
     </a>
     <div class="nav-label">Campaigns</div>
     <a class="nav-item" href="#" onclick="showPage('campaigns', this)" id="nav-campaigns">
-      <span class="nav-icon">🚀</span> Campaigns
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 19 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2"/></svg></span> Campaigns
     </a>
     <div class="nav-label">Team</div>
     <a class="nav-item" href="#" onclick="showPage('team', this)" id="nav-team">
-      <span class="nav-icon">🧑‍🤝‍🧑</span> Team
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg></span> Team
     </a>
 
     <div class="nav-label" id="nav-label-realestate" style="display:none;">Real Estate</div>
     <a class="nav-item" href="#" onclick="showPage('inventory', this)" id="nav-inventory" style="display:none;">
-      <span class="nav-icon">🏘️</span> Inventory
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 21v-4h6v4"/><path d="M9 7h.01M9 11h.01M9 15h.01M15 7h.01M15 11h.01M15 15h.01"/></svg></span> Inventory
     </a>
     <a class="nav-item" href="#" onclick="showPage('sitevisits', this)" id="nav-sitevisits" style="display:none;">
-      <span class="nav-icon">📍</span> Site Visits
-      <span class="role-badge" id="sitevisits-badge" style="display:none;background:#dc2626;color:#fff;">0</span>
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span> Site Visits
+      <span class="role-badge" id="sitevisits-badge" style="display:none;background:var(--red);color:#fff;">0</span>
     </a>
 
     <div class="nav-label">Automation</div>
 <a class="nav-item" href="#" onclick="showPage('whatsapp-bot', this)" id="nav-whatsapp-bot">
-  <span class="nav-icon">🤖</span> WhatsApp Bot
+  <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1.2"/><path d="M8 13.5h.01M16 13.5h.01"/><path d="M9 17h6"/></svg></span> WhatsApp Bot
 </a>
 
 <div class="nav-label">EvaAI</div>
-<a class="nav-item" href="/eva"  id="nav-whatsapp-bot">
-  <span class="nav-icon">📞</span> Eva Voice AI
+<a class="nav-item" href="/eva">
+  <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92z"/></svg></span> Eva Voice AI
 </a>
     <div class="nav-label">Account</div>
     <a class="nav-item" href="#" onclick="showPage('profile', this)">
-      <span class="nav-icon">🪪</span> Profile
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M6 16c0-1.66 1.34-3 3-3s3 1.34 3 3"/><path d="M14 9h4M14 13h4"/></svg></span> Profile
     </a>
     <a class="nav-item" href="#" onclick="showPage('settings', this)" id="nav-settings">
-      <span class="nav-icon">⚙️</span> Integrations
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Integrations
     </a>
 
-    <a class="nav-item" href="/leads/scrape" onclick="showPage('settings', this)" id="nav-settings">
-      <span class="nav-icon"> 🔍 </span> Scrap Emails
+    <a class="nav-item" href="/leads/scrape" onclick="showPage('settings', this)">
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-4.35-4.35"/></svg></span> Scrape Emails
     </a>
   </div>
   <div class="sidebar-footer">
@@ -522,17 +670,20 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
         <div class="user-name">{{ display_name or user.username or "User" }}</div>
         <div class="user-email" id="sidebar-role-label">{{ "Owner" if role == "owner" else "Team Member" }}</div>
       </div>
-      <a class="logout-link" href="/logout" title="Logout">⏻</a>
+      <a class="logout-link" href="/logout" title="Logout"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg></a>
     </div>
+  </div>
   </div>
 </nav>
 
 <!-- MAIN -->
 <div id="main">
   <header id="topbar">
-    <button class="ham-btn" onclick="openSidebar()">☰</button>
+    <button class="ham-btn" onclick="openSidebar()">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
     <div class="search-wrap">
-      <span style="color:var(--text-dim);font-size:15px;">🔍</span>
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
       <input type="text" id="global-search" placeholder="Search leads…" oninput="handleSearchInput()" />
     </div>
     <div class="topbar-right">
@@ -544,54 +695,70 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 
     <!-- ═══ PAGE: DASHBOARD ═══ -->
     <div class="page active" id="page-dashboard">
-      <div class="page-header">
-        <h1>Welcome back, {{ display_name or user.username or "there" }} 👋</h1>
-        <p>Here's how your outreach is performing.</p>
+      <div class="page-header reveal">
+        <span class="eyebrow"><span class="dot"></span> Live Overview</span>
+        <h1 class="hero-title">Outreach <span class="grad-text">Performance</span></h1>
       </div>
-      <div class="stats-row" id="dash-stats-row"></div>
-      <div class="chart-grid">
-        <div class="chart-card">
-          <h3>📈 Messages Sent — Last 14 Days</h3>
-          <canvas id="chart-timeseries"></canvas>
+
+      <div class="dashboard-layout">
+        <div class="dashboard-main">
+          <div class="stats-row" id="dash-stats-row"></div>
+          <div class="chart-grid">
+            <div class="chart-card reveal">
+              <h3><span class="chart-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg></span> Messages Sent — Last 14 Days</h3>
+              <canvas id="chart-timeseries"></canvas>
+            </div>
+            <div class="chart-card reveal">
+              <h3><span class="chart-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0z"/></svg></span> Lead Temperature</h3>
+              <canvas id="chart-status"></canvas>
+            </div>
+          </div>
+          <div class="chart-grid" style="grid-template-columns: 1fr; margin-top:16px;">
+            <div class="chart-card reveal">
+              <h3><span class="chart-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span> Booked Meetings — Last 14 Days</h3>
+              <canvas id="chart-meetings"></canvas>
+            </div>
+          </div>
         </div>
-        <div class="chart-card">
-          <h3>🌡️ Lead Temperature</h3>
-          <canvas id="chart-status"></canvas>
-        </div>
-      </div>
-      <div class="chart-grid" style="grid-template-columns: 2fr 1fr; margin-top:16px;">
-        <div class="chart-card">
-          <h3>📅 Booked Meetings — Last 14 Days</h3>
-          <canvas id="chart-meetings"></canvas>
-        </div>
-        <div class="chart-card" style="display:flex; flex-direction:column;">
-          <h3>Meetings</h3>
-          <div style="font-size:13px; color:var(--text-b); line-height:1.8;" id="meetings-summary-mini"></div>
-          <div style="flex:1;"></div>
-          <button class="btn btn-primary" style="width:100%;" onclick="openMeetingsModal()">📅 View Meetings</button>
-        </div>
+
+        <aside class="cal-card reveal">
+          <div class="cal-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <h3>Meetings</h3>
+          </div>
+          <div class="cal-month" id="mini-cal-month"></div>
+          <div class="mini-cal" id="mini-cal-grid"></div>
+          <div class="cal-divider"></div>
+          <div class="cal-meetings-summary" id="meetings-summary-mini"></div>
+          <button class="btn btn-primary" style="width:100%;" onclick="openMeetingsModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            View Meetings
+          </button>
+        </aside>
       </div>
     </div>
 
     <!-- ═══ PAGE: LEADS ═══ -->
     <div class="page" id="page-leads">
-      <div class="page-header">
-        <h1>My Leads 👥</h1>
-        <p>Manage and grow your lead list — add manually, edit inline, or import in bulk.</p>
+      <div class="page-header reveal">
+        <div class="page-header-top">
+          <span class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          <div><h1>My Leads</h1><p>Manage and grow your lead list — add manually, edit inline, or import in bulk.</p></div>
+        </div>
       </div>
       <div class="toolbar">
-        <button class="btn btn-primary" onclick="openAddModal()">＋ Add Lead</button>
-        <button class="btn btn-ghost" onclick="addBlankRow()">＋ Add Row</button>
-        <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">⬆ Import CSV / Excel</button>
+        <button class="btn btn-primary" onclick="openAddModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Lead</button>
+        <button class="btn btn-ghost" onclick="addBlankRow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Row</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import CSV / Excel</button>
         <input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportFileSelected(event)" />
-        <button class="btn btn-ghost" onclick="openSegmentsModal()">🏷️ Segments</button>
-        <button class="btn btn-ghost" onclick="openLeadsFilterModal()">🔍 Filter</button>
-        
-        <button class="btn btn-ghost btn-sm" onclick="exportFilteredLeads()">⬇ Export My Leads</button>
+        <button class="btn btn-ghost" onclick="openSegmentsModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41L11 3.83A2 2 0 0 0 9.5 3H4a1 1 0 0 0-1 1v5.5a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l5.59-5.59a2 2 0 0 0 0-2.83z"/><circle cx="7.5" cy="7.5" r="1.4"/></svg> Segments</button>
+        <button class="btn btn-ghost" onclick="openLeadsFilterModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Filter</button>
+
+        <button class="btn btn-ghost btn-sm" onclick="exportFilteredLeads()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export My Leads</button>
         <div class="spacer"></div>
         <span class="filter-badge" id="leads-filter-badge"></span>
         <span class="dirty-note" id="dirty-note" style="display:none;">Unsaved changes</span>
-        <button class="btn btn-primary" id="save-all-btn" onclick="saveAll()" disabled>💾 Save All</button>
+        <button class="btn btn-primary" id="save-all-btn" onclick="saveAll()" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save All</button>
       </div>
       <div class="sheet-card">
         <div class="sheet-scroll">
@@ -612,19 +779,21 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
         </div>
         <div class="sheet-footer">
           <span style="font-size:12px;color:var(--text-dim);" id="row-count-label">0 leads</span>
-          <button class="btn btn-ghost btn-sm" onclick="addBlankRow()">＋ Add Row</button>
+          <button class="btn btn-ghost btn-sm" onclick="addBlankRow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Row</button>
         </div>
       </div>
     </div>
 
     <!-- ═══ PAGE: CAMPAIGNS ═══ -->
     <div class="page" id="page-campaigns">
-      <div class="page-header">
-        <h1>Automation Campaigns 🚀</h1>
-        <p>Build multi-step WhatsApp & Email flows. Drag-and-drop steps, set waits, add conditions, and let AI write the message.</p>
+      <div class="page-header reveal">
+        <div class="page-header-top">
+          <span class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 19 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg></span>
+          <div><h1>Automation Campaigns</h1><p>Build multi-step WhatsApp & Email flows. Drag-and-drop steps, set waits, add conditions, and let AI write the message.</p></div>
+        </div>
       </div>
       <div class="toolbar">
-        <button class="btn btn-primary" onclick="openNewCampaignModal()">＋ New Campaign</button>
+        <button class="btn btn-primary" onclick="openNewCampaignModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Campaign</button>
         <div class="spacer"></div>
       </div>
       <div class="campaigns-grid" id="campaigns-grid">
@@ -632,7 +801,6 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
       </div>
     </div>
 
-    <!-- ═══ PAGE: FLOW BUILDER ═══ -->
     <!-- ═══ PAGE: FLOW BUILDER (CANVAS) ═══ -->
     <div class="page" id="page-flow-builder">
       <div class="page-header" style="display:flex;align-items:center;gap:14px;">
@@ -650,10 +818,10 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
       <div class="canvas-builder-wrap">
         <div class="flow-palette">
           <div class="palette-title">Drag onto canvas</div>
-          <div class="palette-item" draggable="true" data-node-type="whatsapp" ondragstart="paletteDragStart(event)"><span class="pi-icon">💬</span> WhatsApp</div>
-          <div class="palette-item" draggable="true" data-node-type="email" ondragstart="paletteDragStart(event)"><span class="pi-icon">📧</span> Email</div>
-          <div class="palette-item" draggable="true" data-node-type="wait" ondragstart="paletteDragStart(event)"><span class="pi-icon">⏳</span> Wait</div>
-          <div class="palette-item" draggable="true" data-node-type="condition" ondragstart="paletteDragStart(event)"><span class="pi-icon">🔀</span> Condition</div>
+          <div class="palette-item" draggable="true" data-node-type="whatsapp" ondragstart="paletteDragStart(event)"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8V4"/><path d="M8 13.5h.01M16 13.5h.01"/><path d="M9 17h6"/></svg></span> WhatsApp</div>
+          <div class="palette-item" draggable="true" data-node-type="email" ondragstart="paletteDragStart(event)"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span> Email</div>
+          <div class="palette-item" draggable="true" data-node-type="wait" ondragstart="paletteDragStart(event)"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg></span> Wait</div>
+          <div class="palette-item" draggable="true" data-node-type="condition" ondragstart="paletteDragStart(event)"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12a3 3 0 0 0 3 3h9"/><polyline points="15 15 18 18 21 15"/><circle cx="6" cy="18" r="2.4"/></svg></span> Condition</div>
           <div style="font-size:11px;color:var(--text-dim);line-height:1.7;margin-top:16px;">
             Drag a step onto the canvas. Drag from the blue dot on a node's right edge to another node's left dot to connect them. Click a node to edit it. Click the ✕ on a line to disconnect.
           </div>
@@ -676,13 +844,15 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 
    <!-- ═══ PAGE: WHATSAPP BOT ═══ -->
 <div class="page" id="page-whatsapp-bot">
-  <div class="page-header">
-    <h1>WhatsApp Bot 🤖</h1>
-    <p>Auto-reply to leads with AI. When a message arrives through your active provider, the bot (if enabled) drafts a reply using your system prompt and sends it back via Wirebase/Evolution. A message only appears in the inbox after it's actually sent.</p>
+  <div class="page-header reveal">
+    <div class="page-header-top">
+      <span class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1.2"/><path d="M8 13.5h.01M16 13.5h.01"/><path d="M9 17h6"/></svg></span>
+      <div><h1>WhatsApp Bot</h1><p>Auto-reply to leads with AI. When a message arrives through your active provider, the bot (if enabled) drafts a reply using your system prompt and sends it back via Wirebase/Evolution. A message only appears in the inbox after it's actually sent.</p></div>
+    </div>
   </div>
 
   <div class="settings-card reveal" style="margin-bottom:16px;">
-    <div class="settings-card-title">⚙️ Bot Settings</div>
+    <div class="settings-card-title"><span class="sic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Bot Settings</div>
     <div class="settings-card-sub">This system prompt controls every auto-reply. Use each lead's "AI Task" cell in the Leads sheet for per-lead goals.</div>
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
       <label class="switch">
@@ -700,24 +870,7 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
     </div>
   </div>
 
-  <div class="settings-card reveal" style="margin-bottom:16px;">
-    <div class="settings-card-title">🪵 Raw Webhook Log</div>
-    <div class="settings-card-sub">Every inbound webhook hit (Wirebase / Evolution) and every outbound send attempt, in raw form — headers, payload, and the response we got back. Click a row to expand.</div>
-    <div class="wlog-toolbar">
-      <select class="form-input" id="wlog-source-filter" style="width:auto;" onchange="loadWebhookLogs()">
-        <option value="">All Sources</option>
-        <option value="wirebase">Wirebase</option>
-        <option value="evolution">Evolution API</option>
-      </select>
-      <button class="btn btn-ghost btn-sm" onclick="loadWebhookLogs()">🔄 Refresh</button>
-      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-b);margin-left:auto;">
-        <input type="checkbox" id="wlog-autorefresh" checked onchange="onWlogAutoRefreshToggle()" /> Auto-refresh (5s)
-      </label>
-    </div>
-    <div class="wlog-list" id="wlog-list">
-      <div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12.5px;">Loading…</div>
-    </div>
-  </div>
+
 
   <div class="page-header" style="margin-bottom:12px;">
     <h1 style="font-size:18px;">Inbox</h1>
@@ -731,7 +884,7 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
       <div class="inbox-thread-header" id="inbox-thread-header" style="display:flex;align-items:center;gap:12px;">
         <span id="inbox-thread-title">Select a conversation</span>
         <div id="inbox-ai-toggle-wrap" style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;font-weight:500;color:var(--text-b);">
-          <span>🤖 AI Auto-Reply</span>
+          <span>AI Auto-Reply</span>
           <label class="switch" style="width:34px;height:20px;">
             <input type="checkbox" id="inbox-ai-toggle" onchange="toggleInboxLeadAI(this.checked)" />
             <span class="switch-track"><span class="switch-thumb" style="width:14px;height:14px;"></span></span>
@@ -749,12 +902,14 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 
     <!-- ═══ PAGE: TEAM ═══ -->
     <div class="page" id="page-team">
-      <div class="page-header">
-        <h1>Team 🧑‍🤝‍🧑</h1>
-        <p>Invite teammates. When a lead replies, they're auto-assigned round-robin to your active team members.</p>
+      <div class="page-header reveal">
+        <div class="page-header-top">
+          <span class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg></span>
+          <div><h1>Team</h1><p>Invite teammates. When a lead replies, they're auto-assigned round-robin to your active team members.</p></div>
+        </div>
       </div>
       <div class="toolbar">
-        <button class="btn btn-primary" onclick="openInviteModal()">＋ Invite Team Member</button>
+        <button class="btn btn-primary" onclick="openInviteModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Invite Team Member</button>
       </div>
       <div class="logs-table-wrap">
         <table class="logs-table">
@@ -767,12 +922,14 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 
     <!-- ═══ PAGE: INVENTORY (Real Estate) ═══ -->
     <div class="page" id="page-inventory">
-      <div class="page-header">
-        <h1>Property Inventory 🏘️</h1>
-        <p>Add listings with photos, videos, and a brochure PDF. Each gets a shareable public view page.</p>
+      <div class="page-header reveal">
+        <div class="page-header-top">
+          <span class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 21v-4h6v4"/><path d="M9 7h.01M9 11h.01M9 15h.01M15 7h.01M15 11h.01M15 15h.01"/></svg></span>
+          <div><h1>Property Inventory</h1><p>Add listings with photos, videos, and a brochure PDF. Each gets a shareable public view page.</p></div>
+        </div>
       </div>
       <div class="toolbar">
-        <button class="btn btn-primary" onclick="openAddInventoryModal()">＋ Add Property</button>
+        <button class="btn btn-primary" onclick="openAddInventoryModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Property</button>
       </div>
       <div class="campaigns-grid" id="inventory-grid">
         <div class="empty-state">No properties yet. Add your first one!</div>
@@ -781,9 +938,11 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 
     <!-- ═══ PAGE: SITE VISITS (Real Estate) ═══ -->
     <div class="page" id="page-sitevisits">
-      <div class="page-header">
-        <h1>Site Visits 📍</h1>
-        <p>Every site visit requested by a lead through WhatsApp shows up here.</p>
+      <div class="page-header reveal">
+        <div class="page-header-top">
+          <span class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+          <div><h1>Site Visits</h1><p>Every site visit requested by a lead through WhatsApp shows up here.</p></div>
+        </div>
       </div>
       <div class="campaigns-grid" id="sitevisits-grid">
         <div class="empty-state">No site visits yet.</div>
@@ -793,9 +952,11 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 
     <!-- ═══ PAGE: PROFILE ═══ -->
     <div class="page" id="page-profile">
-      <div class="page-header">
-        <h1>Profile 🪪</h1>
-        <p>Your business details, used to personalize AI-generated outreach.</p>
+      <div class="page-header reveal">
+        <div class="page-header-top">
+          <span class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M6 16c0-1.66 1.34-3 3-3s3 1.34 3 3"/><path d="M14 9h4M14 13h4"/></svg></span>
+          <div><h1>Profile</h1><p>Your business details, used to personalize AI-generated outreach.</p></div>
+        </div>
       </div>
       <div class="settings-grid">
         <div class="settings-card">
@@ -829,9 +990,11 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 
     <!-- ═══ PAGE: SETTINGS ═══ -->
     <div class="page" id="page-settings">
-      <div class="page-header">
-        <h1>Integrations & Settings ⚙️</h1>
-        <p>Connect your WhatsApp instance, Gmail, and Resend accounts.</p>
+      <div class="page-header reveal">
+        <div class="page-header-top">
+          <span class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+          <div><h1>Integrations & Settings</h1><p>Connect your WhatsApp instance, Gmail, and Resend accounts.</p></div>
+        </div>
       </div>
       <div class="settings-grid">
         <!-- WhatsApp / Evolution -->
@@ -1283,8 +1446,6 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 
 <div id="toast"></div>
 
-<div id="toast"></div>
-
 <script>
 /* ════════════════════════════════════════════════
    STATE
@@ -1417,14 +1578,14 @@ function renderEdges() {
     const p1 = portPos(e.source, "out", e.source_handle);
     const p2 = portPos(e.target, "in");
     const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
-    const color = e.source_handle === "false" ? "#dc2626" : (e.source_handle === "true" ? "#16a34a" : "#2563eb");
+    const color = e.source_handle === "false" ? "#dc2626" : (e.source_handle === "true" ? "#0891b2" : "#2563eb");
     html += `<path d="${edgePathD(p1.x,p1.y,p2.x,p2.y)}" fill="none" stroke="${color}" stroke-width="2" marker-end="url(#arrow)" onclick="deleteEdge('${e.id}')"></path>`;
     html += `<circle class="edge-del-btn" cx="${mx}" cy="${my}" r="7" fill="#fff" stroke="${color}" stroke-width="1.5" onclick="deleteEdge('${e.id}')"></circle>`;
     html += `<text x="${mx}" y="${my+3}" text-anchor="middle" font-size="9" fill="${color}" style="pointer-events:none;">✕</text>`;
   });
   if (connectDrag) {
     const p1 = portPos(connectDrag.sourceId, "out", connectDrag.handle);
-    html += `<path d="${edgePathD(p1.x,p1.y,connectDrag.x,connectDrag.y)}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 4"></path>`;
+    html += `<path d="${edgePathD(p1.x,p1.y,connectDrag.x,connectDrag.y)}" fill="none" stroke="#94a3c2" stroke-width="2" stroke-dasharray="4 4"></path>`;
   }
   svg.innerHTML = html;
 }
@@ -1886,14 +2047,11 @@ function confirmLeadSelection() {
 }
 
 /* ════════════════════════════════════════════════
-   TEAM  (owner only)
-════════════════════════════════════════════════ */
-
-/* ════════════════════════════════════════════════
    INIT
 ════════════════════════════════════════════════ */
 
 document.addEventListener("DOMContentLoaded", async () => {
+  buildMiniCalendar();
   await loadMe();
   await loadSegments();
   loadLeads();
@@ -1901,8 +2059,46 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (myRole === "owner") { loadCampaigns(); loadTeam(); loadIntegrations(); loadMeetingsChart(); }
   loadProfile();
   initRevealAnimations();
+  initRippleEffect();
 });
 
+/* ── mini calendar (dashboard aside), mirrors the reference layout ── */
+function buildMiniCalendar() {
+  const grid = document.getElementById('mini-cal-grid');
+  const monthLabel = document.getElementById('mini-cal-month');
+  if (!grid || !monthLabel) return;
+  const now = new Date();
+  const year = now.getFullYear(), month = now.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayDate = now.getDate();
+  monthLabel.textContent = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+  let html = '';
+  ['S','M','T','W','T','F','S'].forEach(d => html += `<span class="mc-dow">${d}</span>`);
+  for (let i = 0; i < firstDay; i++) html += `<span></span>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    html += `<span class="mc-day ${d === todayDate ? 'mc-today' : ''}">${d}</span>`;
+  }
+  grid.innerHTML = html;
+}
+
+/* ── click ripple, applies to every .btn on the page ── */
+function initRippleEffect() {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn');
+    if (!btn) return;
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    ripple.style.width = ripple.style.height = size + 'px';
+    ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+    ripple.style.top  = (e.clientY - rect.top  - size / 2) + 'px';
+    ripple.style.background = btn.classList.contains('btn-primary') ? 'rgba(255,255,255,.55)' : 'rgba(37,99,235,.18)';
+    btn.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 650);
+  });
+}
 
 let myCategory = "";
 
@@ -1941,7 +2137,7 @@ function showPage(name, navEl) {
   document.querySelector('.search-wrap').style.opacity = (name === 'leads') ? '1' : '0.3';
   if (name === 'campaigns') loadCampaigns();
   if (name === 'team') loadTeam();
-  if (name === 'dashboard') loadDashboardStats();
+  if (name === 'dashboard') { loadDashboardStats(); buildMiniCalendar(); }
   if (name === 'profile') loadProfile();
   if (name === 'inventory') loadInventory();
   if (name === 'sitevisits') { loadSiteVisits(); loadSiteVisitsBadge(); }
@@ -1967,17 +2163,22 @@ async function loadDashboardStats() {
     const res = await fetch("/api/dashboard/stats");
     if (!res.ok) throw new Error();
     const d = await res.json();
+    const ICON_USERS = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M22 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg>";
+    const ICON_TREND = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M23 6l-9.5 9.5-5-5L1 18'/><path d='M17 6h6v6'/></svg>";
+    const ICON_CHECK = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M22 11.08V12a10 10 0 1 1-5.93-9.14'/><polyline points='22 4 12 14.01 9 11.01'/></svg>";
+    const ICON_X = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><line x1='15' y1='9' x2='9' y2='15'/><line x1='9' y1='9' x2='15' y2='15'/></svg>";
     const stats = [
-      { icon: "👥", label: "Total Leads",     value: d.total_leads,   cls: "" },
-      { icon: "🆕", label: "New This Week",   value: d.new_this_week, cls: "" },
-      { icon: "✅", label: "Messages Sent",   value: d.messages_sent, cls: "green" },
-      { icon: "❌", label: "Failed Sends",    value: d.messages_failed, cls: "red" },
+      { icon: ICON_USERS, label: "Total Leads",     value: d.total_leads,   cls: "" },
+      { icon: ICON_TREND, label: "New This Week",   value: d.new_this_week, cls: "" },
+      { icon: ICON_CHECK, label: "Messages Sent",   value: d.messages_sent, cls: "green" },
+      { icon: ICON_X,     label: "Failed Sends",    value: d.messages_failed, cls: "red" },
     ];
-    document.getElementById("dash-stats-row").innerHTML = stats.map(s => `
-      <div class="stat-card">
-        <div class="stat-header"><span class="stat-icon">${s.icon}</span><span class="stat-label">${s.label}</span></div>
+    document.getElementById("dash-stats-row").innerHTML = stats.map((s,i) => `
+      <div class="stat-card reveal" style="transition-delay:${i*70}ms;">
+        <div class="stat-header"><span class="stat-icon-wrap">${s.icon}</span><span class="stat-label">${s.label}</span></div>
         <div class="stat-value ${s.cls}">${s.value}</div>
       </div>`).join("");
+    initRevealAnimations();
 
     const ctx1 = document.getElementById("chart-timeseries").getContext("2d");
     if (timeseriesChart) timeseriesChart.destroy();
@@ -1993,9 +2194,10 @@ async function loadDashboardStats() {
       },
       options: {
         responsive: true, plugins: { legend: { display: false } },
+        animation: { duration: 900, easing: 'easeOutQuart' },
         scales: {
-          x: { ticks: { color: "#64748b" }, grid: { color: "rgba(15,23,42,0.06)" } },
-          y: { ticks: { color: "#64748b", precision: 0 }, grid: { color: "rgba(15,23,42,0.06)" } },
+          x: { ticks: { color: "#5c6b8a" }, grid: { color: "rgba(15,58,138,0.06)" } },
+          y: { ticks: { color: "#5c6b8a", precision: 0 }, grid: { color: "rgba(15,58,138,0.06)" } },
         }
       }
     });
@@ -2008,11 +2210,11 @@ async function loadDashboardStats() {
         labels: ["Pending", "Cold", "Warm", "Hot"],
         datasets: [{
           data: [d.status_counts.pending||0, d.status_counts.cold, d.status_counts.warm, d.status_counts.hot],
-          backgroundColor: ["#94a3b8", "#3b82f6", "#f59e0b", "#ef4444"],
+          backgroundColor: ["#93a3c2", "#38bdf8", "#3b82f6", "#1e3a8a"],
           borderWidth: 0,
         }]
       },
-      options: { responsive: true, plugins: { legend: { position: "bottom", labels: { color: "#64748b" } } } }
+      options: { responsive: true, animation: { duration: 900, easing: 'easeOutQuart' }, plugins: { legend: { position: "bottom", labels: { color: "#5c6b8a" } } } }
     });
   } catch { /* silent */ }
 }
@@ -2030,23 +2232,24 @@ async function loadMeetingsChart(){
         labels: d.timeseries.map(p => p.date.slice(5)),
         datasets: [{
           label: "Meetings Booked", data: d.timeseries.map(p => p.booked),
-          backgroundColor: "rgba(124,58,237,0.55)", borderRadius: 4,
+          backgroundColor: "rgba(37,99,235,0.55)", borderRadius: 4,
         }]
       },
       options: {
         responsive: true, plugins: { legend: { display: false } },
+        animation: { duration: 900, easing: 'easeOutQuart' },
         scales: {
-          x: { ticks: { color: "#64748b" }, grid: { display: false } },
-          y: { ticks: { color: "#64748b", precision: 0 }, grid: { color: "rgba(15,23,42,0.06)" } },
+          x: { ticks: { color: "#5c6b8a" }, grid: { display: false } },
+          y: { ticks: { color: "#5c6b8a", precision: 0 }, grid: { color: "rgba(15,58,138,0.06)" } },
         }
       }
     });
     const sc = d.status_counts || {};
     document.getElementById("meetings-summary-mini").innerHTML = `
-      <div>🟢 Upcoming: <b>${d.upcoming||0}</b></div>
-      <div>✅ Completed: <b>${sc.completed||0}</b></div>
-      <div>❌ Missed: <b>${sc.missed||0}</b></div>
-      <div>🔁 Rescheduled: <b>${sc.rescheduled||0}</b></div>
+      <div><span class="dot-ind" style="background:var(--accent-1);"></span>Upcoming: <b>${d.upcoming||0}</b></div>
+      <div><span class="dot-ind" style="background:var(--green);"></span>Completed: <b>${sc.completed||0}</b></div>
+      <div><span class="dot-ind" style="background:var(--red);"></span>Missed: <b>${sc.missed||0}</b></div>
+      <div><span class="dot-ind" style="background:var(--purple);"></span>Rescheduled: <b>${sc.rescheduled||0}</b></div>
     `;
   } catch { /* silent */ }
 }
@@ -2236,8 +2439,8 @@ function rowHtml(lead, idx) {
     </td>
     <td><span class="assigned-tag">${assignedLabel(lead)}</span></td>
     <td class="col-actions"><div class="row-actions">
-      <div class="row-act-btn" title="Conversation" onclick="openLeadChat('${lead._id}','${esc(lead.name)}')">💬</div>
-      <div class="row-act-btn" title="Delete" onclick="deleteRow(${idx})">🗑</div>
+      <div class="row-act-btn" title="Conversation" onclick="openLeadChat('${lead._id}','${esc(lead.name)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <div class="row-act-btn danger" title="Delete" onclick="deleteRow(${idx})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></div>
     </div></td>
   </tr>`;
 }
@@ -2430,7 +2633,7 @@ function renderSegmentsList() {
         <div style="font-size:11.5px;color:var(--text-b);">${s.lead_count} lead${s.lead_count===1?"":"s"}</div>
       </div>
       <div class="lead-sel-meta">
-        <button class="row-act-btn" title="Delete segment" onclick="deleteSegment('${s._id}')">🗑</button>
+        <button class="row-act-btn danger" title="Delete segment" onclick="deleteSegment('${s._id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
       </div>
     </div>`).join("");
 }
