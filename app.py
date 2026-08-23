@@ -141,6 +141,18 @@ def serialize_site_visit(v):
         "status": v.get("status", "new"),
         "created_at": v.get("created_at").isoformat() if v.get("created_at") else None,
     }
+    
+    
+def serialize_caller_id(c):
+    return {
+        "_id": str(c["_id"]),
+        "number": c.get("number", ""),
+        "label": c.get("label", ""),
+        "agent_id": c.get("agent_id", ""),
+        "direction": c.get("direction", "both"),   # "inbound" | "outbound" | "both"
+        "status": c.get("status", "active"),
+        "created_at": c.get("created_at").isoformat() if c.get("created_at") else None,
+    }    
 
 
 # ----------------------------------
@@ -184,6 +196,7 @@ webhook_logs_col      = db["pravah-webhook-logs"]         # raw inbound/outbound
 webhook_logs_col      = db["pravah-webhook-logs"]         # raw inbound/outbound webhook events, for debugging
 inventory_col         = db["pravah-inventory"]             # real-estate property listings
 site_visits_col       = db["pravah-site-visits"]
+caller_ids_col         = db["pravah-caller-ids"]            # VaniSetu number -> owner + agent mapping
 # ----------------------------------
 # Create Indexes
 # ----------------------------------
@@ -220,6 +233,8 @@ try:
     inventory_col.create_index([("owner_id", 1), ("city", 1)])
     site_visits_col.create_index("owner_id")
     site_visits_col.create_index([("owner_id", 1), ("status", 1)])
+    caller_ids_col.create_index("owner_id")
+    caller_ids_col.create_index("number", unique=True)
 except Exception:
     pass
 
@@ -2696,6 +2711,136 @@ def api_update_site_visit_status(visit_id):
         return jsonify({"error": "Visit not found"}), 404
     return jsonify({"updated": True})
 
+
+# ==================================================================
+# VANISETU CALLER IDs  (owner dashboard CRUD + public lookup for Eva)
+# ==================================================================
+
+@app.route("/api/caller-ids", methods=["GET"])
+@login_required
+@owner_required
+def api_list_caller_ids():
+    rows = list(caller_ids_col.find({"owner_id": current_user_id()}).sort("created_at", -1))
+    return jsonify({"caller_ids": [serialize_caller_id(r) for r in rows]})
+
+
+@app.route("/api/caller-ids", methods=["POST"])
+@login_required
+@owner_required
+def api_create_caller_id():
+    data = request.get_json(silent=True) or {}
+    number = _e164((data.get("number") or "").strip())
+    agent_id = data.get("agent_id")
+    if not number:
+        return jsonify({"error": "A phone number is required"}), 400
+    if not agent_id:
+        return jsonify({"error": "Select an agent for this number"}), 400
+
+    agents_col = db["pravah-agents"]
+    try:
+        agent = agents_col.find_one({"_id": ObjectId(agent_id), "owner_id": current_user_id()})
+    except InvalidId:
+        return jsonify({"error": "Invalid agent id"}), 400
+    if not agent:
+        return jsonify({"error": "Agent not found"}), 404
+
+    if caller_ids_col.find_one({"number": number}):
+        return jsonify({"error": "That number is already registered"}), 400
+
+    doc = {
+        "owner_id": current_user_id(),
+        "number": number,
+        "label": (data.get("label") or "").strip(),
+        "agent_id": agent_id,
+        "direction": data.get("direction") if data.get("direction") in ("inbound", "outbound", "both") else "both",
+        "status": "active",
+        "created_at": datetime.utcnow(),
+    }
+    result = caller_ids_col.insert_one(doc)
+    return jsonify({"caller_id": serialize_caller_id(caller_ids_col.find_one({"_id": result.inserted_id}))}), 201
+
+
+@app.route("/api/caller-ids/<caller_id>", methods=["PUT", "PATCH"])
+@login_required
+@owner_required
+def api_update_caller_id(caller_id):
+    try: oid = ObjectId(caller_id)
+    except InvalidId: return jsonify({"error": "Invalid id"}), 400
+    data = request.get_json(silent=True) or {}
+    update = {}
+    if "label" in data: update["label"] = (data.get("label") or "").strip()
+    if "agent_id" in data:
+        agents_col = db["pravah-agents"]
+        try:
+            agent = agents_col.find_one({"_id": ObjectId(data["agent_id"]), "owner_id": current_user_id()})
+        except InvalidId:
+            return jsonify({"error": "Invalid agent id"}), 400
+        if not agent:
+            return jsonify({"error": "Agent not found"}), 404
+        update["agent_id"] = data["agent_id"]
+    if "direction" in data and data["direction"] in ("inbound", "outbound", "both"):
+        update["direction"] = data["direction"]
+    if "status" in data and data["status"] in ("active", "paused"):
+        update["status"] = data["status"]
+    result = caller_ids_col.update_one({"_id": oid, "owner_id": current_user_id()}, {"$set": update})
+    if result.matched_count == 0:
+        return jsonify({"error": "Caller ID not found"}), 404
+    return jsonify({"caller_id": serialize_caller_id(caller_ids_col.find_one({"_id": oid}))})
+
+
+@app.route("/api/caller-ids/<caller_id>", methods=["DELETE"])
+@login_required
+@owner_required
+def api_delete_caller_id(caller_id):
+    try: oid = ObjectId(caller_id)
+    except InvalidId: return jsonify({"error": "Invalid id"}), 400
+    result = caller_ids_col.delete_one({"_id": oid, "owner_id": current_user_id()})
+    if result.deleted_count == 0:
+        return jsonify({"error": "Caller ID not found"}), 404
+    return jsonify({"deleted": True})
+
+
+@app.route("/api/public/caller-id-config/<path:number>", methods=["GET"])
+def api_public_caller_id_config(number):
+    """Called by Eva (X-Eva-Secret auth) on an incoming VaniSetu call to
+    find which owner+agent a dialed number belongs to."""
+    if not EVA_API_SECRET or request.headers.get("X-Eva-Secret") != EVA_API_SECRET:
+        return jsonify({"error": "Invalid or missing X-Eva-Secret"}), 401
+
+    norm = _e164(number)
+    row = caller_ids_col.find_one({"number": norm, "status": "active"})
+    if not row or row.get("direction") not in ("inbound", "both"):
+        return jsonify({"error": "No agent configured for this number"}), 404
+
+    agents_col = db["pravah-agents"]
+    try:
+        agent = agents_col.find_one({"_id": ObjectId(row["agent_id"])})
+    except InvalidId:
+        agent = None
+    if not agent:
+        return jsonify({"error": "Configured agent no longer exists"}), 404
+
+    owner = users_col.find_one({"_id": ObjectId(row["owner_id"])})
+    if not owner or owner.get("status") != "active":
+        return jsonify({"error": "Account inactive"}), 403
+    remaining = float(owner.get("eva_minutes", 0) or 0) - float(owner.get("eva_minutes_used", 0) or 0)
+    if remaining <= 0:
+        return jsonify({"error": "Owner is out of Eva minutes"}), 402
+
+    return jsonify({
+        "owner_id": str(owner["_id"]),
+        "agent": {
+            "name": agent.get("name", ""),
+            "system_prompt": agent.get("system_prompt", ""),
+            "gender": agent.get("gender", "female"),
+            "language": agent.get("language", "auto"),
+            "speaker": agent.get("speaker", ""),
+            "opening_line": agent.get("opening_line") or "Hi, how can I help you today?",
+            "min_duration_secs": agent.get("min_duration_secs", 20),
+            "max_duration_secs": agent.get("max_duration_secs", 600),
+        },
+    })
+
 # ==================================================================
 # MEETING TEMPLATES API  (owner only)
 # ==================================================================
@@ -4473,10 +4618,9 @@ def request_call_from_eva(call_id, to_number, twilio_creds, agent, lead, owner_i
  
 def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, campaign_id=None):
     to_number = _e164(lead.get("phone", ""))
-    from_number = _e164(voip.get("from_number", ""))
-    if not to_number or not from_number:
+    if not to_number:
         return {"success": False, "error": "Missing phone number"}
- 
+
     call_doc = {
         "owner_id": owner_id, "campaign_id": campaign_id,
         "lead_id": str(lead["_id"]), "lead_name": lead.get("name", ""),
@@ -4485,12 +4629,33 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
     }
     inserted = calls_col.insert_one(call_doc)
     call_id = str(inserted.inserted_id)
- 
-    result = request_call_from_eva(
-        call_id=call_id, to_number=to_number,
-        twilio_creds={**voip, "from_number": from_number}, agent=agent, lead=lead,
-        owner_id=owner_id,
-    )
+
+    # Prefer a VaniSetu caller ID assigned to this agent — falls back to
+    # the owner's own Twilio creds if none is configured.
+    vanisetu_row = caller_ids_col.find_one({
+        "owner_id": owner_id, "agent_id": str(agent["_id"]), "status": "active",
+        "direction": {"$in": ["outbound", "both"]},
+    })
+
+    if vanisetu_row:
+        result = request_call_from_eva_vanisetu(
+            call_id=call_id, to_number=to_number, caller_id=vanisetu_row["number"],
+            agent=agent, lead=lead, owner_id=owner_id,
+        )
+    else:
+        from_number = _e164((voip or {}).get("from_number", ""))
+        if not from_number:
+            calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
+                "status": "failed", "hangup_reason": "No VaniSetu number or Twilio number configured",
+                "ended_at": datetime.utcnow(),
+            }})
+            return {"success": False, "error": "No VaniSetu number or Twilio number configured for this agent", "call_id": call_id}
+        result = request_call_from_eva(
+            call_id=call_id, to_number=to_number,
+            twilio_creds={**voip, "from_number": from_number}, agent=agent, lead=lead,
+            owner_id=owner_id,
+        )
+
     if result.get("success"):
         calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
             "status": "queued", "call_sid": result.get("call_sid"),
@@ -4502,7 +4667,6 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
             "ended_at": datetime.utcnow(),
         }})
         return {"success": False, "error": result.get("error"), "call_id": call_id}
- 
  
 # ==================================================================
 # Route registration
@@ -4795,8 +4959,9 @@ def init_eva(app, db, users_col, leads_col):
             return False, {"error": "Campaign's agent no longer exists"}
 
         voip = voip_col.find_one({"owner_id": owner_id})
-        if not voip or not (voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number")):
-            return False, {"error": "Add your Twilio/VOIP credentials in Settings before launching calls"}
+        has_twilio = bool(voip and voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number"))
+        if not has_twilio and not _agent_has_vanisetu_number(owner_id, agent["_id"]):
+            return False, {"error": "Add a VaniSetu caller ID (or Twilio credentials) for this agent before launching calls"}
 
         target = lead_ids_target if lead_ids_target is not None else (campaign.get("lead_ids") or "all")
         if target == "all" or not target:
@@ -4883,8 +5048,9 @@ def init_eva(app, db, users_col, leads_col):
         if not agent:
             return jsonify({"error": "Agent not found"}), 400
         voip = voip_col.find_one({"owner_id": current_user_id()})
-        if not voip or not (voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number")):
-            return jsonify({"error": "Add your Twilio/VOIP credentials in Settings first"}), 400
+        has_twilio = bool(voip and voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number"))
+        if not has_twilio and not _agent_has_vanisetu_number(current_user_id(), agent["_id"]):
+            return jsonify({"error": "Add a VaniSetu caller ID (or Twilio credentials) for this agent first"}), 400
         user = users_col.find_one({"_id": ObjectId(current_user_id())})
         if get_remaining_minutes(user) <= 0:
             return jsonify({"error": "You are out of Eva minutes"}), 400
@@ -4915,8 +5081,9 @@ def init_eva(app, db, users_col, leads_col):
             return jsonify({"error": "Agent not found"}), 400
 
         voip = voip_col.find_one({"owner_id": current_user_id()})
-        if not voip or not (voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number")):
-            return jsonify({"error": "Add your Twilio/VOIP credentials in Settings first"}), 400
+        has_twilio = bool(voip and voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number"))
+        if not has_twilio and not _agent_has_vanisetu_number(current_user_id(), agent["_id"]):
+            return jsonify({"error": "Add a VaniSetu caller ID (or Twilio credentials) for this agent first"}), 400
 
         user = users_col.find_one({"_id": ObjectId(current_user_id())})
         if get_remaining_minutes(user) <= 0:

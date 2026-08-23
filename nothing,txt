@@ -1,0 +1,173 @@
+VaniSetu — AI Bot Integration Guide
+Version: 1.2
+Last updated: 22 Aug 2026
+Maintained by: Varnet Team
+Contact: techsupport@varnetsolutions.in
+This doc covers everything you need to plug your AI voice bot into our VaniSetu —
+connecting, authenticating, and exchanging audio + control messages for live calls. It's
+written for whoever's implementing the bot side, so we've kept it to what you actually need
+rather than how things work under the hood.
+A couple of notes before you start:
+• We're happy to walk through this live if that's faster — just ping us.
+• If something here doesn't match what you're actually seeing on the wire, tell us. This
+doc gets updated from real integration issues, not written once and forgotten.
+• Sample values (IDs, tokens, numbers) below are placeholders — swap in your real
+credentials once provisioned.
+1. Connection
+VaniSetu URL = "wss://voice.varnet.in/v1/ai/connect"
+Open one persistent WebSocket connection to this URL and keep it open — this single
+connection carries every call on your account at once, multiplexed together. You don't open a
+new connection per call, and you shouldn't try to; the multiplexing is intentional and is what
+lets your bot handle concurrent calls without managing a socket per conversation.
+Each call is identified by a numeric Session ID, assigned by VaniSetu the moment a call
+becomes active. You'll receive this ID in an event (see below) and use it to tag every audio
+frame and message related to that call — think of it as the "which conversation is this" tag on
+everything that flows over the shared pipe.
+If the connection drops, reconnect and re-authenticate — any calls already in progress on our
+side will simply resume sending events once your connection is back up, so a brief reconnect
+shouldn't lose call state on our end. We'd still recommend logging reconnects on your side so
+you can see if it's happening more than expected.
+2. Authentication
+Immediately after connecting, send this as your first message (TEXT frame):
+type WSAuthMessage struct {
+ Type string `json:"type"`
+ TCode string `json:"tcode"`
+ Token string `json:"token"`
+}
+{
+ "type": "auth",
+ "tcode": "varnet",
+ "token": "Bearer [from my .env of eva]"
+}
+tcode and token will be issued to you separately per account. On success you'll receive a
+confirmation message; on failure, an error message followed by connection close.
+One thing that trips people up on first integration: this has to be the very first message on the
+socket, before anything else — including before you'd normally send any kind of "ready"
+ping from your side. If auth doesn't arrive first, we close the connection.
+3. Audio — Binary Frames
+All audio, in both directions, travels as BINARY WebSocket frames. Every frame carries a
+4-byte Session ID prefix identifying which call the audio belongs to, followed by the raw
+audio bytes:
+[ 4 bytes: Session ID (big-endian uint32) ][ audio bytes ]
+Receiving audio from a caller: read the first 4 bytes as the Session ID, everything after that
+is audio.
+Sending audio back to a caller: prepend the same Session ID (the one this conversation
+belongs to) as the first 4 bytes, then your audio bytes.
+The Session ID must only ever be attached as a raw 4-byte prefix on BINARY frames —
+never on TEXT/JSON messages (see below). We've had a couple of integrations accidentally
+do this the other way early on, so it's worth double-checking your framing code against the
+diagram above before your first real test call.
+4. Events & Commands — Text Frames (JSON)
+All non-audio messages are TEXT frames, wrapped in a simple envelope carrying the
+Session ID as a proper JSON field:
+{
+ "session_id": 123456,
+ "payload": { "...event or command body..." }
+}
+• Messages we send you are called events.
+• Messages you send us are called commands.
+• session_id identifies which call the message concerns. It is the same numeric ID
+used in the binary audio prefix for that call.
+• Some messages (see INCOMING_CALL below) are not yet tied to a session and are sent
+without the envelope, as-is.
+5. Events (VaniSetu → You)
+INCOMING_CALL
+Sent the moment a new call arrives, before any Session ID exists. Sent as-is — not wrapped
+in the envelope.
+{
+ "event": "INCOMING_CALL",
+ "call_id": "1787400283.184"
+}
+You may store call_id for your own reference; it is not required in any request today, but
+keeping it is recommended for future use.
+MEDIA_START
+Sent once a call's media path becomes active. Wrapped in the standard envelope.
+{
+ "session_id": 123456,
+ "payload": {
+ "event": "MEDIA_START",
+ "channel_id": "1787403732.230",
+ "format": "ulaw",
+ "optimal_frame_size": 160,
+ "ptime": 20
+ }
+}
+Field Meaning
+channel_id Internal call reference (informational)
+format Audio codec in use for this call
+optimal_frame_size Recommended audio chunk size, in bytes, for this call
+ptime Packetization interval in milliseconds
+Use format/optimal_frame_size/ptime to size your outbound audio chunks correctly for
+this specific call — they can vary call to call, so please don't hardcode these on your end even
+if the first few test calls all come back the same.
+6. Commands (You → VaniSetu)
+All commands below are session-scoped and must be sent inside the envelope, e.g.:
+{
+ "session_id": 123456,
+ "payload": { "command": "ANSWER" }
+}
+Command Purpose When to use
+ANSWER Answer the call Before any audio/response is sent to
+the caller
+HANGUP End the call When the conversation is complete
+FLUSH_MEDIA Immediately stop/discard audio
+queued for playback
+Caller starts speaking while you're
+still playing a response (barge-in)
+PAUSE_MEDIA Temporarily pause playback Hold current playback without
+discarding it
+CONTINUE_MEDIA Resume playback after a pause After PAUSE_MEDIA
+START_MEDIA_BUFFERING Signal you're about to send an
+audio response in multiple chunks Before streaming a multi-chunk reply
+GET_STATUS Request current call status Diagnostics / health checks
+REPORT_QUEUE_DRAINED Request notification once all sent
+audio has finished playing
+Knowing when it's safe to end a turn
+cleanly
+Sample commands:
+{"session_id": 123456, "payload": {"command": "HANGUP"}}
+{"session_id": 123456, "payload": {"command": "FLUSH_MEDIA"}}
+{"session_id": 123456, "payload": {"command": "PAUSE_MEDIA"}}
+{"session_id": 123456, "payload": {"command": "GET_STATUS"}}
+OUTBOUND_CALL — placing a call (sessionless)
+Used when you want to initiate a call rather than respond to an incoming one. Since no call
+exists yet, there is no Session ID — this command is sent without session_id:
+{
+ "payload": {
+ "command": "OUTBOUND_CALL",
+ "endpoint": "07415636404",
+ "caller_id": "+917314648232",
+ "request_id": "req-1787392315001786200"
+ }
+}
+Field Meaning
+endpoint Number to call
+caller_id Caller ID to present
+request_id A unique string you generate, used to match this request with its result
+Once the call connects, you'll receive events for it (including its assigned Session ID) so
+subsequent commands/audio can reference it normally.
+A note from our side: outbound calling is newer than the rest of this integration, so if the
+timing between sending OUTBOUND_CALL and receiving the follow-up event feels slow or
+inconsistent during testing, let us know what you're seeing — we're still tuning this path.
+Quick Reference
+Data Frame
+Type Session ID Location
+Audio BINARY First 4 bytes (big-endian uint32)
+Events / Commands (sessionscoped)
+TEXT
+(JSON) session_id field in envelope
+INCOMING_CALL,
+OUTBOUND_CALL
+TEXT
+(JSON)
+No session yet — sent without envelope /
+without session_id
+Testing tips
+• Postman (or any WS client) works fine for a first pass — connect, send the auth
+message, then watch for INCOMING_CALL on a test call.
+• If you're not seeing audio frames at all, check you're actually reading the message
+type (BINARY vs TEXT) before parsing — this is the single most common early
+integration issue we see.
+• Happy to jump on a call for your first live test run if useful.
+For anything not covered here, reach out — this doc will keep growing as we onboard more
+bots.
