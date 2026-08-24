@@ -4615,7 +4615,69 @@ def request_call_from_eva(call_id, to_number, twilio_creds, agent, lead, owner_i
     except Exception as e:
         return {"success": False, "error": str(e)} 
 
- 
+
+def request_call_from_eva_vanisetu(call_id, to_number, caller_id, agent, lead, owner_id=None):
+    """VaniSetu counterpart of request_call_from_eva() — hits Eva's
+    /api/calls/vanisetu endpoint instead of /api/calls (Twilio)."""
+    if not EVA_API_BASE_URL:
+        return {"success": False, "error": "EVA_API_BASE_URL not set in PravaahAI's .env"}
+    if not PRAVAAH_PUBLIC_BASE_URL:
+        return {"success": False, "error": "PRAVAAH_PUBLIC_BASE_URL not set in PravaahAI's .env"}
+
+    meeting_ctx = get_meeting_context(owner_id) if owner_id else None
+    agent_system_prompt = agent.get("system_prompt", "")
+    if meeting_ctx:
+        agent_system_prompt += (
+            "\n\nYou can also book meetings on the account owner's calendar. "
+            f"Meetings are {meeting_ctx['duration_minutes']} minutes long. "
+            f"Available windows: {meeting_ctx['availability_text']}. "
+            "The lead's name and phone number are already provided below — never ask for them again. "
+            "If the lead wants to schedule a meeting, ask for their preferred date and time, "
+            "then confirm it by calling the booking webhook with that date/time. "
+            "If the webhook says the slot isn't available, offer one of the alternatives it returns."
+        )
+
+    try:
+        resp = requests.post(
+            f"{EVA_API_BASE_URL}/api/calls/vanisetu",
+            headers={"X-Eva-Secret": EVA_API_SECRET, "Content-Type": "application/json"},
+            json={
+                "call_id": call_id,
+                "to_number": to_number,
+                "caller_id": caller_id,
+                "agent": {
+                    "name": agent.get("name", ""),
+                    "system_prompt": agent_system_prompt,
+                    "gender": agent.get("gender", "female"),
+                    "language": agent.get("language", "auto"),
+                    "speaker": agent.get("speaker", ""),
+                    "opening_line": agent.get("opening_line", ""),
+                    "min_duration_secs": agent.get("min_duration_secs", 20),
+                    "max_duration_secs": agent.get("max_duration_secs", 180),
+                },
+                "lead": {
+                    "name": lead.get("name", ""), "business_name": lead.get("business_name", ""),
+                    "email": lead.get("email", ""), "phone": lead.get("phone", ""),
+                    "website": lead.get("website", ""), "description": lead.get("description", ""),
+                },
+                "meeting": ({
+                    "owner_id": owner_id,
+                    "lead_id": str(lead.get("_id", "")) if lead.get("_id") else "",
+                    "agent_id": str(agent.get("_id", "")) if agent.get("_id") else "",
+                    **meeting_ctx,
+                } if meeting_ctx else None),
+                "callback_url": f"{PRAVAAH_PUBLIC_BASE_URL}/api/eva-webhook/call-result",
+            },
+            timeout=20,
+        )
+        data = resp.json()
+        if resp.status_code >= 400:
+            return {"success": False, "error": data.get("error", "Eva rejected the VaniSetu call request")}
+        return {"success": True, "call_sid": data.get("call_sid")}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, campaign_id=None):
     to_number = _e164(lead.get("phone", ""))
     if not to_number:
@@ -4720,6 +4782,16 @@ def init_eva(app, db, users_col, leads_col):
         total = float(user.get("eva_minutes", 0) or 0)
         used = float(user.get("eva_minutes_used", 0) or 0)
         return max(0.0, total - used)
+
+    def _agent_has_vanisetu_number(owner_id, agent_id):
+        """True if this owner has an active VaniSetu caller ID assigned to
+        this agent that's usable for outbound calls. Mirrors the lookup
+        place_outbound_call() does before falling back to Twilio."""
+        row = caller_ids_col.find_one({
+            "owner_id": owner_id, "agent_id": str(agent_id), "status": "active",
+            "direction": {"$in": ["outbound", "both"]},
+        })
+        return bool(row)
  
     def serialize_agent(a):
         return {
