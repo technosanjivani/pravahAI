@@ -4481,6 +4481,19 @@ def _e164(num):
         num = "+" + num
     return num
  
+def _local_dial_number(num: str) -> str:
+    """VaniSetu expects the destination number in local Indian dialing
+    format — a single leading '0' followed by the subscriber number
+    (e.g. '09876543210') — NOT E.164 ('+919876543210') and NOT a bare
+    '91...' country-code-prefixed number. This strips any '+', any '91'
+    country code, and any existing leading zero(s), then adds back
+    exactly one '0'. Used only for the VaniSetu outbound path — the
+    Twilio path still needs true E.164 (see _e164 / to_number_e164)."""
+    digits = re.sub(r"\D", "", num or "")
+    if digits.startswith("91") and len(digits) > 10:
+        digits = digits[2:]
+    digits = digits.lstrip("0")
+    return ("0" + digits) if digits else ""
  
 def _mistral_chat(system_prompt, user_prompt, force_json=False):
     if not MISTRAL_API_KEY:
@@ -4677,10 +4690,10 @@ def request_call_from_eva_vanisetu(call_id, to_number, caller_id, agent, lead, o
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-
 def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, campaign_id=None):
-    to_number = _e164(lead.get("phone", ""))
-    if not to_number:
+    raw_phone = lead.get("phone", "")
+    to_number_e164 = _e164(raw_phone)
+    if not to_number_e164:
         return {"success": False, "error": "Missing phone number"}
 
     call_doc = {
@@ -4700,8 +4713,17 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
     })
 
     if vanisetu_row:
+        # VaniSetu dials in local Indian format — "0" + number, no +91/91.
+        to_number_local = _local_dial_number(raw_phone)
+        if not to_number_local:
+            calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
+                "status": "failed", "hangup_reason": "Invalid phone number",
+                "ended_at": datetime.utcnow(),
+            }})
+            return {"success": False, "error": "Invalid phone number", "call_id": call_id}
+
         result = request_call_from_eva_vanisetu(
-            call_id=call_id, to_number=to_number, caller_id=vanisetu_row["number"],
+            call_id=call_id, to_number=to_number_local, caller_id=vanisetu_row["number"],
             agent=agent, lead=lead, owner_id=owner_id,
         )
     else:
@@ -4713,7 +4735,7 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
             }})
             return {"success": False, "error": "No VaniSetu number or Twilio number configured for this agent", "call_id": call_id}
         result = request_call_from_eva(
-            call_id=call_id, to_number=to_number,
+            call_id=call_id, to_number=to_number_e164,
             twilio_creds={**voip, "from_number": from_number}, agent=agent, lead=lead,
             owner_id=owner_id,
         )
@@ -4729,7 +4751,8 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
             "ended_at": datetime.utcnow(),
         }})
         return {"success": False, "error": result.get("error"), "call_id": call_id}
- 
+
+
 # ==================================================================
 # Route registration
 # ==================================================================
