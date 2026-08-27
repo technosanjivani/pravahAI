@@ -538,7 +538,8 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
       </div>
       <div class="field">
         <label>Phone number</label>
-        <input type="text" id="testCallPhone" placeholder="+971501234567">
+        <input type="text" id="testCallPhone" placeholder="09876543210">
+        <div class="hint">Enter as 0 followed by the 10-digit number — e.g. 09876543210. No +91 or 91 needed, this is filled in automatically.</div>
       </div>
       <button class="btn btn-coral" type="submit">📞 Call now</button>
       <span class="hint" id="testCallStatus" style="margin-left:10px;"></span>
@@ -590,8 +591,8 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
       </div>
       <div class="field">
         <label>Calling number</label>
-        <input type="text" id="voipFrom" placeholder="+971501234567">
-        <div class="hint">This is the number leads will see Eva calling from.</div>
+        <input type="text" id="voipFrom" placeholder="+919876543210">
+        <div class="hint">This is the number leads will see Eva calling from. This provider (Twilio) requires full +91 international format.</div>
       </div>
       <button class="btn btn-primary" type="submit">Save calling settings</button>
       <span class="hint" id="voipStatus" style="margin-left:10px;"></span>
@@ -633,7 +634,7 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
         </div>
         <div class="field">
           <label>Admin WhatsApp number</label>
-          <input type="text" id="mtAdminWhatsapp" placeholder="+971501234567">
+          <input type="text" id="mtAdminWhatsapp" placeholder="+919876543210">
           <div class="hint">Gets a message every time a meeting is booked, plus reminders.</div>
         </div>
       </div>
@@ -790,8 +791,8 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
     <h3>Add caller ID</h3>
     <div class="field">
       <label>Phone number</label>
-      <input type="text" id="callerIdNumber" placeholder="+971501234567">
-      <div class="hint">Must be a number provisioned for you on VaniSetu.</div>
+      <input type="text" id="callerIdNumber" placeholder="+919876543210">
+      <div class="hint">Must be a number provisioned for you on VaniSetu. Use full +91 international format.</div>
     </div>
     <div class="field">
       <label>Label (optional)</label>

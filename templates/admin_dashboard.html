@@ -3,483 +3,607 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin · PravaahAI</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<title>PravaahAI · Admin</title>
 <style>
-  :root{
-    --navy-950:#0c1022;
-    --navy-900:#12172b;
-    --navy-800:#1a2140;
-    --navy-700:#242c52;
-    --ink:#161a2e;
-    --paper:#f5f6fa;
-    --card:#ffffff;
-    --line:#e7e9f2;
-    --muted:#6b7188;
-    --indigo:#5b6cff;
-    --indigo-dark:#4351db;
-    --teal:#17b897;
-    --amber:#f5a524;
-    --red:#e5484d;
-    --radius:14px;
-    --shadow:0 1px 2px rgba(18,23,43,.04), 0 8px 24px -12px rgba(18,23,43,.10);
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{
-    font-family:'Inter',system-ui,sans-serif;
-    background:var(--paper);
-    color:var(--ink);
-    font-size:14px;
-    -webkit-font-smoothing:antialiased;
-  }
-  h1,h2,h3,.display{font-family:'Sora',system-ui,sans-serif;}
-  .mono{font-family:'IBM Plex Mono',monospace;}
-  a{color:inherit;text-decoration:none;}
-  button{font-family:inherit;cursor:pointer;}
+:root {
+  --bg-base:     #eef3fb;
+  --bg-surface:  #ffffff;
+  --bg-card:     #ffffff;
+  --bg-hover:    #e9f1fc;
+  --border:      rgba(29, 78, 216, 0.10);
+  --accent-1:    #2563eb;
+  --accent-2:    #1e3a8a;
+  --accent-3:    #0ea5e9;
+  --accent-grad: linear-gradient(135deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%);
+  --accent-grad-soft: linear-gradient(135deg, rgba(56,189,248,.14) 0%, rgba(37,99,235,.14) 100%);
+  --text-h:      #0b1e3d;
+  --text-b:      #5c6b8a;
+  --text-dim:    #93a3c2;
+  --green:       #0891b2;
+  --red:         #dc2626;
+  --yellow:      #3b82f6;
+  --purple:      #4f46e5;
+  --orange:      #1d4ed8;
+  --sidebar-w:   226px;
+  --topbar-h:    64px;
+  --radius:      14px;
+  --radius-sm:   9px;
+  --gap:         16px;
+  --shadow-sm: 0 1px 2px rgba(11,30,61,0.05), 0 2px 6px rgba(11,30,61,0.06);
+  --shadow-md: 0 10px 26px rgba(15,58,138,0.10), 0 3px 8px rgba(15,58,138,0.06);
+  --shadow-glow: 0 0 0 1px rgba(37,99,235,.08), 0 14px 34px rgba(37,99,235,.16);
+}
 
-  /* ---------- shell ---------- */
-  .shell{display:grid;grid-template-columns:248px 1fr;min-height:100vh;}
-  .sidebar{
-    background:linear-gradient(180deg,var(--navy-950),var(--navy-900) 60%);
-    color:#c9cdea;
-    padding:22px 16px;
-    display:flex;flex-direction:column;
-    position:sticky;top:0;height:100vh;
-  }
-  .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 22px;}
-  .brand-mark{
-    width:34px;height:34px;border-radius:10px;
-    background:linear-gradient(135deg,var(--indigo),#8b7bff);
-    display:flex;align-items:center;justify-content:center;
-    font-family:'Sora';font-weight:800;color:#fff;font-size:15px;
-    box-shadow:0 4px 14px -4px rgba(91,108,255,.7);
-  }
-  .brand-text{font-family:'Sora';font-weight:700;font-size:15px;color:#fff;line-height:1.15;}
-  .brand-text small{display:block;font-family:'Inter';font-weight:500;font-size:11px;color:#8890b8;}
+* { box-sizing: border-box; margin:0; padding:0; }
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg-base);
+  color: var(--text-h);
+  height:100vh;
+  overflow:hidden;
+}
+a { text-decoration:none; color:inherit; }
+button { font-family:inherit; cursor:pointer; }
+input, select { font-family:inherit; }
 
-  .nav-group{margin-top:10px;}
-  .nav-label{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#5c6390;padding:14px 10px 6px;font-weight:600;}
-  .nav-item{
-    display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;
-    font-size:13.5px;font-weight:500;color:#aeb3d6;margin-bottom:2px;transition:.15s;border:1px solid transparent;
-  }
-  .nav-item svg{width:16px;height:16px;flex:none;opacity:.85;}
-  .nav-item:hover{background:rgba(255,255,255,.05);color:#fff;}
-  .nav-item.active{background:rgba(91,108,255,.16);color:#fff;border-color:rgba(91,108,255,.35);}
-  .sidebar-foot{margin-top:auto;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);}
-  .who{display:flex;align-items:center;gap:10px;padding:8px;}
-  .who-avatar{width:32px;height:32px;border-radius:9px;background:var(--navy-700);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;}
-  .who-name{font-size:12.5px;font-weight:600;color:#fff;}
-  .who-role{font-size:10.5px;color:#8890b8;}
-  .logout-link{display:block;margin-top:8px;font-size:12px;color:#8890b8;padding:6px 8px;}
-  .logout-link:hover{color:#fff;}
+/* ── App Shell : 4 panel layout ───────────────────── */
+.app-shell {
+  display:grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--topbar-h) 1fr;
+  gap: var(--gap);
+  height:100vh;
+  padding: var(--gap);
+}
 
-  /* ---------- main ---------- */
-  .main{padding:26px 32px 60px;max-width:1360px;}
-  .topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;flex-wrap:wrap;gap:14px;}
-  .topbar h1{font-size:22px;margin:0 0 4px;font-weight:700;}
-  .topbar p{margin:0;color:var(--muted);font-size:13px;}
+.panel {
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
 
-  .region-toggle{
-    display:flex;background:var(--navy-900);border-radius:999px;padding:3px;gap:2px;
-  }
-  .region-toggle button{
-    border:none;background:transparent;color:#9aa0c9;padding:7px 16px;border-radius:999px;
-    font-size:12.5px;font-weight:600;letter-spacing:.02em;transition:.15s;
-  }
-  .region-toggle button.active{background:var(--indigo);color:#fff;box-shadow:0 3px 10px -3px rgba(91,108,255,.7);}
+/* Logo panel — top left */
+.logo-panel {
+  grid-column:1; grid-row:1;
+  display:flex; align-items:center; gap:10px;
+  padding: 0 18px;
+}
+.logo-mark {
+  width:34px; height:34px; border-radius:10px;
+  background: var(--accent-grad);
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-weight:800; font-size:15px;
+  box-shadow: var(--shadow-glow);
+  flex-shrink:0;
+}
+.logo-text { display:flex; flex-direction:column; line-height:1.15; overflow:hidden; }
+.logo-text .name { font-weight:800; font-size:14.5px; color:var(--text-h); white-space:nowrap; }
+.logo-text .sub { font-size:11px; color:var(--text-dim); font-weight:600; letter-spacing:.03em; }
 
-  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:22px;flex-wrap:wrap;}
-  .tab-btn{
-    padding:10px 14px;font-size:13.5px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;
-  }
-  .tab-btn.active{color:var(--indigo-dark);border-color:var(--indigo);}
-  .tab-panel{display:none;}
-  .tab-panel.active{display:block;animation:fade .18s ease;}
-  @keyframes fade{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:none;}}
+/* Nav panel — left */
+.nav-panel {
+  grid-column:1; grid-row:2;
+  padding: 16px 12px;
+  display:flex; flex-direction:column;
+  overflow-y:auto;
+}
+.nav-section-label {
+  font-size:10.5px; font-weight:700; letter-spacing:.08em;
+  color: var(--text-dim); text-transform:uppercase;
+  padding: 12px 10px 6px;
+}
+.nav-item {
+  display:flex; align-items:center; gap:10px;
+  padding: 10px 12px; border-radius: var(--radius-sm);
+  color: var(--text-b); font-size:13.5px; font-weight:600;
+  cursor:pointer; transition: all .15s ease;
+  margin-bottom:2px;
+}
+.nav-item svg { width:17px; height:17px; flex-shrink:0; opacity:.75; }
+.nav-item:hover { background: var(--bg-hover); color: var(--accent-2); }
+.nav-item.active {
+  background: var(--accent-grad-soft);
+  color: var(--accent-1);
+}
+.nav-item.active svg { opacity:1; }
+.nav-footer {
+  margin-top:auto; padding-top:12px; border-top:1px solid var(--border);
+}
+.nav-footer .nav-item { color: var(--red); }
+.nav-footer .nav-item:hover { background: rgba(220,38,38,0.08); }
 
-  /* ---------- stat cards ---------- */
-  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:26px;}
-  .stat-card{
-    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);
-  }
-  .stat-card .label{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
-  .stat-card .value{font-family:'Sora';font-size:26px;font-weight:700;color:var(--ink);}
-  .stat-card .sub{font-size:11.5px;color:var(--teal);font-weight:600;margin-top:4px;}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--indigo);}
+/* Topbar panel — top right */
+.topbar-panel {
+  grid-column:2; grid-row:1;
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 0 20px;
+  gap:16px;
+}
+.search-box {
+  flex:1; max-width:420px;
+  display:flex; align-items:center; gap:8px;
+  background: var(--bg-base);
+  border:1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 14px;
+}
+.search-box svg { width:16px; height:16px; color: var(--text-dim); flex-shrink:0; }
+.search-box input {
+  border:none; outline:none; background:transparent;
+  font-size:13.5px; color: var(--text-h); width:100%;
+}
+.search-box input::placeholder { color: var(--text-dim); }
+.topbar-right { display:flex; align-items:center; gap:14px; }
+.icon-btn {
+  width:36px; height:36px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  border:1px solid var(--border); background:var(--bg-base);
+  color: var(--text-b);
+}
+.icon-btn:hover { background: var(--bg-hover); color: var(--accent-1); }
+.profile-chip {
+  display:flex; align-items:center; gap:9px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 999px; border:1px solid var(--border);
+  background: var(--bg-base); cursor:pointer;
+}
+.avatar {
+  width:28px; height:28px; border-radius:50%;
+  background: var(--accent-grad); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:700;
+}
+.profile-chip .pname { font-size:13px; font-weight:700; color:var(--text-h); }
+.profile-chip .prole { font-size:10.5px; color:var(--text-dim); font-weight:600; }
 
-  /* ---------- cards / tables ---------- */
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px;}
-  .card-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line);gap:12px;flex-wrap:wrap;}
-  .card-head h3{margin:0;font-size:15px;font-weight:700;}
-  .card-head p{margin:2px 0 0;font-size:12px;color:var(--muted);}
-  .card-body{padding:16px 18px;}
+/* Main content panel */
+.main-panel {
+  grid-column:2; grid-row:2;
+  padding: 22px;
+  overflow-y:auto;
+}
+.section { display:none; }
+.section.active { display:block; animation: fadeIn .2s ease; }
+@keyframes fadeIn { from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
 
-  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-  input[type=text],input[type=number],input[type=email],input[type=password],select,textarea{
-    font-family:inherit;font-size:13px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);outline:none;
-  }
-  input:focus,select:focus,textarea:focus{border-color:var(--indigo);box-shadow:0 0 0 3px rgba(91,108,255,.12);}
-  .search-input{min-width:220px;}
+.section-head {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:18px; flex-wrap:wrap; gap:10px;
+}
+.section-head h1 { font-size:20px; font-weight:800; color:var(--text-h); }
+.section-head p.desc { font-size:12.5px; color:var(--text-dim); margin-top:2px; font-weight:500; }
 
-  .btn{
-    display:inline-flex;align-items:center;gap:6px;border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;transition:.15s;
-  }
-  .btn-primary{background:var(--indigo);color:#fff;}
-  .btn-primary:hover{background:var(--indigo-dark);}
-  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line);}
-  .btn-ghost:hover{border-color:var(--indigo);color:var(--indigo-dark);}
-  .btn-danger{background:#fff2f2;color:var(--red);border:1px solid #ffd6d6;}
-  .btn-sm{padding:5px 10px;font-size:12px;border-radius:7px;}
+.btn {
+  display:inline-flex; align-items:center; gap:7px;
+  padding: 9px 16px; border-radius: var(--radius-sm);
+  font-size:13px; font-weight:700; border:1px solid transparent;
+}
+.btn-primary { background: var(--accent-grad); color:#fff; box-shadow: var(--shadow-glow); }
+.btn-primary:hover { filter:brightness(1.05); }
+.btn-ghost { background: var(--bg-base); color: var(--text-h); border-color: var(--border); }
+.btn-ghost:hover { background: var(--bg-hover); }
+.btn-danger { background: rgba(220,38,38,.08); color: var(--red); border-color: rgba(220,38,38,.18); }
+.btn-danger:hover { background: rgba(220,38,38,.14); }
+.btn-sm { padding:6px 11px; font-size:12px; }
 
-  table{width:100%;border-collapse:collapse;}
-  th{
-    text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
-    padding:9px 10px;border-bottom:1px solid var(--line);font-weight:700;white-space:nowrap;
-  }
-  td{padding:11px 10px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle;}
-  tr:last-child td{border-bottom:none;}
-  tr:hover td{background:#fafbff;}
+/* Stat cards */
+.stat-grid {
+  display:grid; grid-template-columns: repeat(auto-fit, minmax(190px,1fr));
+  gap: var(--gap); margin-bottom: var(--gap);
+}
+.stat-card {
+  background: var(--bg-card); border:1px solid var(--border);
+  border-radius: var(--radius); padding:18px;
+  box-shadow: var(--shadow-sm);
+}
+.stat-card .label { font-size:11.5px; font-weight:700; color: var(--text-dim); text-transform:uppercase; letter-spacing:.04em; }
+.stat-card .value { font-size:26px; font-weight:800; color: var(--text-h); margin-top:6px; }
+.stat-card .sub { font-size:11.5px; color: var(--accent-1); font-weight:700; margin-top:6px; }
 
-  .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.02em;}
-  .pill-active{background:#e9fbf4;color:#0d8f6f;}
-  .pill-disabled{background:#fff0f0;color:#c93a3f;}
-  .pill-pending{background:#fff8e8;color:#a5720a;}
-  .pill-admin{background:#eef0ff;color:var(--indigo-dark);}
-  .pill-india{background:#fff2e3;color:#b25b00;}
-  .pill-intl{background:#eaf3ff;color:#1462c9;}
+/* Cards / panels for content */
+.card {
+  background: var(--bg-card); border:1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm);
+  margin-bottom: var(--gap); overflow:hidden;
+}
+.card-head {
+  padding:16px 18px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+}
+.card-head h3 { font-size:14.5px; font-weight:800; color:var(--text-h); }
+.card-body { padding:18px; }
 
-  .avatar-name{display:flex;align-items:center;gap:9px;}
-  .avatar{width:30px;height:30px;border-radius:8px;background:var(--navy-800);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none;}
-  .u-name{font-weight:600;font-size:13px;}
-  .u-sub{font-size:11.5px;color:var(--muted);}
+/* Table */
+table { width:100%; border-collapse:collapse; }
+thead th {
+  text-align:left; font-size:11px; font-weight:700; color: var(--text-dim);
+  text-transform:uppercase; letter-spacing:.04em; padding:10px 14px;
+  border-bottom:1px solid var(--border); white-space:nowrap;
+}
+tbody td { padding:12px 14px; font-size:13px; color:var(--text-h); border-bottom:1px solid var(--border); vertical-align:middle; }
+tbody tr:last-child td { border-bottom:none; }
+tbody tr:hover { background: var(--bg-hover); }
+.cell-sub { color: var(--text-dim); font-size:11.5px; margin-top:2px; }
 
-  .empty{padding:34px 10px;text-align:center;color:var(--muted);font-size:13px;}
-  .empty svg{opacity:.4;margin-bottom:8px;}
+.badge {
+  display:inline-flex; align-items:center; gap:5px;
+  padding: 4px 10px; border-radius:999px; font-size:11px; font-weight:700;
+}
+.badge-dot { width:6px; height:6px; border-radius:50%; }
+.badge.b-green  { background: rgba(8,145,178,.10); color: var(--green); }
+.badge.b-red    { background: rgba(220,38,38,.10); color: var(--red); }
+.badge.b-blue   { background: rgba(59,130,246,.10); color: var(--yellow); }
+.badge.b-indigo { background: rgba(79,70,229,.10); color: var(--purple); }
+.badge.b-gray   { background: var(--bg-base); color: var(--text-dim); }
 
-  /* ---------- modal ---------- */
-  .overlay{position:fixed;inset:0;background:rgba(12,16,34,.5);display:none;align-items:center;justify-content:center;z-index:60;padding:20px;}
-  .overlay.open{display:flex;}
-  .modal{background:#fff;border-radius:16px;width:100%;max-width:460px;max-height:88vh;overflow:auto;box-shadow:0 30px 60px -20px rgba(12,16,34,.4);}
-  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line);}
-  .modal-head h3{margin:0;font-size:15.5px;font-weight:700;}
-  .modal-close{background:none;border:none;font-size:18px;color:var(--muted);line-height:1;}
-  .modal-body{padding:18px 20px;display:flex;flex-direction:column;gap:12px;}
-  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:5px;}
-  .field input,.field select,.field textarea{width:100%;}
-  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .modal-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;}
-  .hint{font-size:11.5px;color:var(--muted);}
-  .form-msg{font-size:12.5px;padding:8px 10px;border-radius:8px;display:none;}
-  .form-msg.error{display:block;background:#fff2f2;color:var(--red);}
-  .form-msg.success{display:block;background:#e9fbf4;color:#0d8f6f;}
+.row-actions { display:flex; gap:6px; flex-wrap:wrap; }
 
-  .toast{position:fixed;bottom:22px;right:22px;background:var(--navy-950);color:#fff;padding:11px 16px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);z-index:80;opacity:0;transform:translateY(8px);transition:.2s;}
-  .toast.show{opacity:1;transform:none;}
+/* Forms */
+.form-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:14px; }
+.field label {
+  display:block; font-size:11.5px; font-weight:700; color: var(--text-b);
+  margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em;
+}
+.field input, .field select, .field textarea {
+  width:100%; padding:9px 12px; border:1px solid var(--border);
+  border-radius: var(--radius-sm); font-size:13px; color:var(--text-h);
+  background: var(--bg-base); outline:none;
+}
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent-1); }
+.field textarea { resize:vertical; min-height:70px; }
 
-  @media (max-width:900px){
-    .shell{grid-template-columns:1fr;}
-    .sidebar{position:relative;height:auto;flex-direction:row;flex-wrap:wrap;}
-    .main{padding:20px;}
-    .field-row{grid-template-columns:1fr;}
-  }
+/* Toolbar (filters) */
+.toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+.toolbar input, .toolbar select {
+  padding:8px 12px; border:1px solid var(--border); border-radius: var(--radius-sm);
+  font-size:12.5px; background: var(--bg-base); color:var(--text-h); outline:none;
+}
+
+/* Bars (simple chart) */
+.bar-chart { display:flex; align-items:flex-end; gap:5px; height:130px; padding-top:10px; }
+.bar-chart .bar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; }
+.bar-chart .bar {
+  width:100%; max-width:22px; border-radius:5px 5px 2px 2px;
+  background: var(--accent-grad); min-height:3px;
+}
+.bar-chart .bar-label { font-size:9.5px; color: var(--text-dim); font-weight:600; white-space:nowrap; }
+
+.empty-state { text-align:center; padding:40px 20px; color: var(--text-dim); font-size:13px; font-weight:600; }
+
+/* Modal */
+.modal-overlay {
+  position:fixed; inset:0; background: rgba(11,30,61,0.35);
+  display:none; align-items:center; justify-content:center; z-index:100;
+  backdrop-filter: blur(2px);
+}
+.modal-overlay.active { display:flex; }
+.modal {
+  background: var(--bg-surface); border-radius: var(--radius);
+  width:460px; max-width:92vw; max-height:88vh; overflow-y:auto;
+  box-shadow: var(--shadow-md); border:1px solid var(--border);
+}
+.modal-head {
+  padding:16px 20px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.modal-head h3 { font-size:15px; font-weight:800; }
+.modal-close { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; color: var(--text-dim); }
+.modal-close:hover { background: var(--bg-hover); }
+.modal-body { padding:20px; display:flex; flex-direction:column; gap:14px; }
+.modal-foot { padding:16px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px; }
+
+.toast {
+  position:fixed; bottom:24px; right:24px; z-index:200;
+  background: var(--text-h); color:#fff; padding:12px 18px;
+  border-radius: var(--radius-sm); font-size:13px; font-weight:600;
+  box-shadow: var(--shadow-md); display:none;
+}
+.toast.show { display:block; animation: fadeIn .2s ease; }
+.toast.err { background: var(--red); }
+
+::-webkit-scrollbar { width:8px; height:8px; }
+::-webkit-scrollbar-thumb { background: rgba(37,99,235,.18); border-radius:8px; }
 </style>
 </head>
 <body>
 
-<div class="shell">
+<div class="app-shell">
 
-  <!-- ============ SIDEBAR ============ -->
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-mark">P</div>
-      <div class="brand-text">PravaahAI<small>Admin Console</small></div>
+  <!-- Logo panel -->
+  <div class="panel logo-panel">
+    <div class="logo-mark">P</div>
+    <div class="logo-text">
+      <span class="name">PravaahAI</span>
+      <span class="sub">ADMIN CONSOLE</span>
     </div>
+  </div>
 
-    <div class="nav-group">
-      <div class="nav-label">Overview</div>
-      <a class="nav-item" data-tab="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
+  <!-- Nav panel -->
+  <div class="panel nav-panel">
+    <div class="nav-section-label">General</div>
+    <div class="nav-item active" data-section="overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      Overview
     </div>
-
-    <div class="nav-group">
-      <div class="nav-label">Customers</div>
-      <a class="nav-item" data-tab="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Users</a>
-      <a class="nav-item" data-tab="teams"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Teams</a>
+    <div class="nav-item" data-section="users">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Users
     </div>
-
-    <div class="nav-group">
-      <div class="nav-label">Billing</div>
-      <a class="nav-item" data-tab="plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Plans</a>
-      <a class="nav-item" data-tab="pricing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Eva Pricing</a>
+    <div class="nav-item" data-section="plans">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Plans
     </div>
-
-    <div class="nav-group">
-      <div class="nav-label">Eva Voice AI</div>
-      <a class="nav-item" data-tab="eva-agents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3"/></svg>Agents</a>
-      <a class="nav-item" data-tab="eva-campaigns"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>Campaigns</a>
-      <a class="nav-item" data-tab="eva-stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-4 4"/></svg>Call Stats</a>
+    <div class="nav-item" data-section="pricing">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/></svg>
+      Eva Pricing
     </div>
+    <div class="nav-section-label">Eva Voice AI</div>
+    <div class="nav-item" data-section="agents">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg>
+      Agents
+    </div>
+    <div class="nav-item" data-section="campaigns">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l18-7-7 18-2-8-8-3z"/></svg>
+      Call Campaigns
+    </div>
+    <div class="nav-item" data-section="callstats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-6 3 3 5-8"/></svg>
+      Call Stats
+    </div>
+    <div class="nav-footer">
+      <a href="/logout"><div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        Log out
+      </div></a>
+    </div>
+  </div>
 
-    <div class="sidebar-foot">
-      <div class="who">
-        <div class="who-avatar">{{ (display_name or "A")[0]|upper }}</div>
+  <!-- Topbar panel -->
+  <div class="panel topbar-panel">
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input id="globalSearch" type="text" placeholder="Search users by name, email or business…">
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" id="refreshBtn" title="Refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
+      <div class="profile-chip">
+        <div class="avatar" id="avatarInitial">A</div>
         <div>
-          <div class="who-name">{{ display_name or "Admin" }}</div>
-          <div class="who-role">Platform admin</div>
+          <div class="pname" id="profileName">{{ display_name or 'Admin' }}</div>
+          <div class="prole">Administrator</div>
         </div>
       </div>
-      <a class="logout-link" href="/logout">Sign out →</a>
     </div>
-  </aside>
+  </div>
 
-  <!-- ============ MAIN ============ -->
-  <main class="main">
+  <!-- Main panel -->
+  <div class="panel main-panel">
 
-    <div class="topbar">
-      <div>
-        <h1 id="pageTitle">Overview</h1>
-        <p id="pageSub">Everything happening across every PravaahAI account, in one place.</p>
+    <!-- OVERVIEW -->
+    <section class="section active" id="sec-overview">
+      <div class="section-head">
+        <div>
+          <h1>Overview</h1>
+          <p class="desc">Platform-wide snapshot across all accounts</p>
+        </div>
       </div>
-      <div class="region-toggle" title="Display currency">
-        <button class="active" data-currency="INR">🇮🇳 INR</button>
-        <button data-currency="USD">🌍 USD</button>
-      </div>
-    </div>
-
-    <!-- ================= OVERVIEW ================= -->
-    <section class="tab-panel active" id="panel-overview">
       <div class="stat-grid" id="statGrid"></div>
 
       <div class="card">
-        <div class="card-head">
-          <div><h3>Plan distribution</h3><p>How many active customers sit on each plan</p></div>
-        </div>
+        <div class="card-head"><h3>Plans distribution</h3></div>
         <div class="card-body">
           <table>
             <thead><tr><th>Plan</th><th>Region</th><th>Users</th></tr></thead>
-            <tbody id="planDistBody"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+            <tbody id="planCountsBody"><tr><td colspan="3" class="empty-state">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- ================= USERS ================= -->
-    <section class="tab-panel" id="panel-users">
+    <!-- USERS -->
+    <section class="section" id="sec-users">
+      <div class="section-head">
+        <div>
+          <h1>Users</h1>
+          <p class="desc">Manage customer accounts, plans and Eva minutes</p>
+        </div>
+        <button class="btn btn-primary" id="openCreateUser">+ New user</button>
+      </div>
+      <div class="toolbar">
+        <input type="text" id="userSearch" placeholder="Search…">
+        <select id="userStatusFilter">
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="disabled">Disabled</option>
+        </select>
+        <select id="userRegionFilter">
+          <option value="">All regions</option>
+          <option value="india">India</option>
+          <option value="international">International</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" id="applyUserFilters">Apply</button>
+      </div>
       <div class="card">
-        <div class="card-head">
-          <div><h3>Customers</h3><p>Every PravaahAI account (excludes admins)</p></div>
-          <div class="toolbar">
-            <input type="text" id="userSearch" class="search-input" placeholder="Search name, email, business…">
-            <select id="userStatusFilter">
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="disabled">Disabled</option>
-            </select>
-            <select id="userRegionFilter">
-              <option value="">All regions</option>
-              <option value="india">India</option>
-              <option value="international">International</option>
-            </select>
-            <button class="btn btn-primary" onclick="openModal('modalCreateUser')">+ New user</button>
-          </div>
-        </div>
-        <div class="card-body" style="overflow-x:auto;">
+        <div class="card-body" style="padding:0; overflow-x:auto;">
           <table>
-            <thead><tr>
-              <th>Customer</th><th>Region</th><th>Plan</th><th>Status</th>
-              <th>Eva minutes</th><th>Team</th><th>Leads</th><th>Joined</th><th></th>
-            </tr></thead>
-            <tbody id="usersBody"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+            <thead>
+              <tr><th>User</th><th>Region</th><th>Plan</th><th>Eva minutes</th><th>Team</th><th>Leads</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="usersBody"><tr><td colspan="8" class="empty-state">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- ================= TEAMS ================= -->
-    <section class="tab-panel" id="panel-teams">
+    <!-- PLANS -->
+    <section class="section" id="sec-plans">
+      <div class="section-head">
+        <div>
+          <h1>Subscription plans</h1>
+          <p class="desc">Create and edit the plans customers can be assigned</p>
+        </div>
+        <button class="btn btn-primary" id="openCreatePlan">+ New plan</button>
+      </div>
       <div class="card">
-        <div class="card-head">
-          <div><h3>Team members</h3><p>Select a customer from the Users tab to inspect their team, or search below</p></div>
-          <div class="toolbar">
-            <select id="teamOwnerSelect" style="min-width:240px;"><option value="">Choose a customer…</option></select>
-          </div>
-        </div>
-        <div class="card-body" style="overflow-x:auto;">
+        <div class="card-body" style="padding:0; overflow-x:auto;">
           <table>
-            <thead><tr><th>Member</th><th>Email</th><th>Status</th><th>Leads assigned</th><th>Joined</th></tr></thead>
-            <tbody id="teamsBody"><tr><td colspan="5" class="empty">Pick a customer to view their team.</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Region</th><th>Price</th><th>Duration</th><th>Eva mins</th><th>Actions</th></tr></thead>
+            <tbody id="plansBody"><tr><td colspan="6" class="empty-state">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- ================= PLANS ================= -->
-    <section class="tab-panel" id="panel-plans">
+    <!-- PRICING -->
+    <section class="section" id="sec-pricing">
+      <div class="section-head">
+        <div>
+          <h1>Eva per-minute pricing</h1>
+          <p class="desc">Global voice-minute pricing and recharge contact</p>
+        </div>
+      </div>
       <div class="card">
-        <div class="card-head">
-          <div><h3>Subscription plans</h3><p>India (INR) and International (USD) pricing tiers</p></div>
-          <button class="btn btn-primary" onclick="openModal('modalCreatePlan')">+ New plan</button>
-        </div>
-        <div class="card-body" style="overflow-x:auto;">
-          <table>
-            <thead><tr><th>Plan</th><th>Region</th><th>Price</th><th>Eva minutes incl.</th><th>Lead limit</th><th></th></tr></thead>
-            <tbody id="plansBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= EVA PRICING ================= -->
-    <section class="tab-panel" id="panel-pricing">
-      <div class="card" style="max-width:560px;">
-        <div class="card-head">
-          <div><h3>Eva per-minute overage pricing</h3><p>Charged once a customer's included minutes run out</p></div>
-        </div>
         <div class="card-body">
-          <div class="field-row" style="margin-bottom:14px;">
-            <div class="field">
-              <label>India — price per minute (INR)</label>
-              <input type="number" step="0.01" id="priceIndia">
-            </div>
-            <div class="field">
-              <label>International — price per minute (USD)</label>
-              <input type="number" step="0.01" id="priceIntl">
-            </div>
+          <div class="form-grid">
+            <div class="field"><label>India price / min (INR)</label><input type="number" step="0.01" id="priceIndia"></div>
+            <div class="field"><label>International price / min (USD)</label><input type="number" step="0.01" id="priceIntl"></div>
+            <div class="field"><label>Recharge contact number</label><input type="text" id="rechargeContact"></div>
           </div>
-          <div id="pricingMsg" class="form-msg"></div>
-          <button class="btn btn-primary" onclick="savePricing()">Save pricing</button>
-          <p class="hint" style="margin-top:10px;">Last updated: <span id="pricingUpdated">—</span></p>
+          <div style="margin-top:16px;"><button class="btn btn-primary" id="savePricingBtn">Save pricing</button></div>
         </div>
       </div>
     </section>
 
-    <!-- ================= EVA AGENTS ================= -->
-    <section class="tab-panel" id="panel-eva-agents">
+    <!-- AGENTS -->
+    <section class="section" id="sec-agents">
+      <div class="section-head">
+        <div>
+          <h1>Eva agents</h1>
+          <p class="desc">All voice agents configured across accounts</p>
+        </div>
+      </div>
       <div class="card">
-        <div class="card-head"><div><h3>Voice agents</h3><p>Agents configured across every account</p></div></div>
-        <div class="card-body" style="overflow-x:auto;">
+        <div class="card-body" style="padding:0; overflow-x:auto;">
           <table>
-            <thead><tr><th>Agent</th><th>Owner</th><th>Voice</th><th>Language</th><th>Created</th></tr></thead>
-            <tbody id="evaAgentsBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+            <thead><tr><th>Agent</th><th>Owner</th><th>Gender</th><th>Language</th><th>Created</th></tr></thead>
+            <tbody id="agentsBody"><tr><td colspan="5" class="empty-state">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- ================= EVA CAMPAIGNS ================= -->
-    <section class="tab-panel" id="panel-eva-campaigns">
+    <!-- CAMPAIGNS -->
+    <section class="section" id="sec-campaigns">
+      <div class="section-head">
+        <div>
+          <h1>Call campaigns</h1>
+          <p class="desc">Recent outbound calling campaigns, across all owners</p>
+        </div>
+      </div>
       <div class="card">
-        <div class="card-head"><div><h3>Call campaigns</h3><p>Most recent 200 campaigns across all accounts</p></div></div>
-        <div class="card-body" style="overflow-x:auto;">
+        <div class="card-body" style="padding:0; overflow-x:auto;">
           <table>
-            <thead><tr><th>Campaign</th><th>Owner</th><th>Status</th><th>Completed</th><th>Failed</th><th>Pending</th><th>Created</th></tr></thead>
-            <tbody id="evaCampaignsBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+            <thead><tr><th>Campaign</th><th>Owner</th><th>Status</th><th>Completed</th><th>Failed</th><th>Pending</th></tr></thead>
+            <tbody id="campaignsBody"><tr><td colspan="6" class="empty-state">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- ================= EVA STATS ================= -->
-    <section class="tab-panel" id="panel-eva-stats">
-      <div class="stat-grid" id="evaStatGrid"></div>
+    <!-- CALL STATS -->
+    <section class="section" id="sec-callstats">
+      <div class="section-head">
+        <div>
+          <h1>Call statistics</h1>
+          <p class="desc">Platform-wide Eva call performance, last 14 days</p>
+        </div>
+      </div>
+      <div class="stat-grid" id="callStatGrid"></div>
       <div class="card">
-        <div class="card-head"><div><h3>Calls — last 14 days</h3></div></div>
+        <div class="card-head"><h3>Calls per day (last 14 days)</h3></div>
         <div class="card-body">
-          <div id="evaChart" style="display:flex;align-items:flex-end;gap:6px;height:140px;"></div>
+          <div class="bar-chart" id="callsBarChart"></div>
         </div>
       </div>
     </section>
 
-  </main>
+  </div>
 </div>
 
-<!-- ============ MODAL: create user ============ -->
-<div class="overlay" id="modalCreateUser">
+<!-- Create user modal -->
+<div class="modal-overlay" id="createUserModal">
   <div class="modal">
-    <div class="modal-head"><h3>New customer</h3><button class="modal-close" onclick="closeModal('modalCreateUser')">✕</button></div>
+    <div class="modal-head"><h3>Create user</h3><div class="modal-close" onclick="closeModal('createUserModal')">✕</div></div>
     <div class="modal-body">
-      <div id="createUserMsg" class="form-msg"></div>
-      <div class="field-row">
-        <div class="field"><label>Username</label><input type="text" id="nu_username" placeholder="acme"></div>
-        <div class="field"><label>Email</label><input type="email" id="nu_email" placeholder="owner@acme.com"></div>
-      </div>
+      <div class="field"><label>Username</label><input type="text" id="nu_username"></div>
+      <div class="field"><label>Email</label><input type="email" id="nu_email"></div>
+      <div class="field"><label>Phone</label><input type="text" id="nu_phone"></div>
       <div class="field"><label>Business name</label><input type="text" id="nu_business"></div>
-      <div class="field-row">
-        <div class="field"><label>Phone</label><input type="text" id="nu_phone"></div>
-        <div class="field">
-          <label>Region</label>
-          <select id="nu_region"><option value="international">International (USD)</option><option value="india">India (INR)</option></select>
-        </div>
+      <div class="field"><label>Region</label>
+        <select id="nu_region"><option value="international">International</option><option value="india">India</option></select>
       </div>
-      <div class="field-row">
-        <div class="field"><label>Plan (optional)</label><select id="nu_plan"><option value="">No plan</option></select></div>
-        <div class="field"><label>Starting Eva minutes</label><input type="number" id="nu_minutes" value="0"></div>
-      </div>
-      <p class="hint">A temporary password is generated automatically and shown after creation.</p>
+      <div class="field"><label>Initial plan (optional)</label><select id="nu_plan"><option value="">No plan</option></select></div>
+      <div class="field"><label>Password (leave blank to auto-generate)</label><input type="text" id="nu_password"></div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('modalCreateUser')">Cancel</button>
-      <button class="btn btn-primary" onclick="createUser()">Create customer</button>
+      <button class="btn btn-ghost" onclick="closeModal('createUserModal')">Cancel</button>
+      <button class="btn btn-primary" id="submitCreateUser">Create</button>
     </div>
   </div>
 </div>
 
-<!-- ============ MODAL: create plan ============ -->
-<div class="overlay" id="modalCreatePlan">
+<!-- Assign plan modal -->
+<div class="modal-overlay" id="assignPlanModal">
   <div class="modal">
-    <div class="modal-head"><h3>New plan</h3><button class="modal-close" onclick="closeModal('modalCreatePlan')">✕</button></div>
+    <div class="modal-head"><h3>Assign plan</h3><div class="modal-close" onclick="closeModal('assignPlanModal')">✕</div></div>
     <div class="modal-body">
-      <div id="createPlanMsg" class="form-msg"></div>
-      <div class="field"><label>Plan name</label><input type="text" id="np_name" placeholder="Growth"></div>
-      <div class="field-row">
-        <div class="field">
-          <label>Region</label>
-          <select id="np_region"><option value="india">India (INR)</option><option value="international">International (USD)</option></select>
-        </div>
-        <div class="field"><label>Price / month</label><input type="number" step="0.01" id="np_price"></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>Eva minutes included</label><input type="number" id="np_minutes" value="0"></div>
-        <div class="field"><label>Lead limit (0 = unlimited)</label><input type="number" id="np_leadlimit" value="0"></div>
-      </div>
+      <input type="hidden" id="ap_user_id">
+      <div class="field"><label>Plan</label><select id="ap_plan_id"><option value="">No plan (clear)</option></select></div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('modalCreatePlan')">Cancel</button>
-      <button class="btn btn-primary" onclick="createPlan()">Create plan</button>
+      <button class="btn btn-ghost" onclick="closeModal('assignPlanModal')">Cancel</button>
+      <button class="btn btn-primary" id="submitAssignPlan">Save</button>
     </div>
   </div>
 </div>
 
-<!-- ============ MODAL: assign plan ============ -->
-<div class="overlay" id="modalAssignPlan">
+<!-- Add minutes modal -->
+<div class="modal-overlay" id="addMinutesModal">
   <div class="modal">
-    <div class="modal-head"><h3>Assign plan</h3><button class="modal-close" onclick="closeModal('modalAssignPlan')">✕</button></div>
+    <div class="modal-head"><h3>Add / deduct Eva minutes</h3><div class="modal-close" onclick="closeModal('addMinutesModal')">✕</div></div>
     <div class="modal-body">
-      <div id="assignPlanMsg" class="form-msg"></div>
-      <p class="hint" id="assignPlanFor"></p>
-      <div class="field"><label>Plan</label><select id="ap_plan"><option value="">No plan</option></select></div>
+      <input type="hidden" id="am_user_id">
+      <div class="field"><label>Minutes (use negative to deduct)</label><input type="number" id="am_minutes" value="0"></div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('modalAssignPlan')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitAssignPlan()">Assign</button>
+      <button class="btn btn-ghost" onclick="closeModal('addMinutesModal')">Cancel</button>
+      <button class="btn btn-primary" id="submitAddMinutes">Save</button>
     </div>
   </div>
 </div>
 
-<!-- ============ MODAL: add minutes ============ -->
-<div class="overlay" id="modalAddMinutes">
+<!-- Create/edit plan modal -->
+<div class="modal-overlay" id="planModal">
   <div class="modal">
-    <div class="modal-head"><h3>Add Eva minutes</h3><button class="modal-close" onclick="closeModal('modalAddMinutes')">✕</button></div>
+    <div class="modal-head"><h3 id="planModalTitle">New plan</h3><div class="modal-close" onclick="closeModal('planModal')">✕</div></div>
     <div class="modal-body">
-      <div id="addMinutesMsg" class="form-msg"></div>
-      <p class="hint" id="addMinutesFor"></p>
-      <div class="field"><label>Minutes to add (use a negative number to deduct)</label><input type="number" id="am_minutes" value="60"></div>
+      <input type="hidden" id="pl_id">
+      <div class="field"><label>Name</label><input type="text" id="pl_name"></div>
+      <div class="field"><label>Region</label>
+        <select id="pl_region"><option value="india">India</option><option value="international">International</option></select>
+      </div>
+      <div class="field"><label>Price</label><input type="number" step="0.01" id="pl_price"></div>
+      <div class="field"><label>Billing cycle</label><input type="text" id="pl_billing" value="monthly"></div>
+      <div class="field"><label>Duration (days)</label><input type="number" id="pl_duration" value="30"></div>
+      <div class="field"><label>Eva minutes included</label><input type="number" id="pl_minutes" value="0"></div>
+      <div class="field"><label>Features (one per line)</label><textarea id="pl_features"></textarea></div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('modalAddMinutes')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitAddMinutes()">Save</button>
+      <button class="btn btn-ghost" onclick="closeModal('planModal')">Cancel</button>
+      <button class="btn btn-primary" id="submitPlan">Save plan</button>
     </div>
   </div>
 </div>
@@ -487,346 +611,403 @@
 <div class="toast" id="toast"></div>
 
 <script>
-let PLANS = [];
-let USERS = [];
-let currency = 'INR';
-let activeUserForAction = null;
+// ---------------- helpers ----------------
+const $ = (id) => document.getElementById(id);
 
-const money = (val, cur) => {
-  const symbol = cur === 'INR' ? '₹' : '$';
-  return symbol + Number(val || 0).toLocaleString(undefined, {maximumFractionDigits: 2});
-};
-
-function toast(msg){
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2600);
+function toast(msg, isErr=false) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr ? ' err' : '');
+  setTimeout(() => t.className = 'toast', 2200);
 }
-function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 
-async function api(path, opts){
-  const res = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
-  let data = {};
-  try { data = await res.json(); } catch(e){}
-  if(!res.ok) throw new Error(data.error || 'Request failed');
+function openModal(id) { $(id).classList.add('active'); }
+function closeModal(id) { $(id).classList.remove('active'); }
+
+async function api(url, opts = {}) {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
 
-/* ---------------- tabs ---------------- */
-const TAB_TITLES = {
-  overview: ['Overview', "Everything happening across every PravaahAI account, in one place."],
-  users: ['Customers', 'Create, suspend, and manage every account on the platform.'],
-  teams: ['Teams', "Inspect a customer's sub-accounts and assignments."],
-  plans: ['Plans', 'Configure India and International subscription tiers.'],
-  pricing: ['Eva pricing', 'Set the per-minute overage rate for voice calls.'],
-  'eva-agents': ['Eva agents', 'Every voice agent configured across all accounts.'],
-  'eva-campaigns': ['Eva campaigns', 'Outbound call campaigns across all accounts.'],
-  'eva-stats': ['Eva call stats', 'Platform-wide calling activity.'],
-};
-document.querySelectorAll('.nav-item').forEach(el=>{
-  el.addEventListener('click', ()=>{
-    const tab = el.dataset.tab;
-    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-    el.classList.add('active');
-    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-    document.getElementById('panel-'+tab).classList.add('active');
-    document.getElementById('pageTitle').textContent = TAB_TITLES[tab][0];
-    document.getElementById('pageSub').textContent = TAB_TITLES[tab][1];
-    if(tab==='users') loadUsers();
-    if(tab==='plans') loadPlans();
-    if(tab==='pricing') loadPricing();
-    if(tab==='eva-agents') loadEvaAgents();
-    if(tab==='eva-campaigns') loadEvaCampaigns();
-    if(tab==='eva-stats') loadEvaStats();
-  });
-});
-document.querySelector('.nav-item[data-tab="overview"]').classList.add('active');
+function escapeHtml(s) {
+  return (s || '').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
 
-document.querySelectorAll('.region-toggle button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.region-toggle button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    currency = btn.dataset.currency;
-    loadPlans(); loadOverview();
+function initials(name) {
+  if (!name) return 'A';
+  return name.trim().slice(0,2).toUpperCase();
+}
+$('avatarInitial').textContent = initials($('profileName').textContent);
+
+// ---------------- nav switching ----------------
+document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item[data-section]').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    $('sec-' + item.dataset.section).classList.add('active');
+    loadSection(item.dataset.section);
   });
 });
 
-/* ---------------- overview ---------------- */
-async function loadOverview(){
-  try{
+$('refreshBtn').addEventListener('click', () => {
+  const active = document.querySelector('.nav-item.active[data-section]');
+  if (active) loadSection(active.dataset.section);
+});
+
+function loadSection(name) {
+  if (name === 'overview') loadOverview();
+  if (name === 'users') loadUsers();
+  if (name === 'plans') loadPlans();
+  if (name === 'pricing') loadPricing();
+  if (name === 'agents') loadAgents();
+  if (name === 'campaigns') loadCampaigns();
+  if (name === 'callstats') loadCallStats();
+}
+
+// ---------------- Overview ----------------
+async function loadOverview() {
+  try {
     const s = await api('/api/admin/stats');
-    const cards = [
-      {label:'Total customers', value:s.total_users, sub:`${s.new_this_month} new this month`},
-      {label:'Active', value:s.active_users, sub:`${s.disabled_users} disabled`},
-      {label:'Pending verification', value:s.pending_users, sub:'unverified email'},
-      {label:'Eva minutes used', value: Number(s.total_eva_minutes_used).toLocaleString(), sub:'across all accounts'},
-      {label:'Total leads', value: s.total_leads.toLocaleString(), sub:`${s.total_team_members} team members`},
-      {label:'Unassigned plan', value: s.no_plan_users, sub:'customers with no plan'},
-    ];
-    document.getElementById('statGrid').innerHTML = cards.map(c=>`
-      <div class="stat-card">
-        <div class="label">${c.label}<span class="dot"></span></div>
-        <div class="value mono">${c.value}</div>
-        <div class="sub">${c.sub}</div>
-      </div>`).join('');
-
-    const rows = s.plan_counts.length ? s.plan_counts.map(p=>`
-      <tr>
-        <td><strong>${p.name}</strong></td>
-        <td><span class="pill ${p.region==='india'?'pill-india':'pill-intl'}">${p.region==='india'?'India':'International'}</span></td>
-        <td class="mono">${p.users}</td>
-      </tr>`).join('') : `<tr><td colspan="3" class="empty">No plans created yet.</td></tr>`;
-    document.getElementById('planDistBody').innerHTML = rows;
-  }catch(e){ toast(e.message); }
+    $('statGrid').innerHTML = `
+      ${statCard('Total users', s.total_users)}
+      ${statCard('Active users', s.active_users)}
+      ${statCard('Disabled', s.disabled_users)}
+      ${statCard('Pending verification', s.pending_users)}
+      ${statCard('New this month', s.new_this_month, true)}
+      ${statCard('No active plan', s.no_plan_users)}
+      ${statCard('Eva minutes used', s.total_eva_minutes_used)}
+      ${statCard('Total leads', s.total_leads)}
+      ${statCard('Team members', s.total_team_members)}
+    `;
+    $('planCountsBody').innerHTML = (s.plan_counts || []).map(p => `
+      <tr><td>${escapeHtml(p.name)}</td><td>${badgeRegion(p.region)}</td><td>${p.users}</td></tr>
+    `).join('') || `<tr><td colspan="3" class="empty-state">No plans configured</td></tr>`;
+  } catch (e) { toast(e.message, true); }
+}
+function statCard(label, value, highlight=false) {
+  return `<div class="stat-card"><div class="label">${label}</div><div class="value">${value ?? 0}</div>${highlight ? '<div class="sub">↑ this month</div>' : ''}</div>`;
+}
+function badgeRegion(r) {
+  return r === 'india' ? `<span class="badge b-blue"><span class="badge-dot" style="background:var(--yellow)"></span>India</span>`
+    : `<span class="badge b-indigo"><span class="badge-dot" style="background:var(--purple)"></span>International</span>`;
 }
 
-/* ---------------- users ---------------- */
-async function loadUsers(){
-  const q = document.getElementById('userSearch').value.trim();
-  const status = document.getElementById('userStatusFilter').value;
-  const region = document.getElementById('userRegionFilter').value;
-  const params = new URLSearchParams({q, status, region});
-  try{
-    const data = await api('/api/admin/users?'+params.toString());
-    USERS = data.users;
-    if(!USERS.length){
-      document.getElementById('usersBody').innerHTML = `<tr><td colspan="9" class="empty">No customers match this filter.</td></tr>`;
-      return;
-    }
-    document.getElementById('usersBody').innerHTML = USERS.map(u=>`
-      <tr>
-        <td>
-          <div class="avatar-name">
-            <div class="avatar">${(u.business_name||u.username||'?')[0].toUpperCase()}</div>
-            <div>
-              <div class="u-name">${u.business_name || u.username}</div>
-              <div class="u-sub">${u.email}</div>
-            </div>
-          </div>
-        </td>
-        <td><span class="pill ${u.region==='india'?'pill-india':'pill-intl'}">${u.region==='india'?'India':'Intl'}</span></td>
-        <td>${u.plan ? `<a href="#" onclick="event.preventDefault();openAssignPlan('${u._id}','${(u.business_name||u.username).replace(/'/g,"")}')">${u.plan.name}</a>` : `<button class="btn btn-ghost btn-sm" onclick="openAssignPlan('${u._id}','${(u.business_name||u.username).replace(/'/g,"")}')">Assign</button>`}</td>
-        <td><span class="pill ${u.status==='active'?'pill-active':'pill-disabled'}">${u.status}</span></td>
-        <td class="mono">${u.eva_minutes_used.toFixed(1)} / ${u.eva_minutes.toFixed(0)}</td>
-        <td class="mono">${u.team_count}</td>
-        <td class="mono">${u.lead_count}</td>
-        <td>${u.created_at ? u.created_at.slice(0,10) : '—'}</td>
-        <td>
-          <div style="display:flex;gap:6px;">
-            <button class="btn btn-ghost btn-sm" onclick="openAddMinutes('${u._id}','${(u.business_name||u.username).replace(/'/g,"")}')">+ Min</button>
-            <button class="btn ${u.status==='active'?'btn-danger':'btn-ghost'} btn-sm" onclick="toggleStatus('${u._id}','${u.status}')">${u.status==='active'?'Disable':'Enable'}</button>
-          </div>
-        </td>
-      </tr>`).join('');
-  }catch(e){ toast(e.message); }
-}
-document.getElementById('userSearch').addEventListener('input', debounce(loadUsers, 300));
-document.getElementById('userStatusFilter').addEventListener('change', loadUsers);
-document.getElementById('userRegionFilter').addEventListener('change', loadUsers);
-function debounce(fn, ms){ let t; return (...a)=>{clearTimeout(t); t=setTimeout(()=>fn(...a), ms);}; }
+// ---------------- Users ----------------
+let allPlansCache = [];
 
-async function toggleStatus(userId, current){
-  const next = current === 'active' ? 'disabled' : 'active';
-  if(next==='disabled' && !confirm('Disable this customer? They and their whole team will be locked out immediately.')) return;
-  try{
-    await api(`/api/admin/users/${userId}/status`, {method:'PATCH', body: JSON.stringify({status: next})});
-    toast('Status updated'); loadUsers(); loadOverview();
-  }catch(e){ toast(e.message); }
+async function loadUsers() {
+  try {
+    const q = $('userSearch').value.trim();
+    const status = $('userStatusFilter').value;
+    const region = $('userRegionFilter').value;
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (status) params.set('status', status);
+    if (region) params.set('region', region);
+    const data = await api('/api/admin/users?' + params.toString());
+    renderUsers(data.users || []);
+  } catch (e) { toast(e.message, true); }
 }
 
-function openAssignPlan(userId, name){
-  activeUserForAction = userId;
-  document.getElementById('assignPlanFor').textContent = `Assigning a plan to ${name}`;
-  const sel = document.getElementById('ap_plan');
-  sel.innerHTML = '<option value="">No plan</option>' + PLANS.map(p=>`<option value="${p._id}">${p.name} — ${p.region==='india'?'₹':'$'}${p.price}/mo</option>`).join('');
-  document.getElementById('assignPlanMsg').style.display='none';
-  openModal('modalAssignPlan');
-}
-async function submitAssignPlan(){
-  const planId = document.getElementById('ap_plan').value;
-  try{
-    await api(`/api/admin/users/${activeUserForAction}/plan`, {method:'PATCH', body: JSON.stringify({plan_id: planId, grant_minutes:true})});
-    closeModal('modalAssignPlan'); toast('Plan assigned'); loadUsers(); loadOverview();
-  }catch(e){
-    const m = document.getElementById('assignPlanMsg'); m.textContent = e.message; m.className='form-msg error';
+function renderUsers(users) {
+  if (!users.length) {
+    $('usersBody').innerHTML = `<tr><td colspan="8" class="empty-state">No users found</td></tr>`;
+    return;
   }
+  $('usersBody').innerHTML = users.map(u => `
+    <tr>
+      <td>
+        <div style="font-weight:700;">${escapeHtml(u.business_name || u.username)}</div>
+        <div class="cell-sub">${escapeHtml(u.email)} · @${escapeHtml(u.username)}</div>
+      </td>
+      <td>${badgeRegion(u.region)}</td>
+      <td>
+        ${u.plan ? `<span class="badge b-indigo">${escapeHtml(u.plan.name)}</span>` : `<span class="badge b-gray">No plan</span>`}
+        <div class="cell-sub">${planStatusLabel(u.plan_status)}</div>
+      </td>
+      <td>${(u.eva_minutes_used ?? 0).toFixed(1)} / ${(u.eva_minutes ?? 0).toFixed(1)}</td>
+      <td>${u.team_count}</td>
+      <td>${u.lead_count}</td>
+      <td>${u.status === 'active'
+        ? `<span class="badge b-green"><span class="badge-dot" style="background:var(--green)"></span>Active</span>`
+        : `<span class="badge b-red"><span class="badge-dot" style="background:var(--red)"></span>Disabled</span>`}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${u._id}','${u.status}')">${u.status === 'active' ? 'Disable' : 'Enable'}</button>
+          <button class="btn btn-ghost btn-sm" onclick="openAssignPlan('${u._id}','${u.plan ? u.plan._id : ''}')">Plan</button>
+          <button class="btn btn-ghost btn-sm" onclick="openAddMinutes('${u._id}')">Minutes</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteUser('${u._id}')">Delete</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+function planStatusLabel(s) {
+  if (s === 'active') return '<span style="color:var(--green);font-weight:700;">Active</span>';
+  if (s === 'expired') return '<span style="color:var(--red);font-weight:700;">Expired</span>';
+  return '<span style="color:var(--text-dim);font-weight:700;">None</span>';
 }
 
-function openAddMinutes(userId, name){
-  activeUserForAction = userId;
-  document.getElementById('addMinutesFor').textContent = `Adding minutes to ${name}`;
-  document.getElementById('addMinutesMsg').style.display='none';
-  openModal('modalAddMinutes');
-}
-async function submitAddMinutes(){
-  const minutes = parseFloat(document.getElementById('am_minutes').value || '0');
-  try{
-    await api(`/api/admin/users/${activeUserForAction}/eva-minutes`, {method:'POST', body: JSON.stringify({minutes})});
-    closeModal('modalAddMinutes'); toast('Eva minutes updated'); loadUsers();
-  }catch(e){
-    const m = document.getElementById('addMinutesMsg'); m.textContent = e.message; m.className='form-msg error';
+$('applyUserFilters').addEventListener('click', loadUsers);
+$('userSearch').addEventListener('keydown', e => { if (e.key === 'Enter') loadUsers(); });
+$('globalSearch').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    document.querySelector('.nav-item[data-section="users"]').click();
+    $('userSearch').value = $('globalSearch').value;
+    loadUsers();
   }
-}
-
-async function createUser(){
-  const payload = {
-    username: document.getElementById('nu_username').value.trim(),
-    email: document.getElementById('nu_email').value.trim(),
-    business_name: document.getElementById('nu_business').value.trim(),
-    phone: document.getElementById('nu_phone').value.trim(),
-    region: document.getElementById('nu_region').value,
-    plan_id: document.getElementById('nu_plan').value,
-    eva_minutes: parseFloat(document.getElementById('nu_minutes').value || '0'),
-  };
-  try{
-    const data = await api('/api/admin/users', {method:'POST', body: JSON.stringify(payload)});
-    closeModal('modalCreateUser');
-    toast(`Customer created — temp password: ${data.temp_password}`);
-    loadUsers(); loadOverview();
-  }catch(e){
-    const m = document.getElementById('createUserMsg'); m.textContent = e.message; m.className='form-msg error';
-  }
-}
-
-/* ---------------- teams ---------------- */
-function populateTeamOwnerSelect(){
-  const sel = document.getElementById('teamOwnerSelect');
-  sel.innerHTML = '<option value="">Choose a customer…</option>' + USERS.map(u=>`<option value="${u._id}">${u.business_name || u.username}</option>`).join('');
-}
-document.getElementById('teamOwnerSelect').addEventListener('change', async (e)=>{
-  const id = e.target.value;
-  if(!id){ document.getElementById('teamsBody').innerHTML = `<tr><td colspan="5" class="empty">Pick a customer to view their team.</td></tr>`; return; }
-  try{
-    const data = await api(`/api/admin/users/${id}/team`);
-    if(!data.members.length){ document.getElementById('teamsBody').innerHTML = `<tr><td colspan="5" class="empty">This customer has no team members yet.</td></tr>`; return; }
-    document.getElementById('teamsBody').innerHTML = data.members.map(m=>`
-      <tr>
-        <td>${m.name}</td><td>${m.email}</td>
-        <td><span class="pill ${m.status==='active'?'pill-active':'pill-disabled'}">${m.status}</span></td>
-        <td class="mono">${m.leads_assigned}</td>
-        <td>${m.created_at ? m.created_at.slice(0,10) : '—'}</td>
-      </tr>`).join('');
-  }catch(e){ toast(e.message); }
 });
 
-/* ---------------- plans ---------------- */
-async function loadPlans(){
-  try{
+async function toggleUserStatus(id, currentStatus) {
+  try {
+    const newStatus = currentStatus === 'active' ? 'disabled' : 'active';
+    await api(`/api/admin/users/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
+    toast('User status updated');
+    loadUsers();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Delete this user and all their data permanently?')) return;
+  try {
+    await api(`/api/admin/users/${id}`, { method: 'DELETE' });
+    toast('User deleted');
+    loadUsers();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function ensurePlansCache() {
+  if (allPlansCache.length) return allPlansCache;
+  const data = await api('/api/admin/plans');
+  allPlansCache = data.plans || [];
+  return allPlansCache;
+}
+
+async function openAssignPlan(userId, currentPlanId) {
+  const plans = await ensurePlansCache();
+  $('ap_user_id').value = userId;
+  $('ap_plan_id').innerHTML = `<option value="">No plan (clear)</option>` +
+    plans.map(p => `<option value="${p._id}" ${p._id === currentPlanId ? 'selected' : ''}>${escapeHtml(p.name)} (${p.region})</option>`).join('');
+  openModal('assignPlanModal');
+}
+$('submitAssignPlan').addEventListener('click', async () => {
+  try {
+    const userId = $('ap_user_id').value;
+    const planId = $('ap_plan_id').value;
+    await api(`/api/admin/users/${userId}/plan`, { method: 'PATCH', body: JSON.stringify({ plan_id: planId }) });
+    toast('Plan updated');
+    closeModal('assignPlanModal');
+    loadUsers();
+  } catch (e) { toast(e.message, true); }
+});
+
+function openAddMinutes(userId) {
+  $('am_user_id').value = userId;
+  $('am_minutes').value = 0;
+  openModal('addMinutesModal');
+}
+$('submitAddMinutes').addEventListener('click', async () => {
+  try {
+    const userId = $('am_user_id').value;
+    const minutes = parseFloat($('am_minutes').value || '0');
+    if (!minutes) { toast('Enter a non-zero value', true); return; }
+    await api(`/api/admin/users/${userId}/eva-minutes`, { method: 'POST', body: JSON.stringify({ minutes }) });
+    toast('Eva minutes updated');
+    closeModal('addMinutesModal');
+    loadUsers();
+  } catch (e) { toast(e.message, true); }
+});
+
+$('openCreateUser').addEventListener('click', async () => {
+  const plans = await ensurePlansCache();
+  $('nu_plan').innerHTML = `<option value="">No plan</option>` + plans.map(p => `<option value="${p._id}">${escapeHtml(p.name)} (${p.region})</option>`).join('');
+  ['nu_username','nu_email','nu_phone','nu_business','nu_password'].forEach(id => $(id).value = '');
+  openModal('createUserModal');
+});
+$('submitCreateUser').addEventListener('click', async () => {
+  try {
+    const payload = {
+      username: $('nu_username').value.trim(),
+      email: $('nu_email').value.trim(),
+      phone: $('nu_phone').value.trim(),
+      business_name: $('nu_business').value.trim(),
+      region: $('nu_region').value,
+      plan_id: $('nu_plan').value,
+      password: $('nu_password').value.trim() || undefined,
+    };
+    const data = await api('/api/admin/users', { method: 'POST', body: JSON.stringify(payload) });
+    toast('User created' + (data.temp_password ? ` — temp password: ${data.temp_password}` : ''));
+    closeModal('createUserModal');
+    loadUsers();
+  } catch (e) { toast(e.message, true); }
+});
+
+// ---------------- Plans ----------------
+async function loadPlans() {
+  try {
     const data = await api('/api/admin/plans');
-    PLANS = data.plans;
-    const options = '<option value="">No plan</option>' + PLANS.map(p=>`<option value="${p._id}">${p.name} (${p.region})</option>`).join('');
-    document.getElementById('nu_plan').innerHTML = options;
+    allPlansCache = data.plans || [];
+    $('plansBody').innerHTML = allPlansCache.length ? allPlansCache.map(p => `
+      <tr>
+        <td style="font-weight:700;">${escapeHtml(p.name)}</td>
+        <td>${badgeRegion(p.region)}</td>
+        <td>${p.currency} ${p.price}</td>
+        <td>${p.duration_days}d / ${escapeHtml(p.billing_cycle)}</td>
+        <td>${p.eva_minutes_included}</td>
+        <td>
+          <div class="row-actions">
+            <button class="btn btn-ghost btn-sm" onclick='editPlan(${JSON.stringify(p).replace(/'/g, "&#39;")})'>Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deletePlan('${p._id}')">Delete</button>
+          </div>
+        </td>
+      </tr>
+    `).join('') : `<tr><td colspan="6" class="empty-state">No plans yet</td></tr>`;
+  } catch (e) { toast(e.message, true); }
+}
 
-    if(!PLANS.length){
-      document.getElementById('plansBody').innerHTML = `<tr><td colspan="6" class="empty">No plans yet — create your first plan.</td></tr>`;
-      return;
+$('openCreatePlan').addEventListener('click', () => {
+  $('planModalTitle').textContent = 'New plan';
+  $('pl_id').value = '';
+  $('pl_name').value = ''; $('pl_region').value = 'india'; $('pl_price').value = '';
+  $('pl_billing').value = 'monthly'; $('pl_duration').value = 30; $('pl_minutes').value = 0;
+  $('pl_features').value = '';
+  openModal('planModal');
+});
+
+function editPlan(p) {
+  $('planModalTitle').textContent = 'Edit plan';
+  $('pl_id').value = p._id;
+  $('pl_name').value = p.name;
+  $('pl_region').value = p.region;
+  $('pl_price').value = p.price;
+  $('pl_billing').value = p.billing_cycle;
+  $('pl_duration').value = p.duration_days;
+  $('pl_minutes').value = p.eva_minutes_included;
+  $('pl_features').value = (p.features || []).join('\n');
+  openModal('planModal');
+}
+
+$('submitPlan').addEventListener('click', async () => {
+  try {
+    const id = $('pl_id').value;
+    const payload = {
+      name: $('pl_name').value.trim(),
+      region: $('pl_region').value,
+      price: parseFloat($('pl_price').value || '0'),
+      billing_cycle: $('pl_billing').value.trim() || 'monthly',
+      duration_days: parseInt($('pl_duration').value || '30', 10),
+      eva_minutes_included: parseFloat($('pl_minutes').value || '0'),
+      features: $('pl_features').value.split('\n').map(s => s.trim()).filter(Boolean),
+    };
+    if (id) {
+      await api(`/api/admin/plans/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      toast('Plan updated');
+    } else {
+      await api('/api/admin/plans', { method: 'POST', body: JSON.stringify(payload) });
+      toast('Plan created');
     }
-    document.getElementById('plansBody').innerHTML = PLANS.map(p=>`
-      <tr>
-        <td><strong>${p.name}</strong></td>
-        <td><span class="pill ${p.region==='india'?'pill-india':'pill-intl'}">${p.region==='india'?'India':'International'}</span></td>
-        <td class="mono">${p.currency==='INR'?'₹':'$'}${p.price} /mo</td>
-        <td class="mono">${p.eva_minutes_included}</td>
-        <td class="mono">${p.lead_limit || 'Unlimited'}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deletePlan('${p._id}')">Delete</button></td>
-      </tr>`).join('');
-  }catch(e){ toast(e.message); }
-}
-async function createPlan(){
-  const payload = {
-    name: document.getElementById('np_name').value.trim(),
-    region: document.getElementById('np_region').value,
-    price: parseFloat(document.getElementById('np_price').value || '0'),
-    eva_minutes_included: parseFloat(document.getElementById('np_minutes').value || '0'),
-    lead_limit: parseInt(document.getElementById('np_leadlimit').value || '0'),
-  };
-  try{
-    await api('/api/admin/plans', {method:'POST', body: JSON.stringify(payload)});
-    closeModal('modalCreatePlan'); toast('Plan created'); loadPlans();
-  }catch(e){
-    const m = document.getElementById('createPlanMsg'); m.textContent = e.message; m.className='form-msg error';
-  }
-}
-async function deletePlan(id){
-  if(!confirm('Delete this plan? Customers on it will be moved to "No plan".')) return;
-  try{ await api(`/api/admin/plans/${id}`, {method:'DELETE'}); toast('Plan deleted'); loadPlans(); loadOverview(); }
-  catch(e){ toast(e.message); }
+    allPlansCache = [];
+    closeModal('planModal');
+    loadPlans();
+  } catch (e) { toast(e.message, true); }
+});
+
+async function deletePlan(id) {
+  if (!confirm('Delete this plan? Users on it will be unassigned.')) return;
+  try {
+    await api(`/api/admin/plans/${id}`, { method: 'DELETE' });
+    allPlansCache = [];
+    toast('Plan deleted');
+    loadPlans();
+  } catch (e) { toast(e.message, true); }
 }
 
-/* ---------------- pricing ---------------- */
-async function loadPricing(){
-  try{
+// ---------------- Pricing ----------------
+async function loadPricing() {
+  try {
     const p = await api('/api/admin/pricing');
-    document.getElementById('priceIndia').value = p.india_price_per_min;
-    document.getElementById('priceIntl').value = p.international_price_per_min;
-    document.getElementById('pricingUpdated').textContent = p.updated_at ? p.updated_at.slice(0,16).replace('T',' ') : 'never';
-  }catch(e){ toast(e.message); }
+    $('priceIndia').value = p.india_price_per_min;
+    $('priceIntl').value = p.international_price_per_min;
+    $('rechargeContact').value = p.recharge_contact_number || '';
+  } catch (e) { toast(e.message, true); }
 }
-async function savePricing(){
-  const payload = {
-    india_price_per_min: parseFloat(document.getElementById('priceIndia').value || '0'),
-    international_price_per_min: parseFloat(document.getElementById('priceIntl').value || '0'),
-  };
-  try{
-    await api('/api/admin/pricing', {method:'POST', body: JSON.stringify(payload)});
-    const m = document.getElementById('pricingMsg'); m.textContent = 'Saved.'; m.className='form-msg success';
-    loadPricing();
-  }catch(e){
-    const m = document.getElementById('pricingMsg'); m.textContent = e.message; m.className='form-msg error';
-  }
-}
+$('savePricingBtn').addEventListener('click', async () => {
+  try {
+    await api('/api/admin/pricing', { method: 'POST', body: JSON.stringify({
+      india_price_per_min: parseFloat($('priceIndia').value || '0'),
+      international_price_per_min: parseFloat($('priceIntl').value || '0'),
+      recharge_contact_number: $('rechargeContact').value.trim(),
+    })});
+    toast('Pricing saved');
+  } catch (e) { toast(e.message, true); }
+});
 
-/* ---------------- eva agents / campaigns / stats ---------------- */
-async function loadEvaAgents(){
-  try{
+// ---------------- Agents ----------------
+async function loadAgents() {
+  try {
     const data = await api('/api/admin/eva/agents');
-    if(!data.agents.length){ document.getElementById('evaAgentsBody').innerHTML = `<tr><td colspan="5" class="empty">No agents configured yet.</td></tr>`; return; }
-    document.getElementById('evaAgentsBody').innerHTML = data.agents.map(a=>`
-      <tr><td><strong>${a.name}</strong></td><td>${a.owner_name}</td><td>${a.gender}</td><td>${a.language}</td><td>${a.created_at ? a.created_at.slice(0,10) : '—'}</td></tr>
-    `).join('');
-  }catch(e){ toast(e.message); }
-}
-async function loadEvaCampaigns(){
-  try{
-    const data = await api('/api/admin/eva/campaigns');
-    if(!data.campaigns.length){ document.getElementById('evaCampaignsBody').innerHTML = `<tr><td colspan="7" class="empty">No call campaigns yet.</td></tr>`; return; }
-    document.getElementById('evaCampaignsBody').innerHTML = data.campaigns.map(c=>`
+    $('agentsBody').innerHTML = (data.agents || []).length ? data.agents.map(a => `
       <tr>
-        <td><strong>${c.name}</strong></td><td>${c.owner_name}</td>
-        <td><span class="pill pill-active">${c.status}</span></td>
-        <td class="mono">${c.stats.completed||0}</td>
-        <td class="mono">${c.stats.failed||0}</td>
-        <td class="mono">${c.stats.pending||0}</td>
-        <td>${c.created_at ? c.created_at.slice(0,10) : '—'}</td>
-      </tr>`).join('');
-  }catch(e){ toast(e.message); }
-}
-async function loadEvaStats(){
-  try{
-    const s = await api('/api/admin/eva/stats');
-    document.getElementById('evaStatGrid').innerHTML = `
-      <div class="stat-card"><div class="label">Total calls</div><div class="value mono">${s.total_calls}</div></div>
-      <div class="stat-card"><div class="label">Completed</div><div class="value mono">${s.completed}</div></div>
-      <div class="stat-card"><div class="label">Failed</div><div class="value mono">${s.failed}</div></div>
-      <div class="stat-card"><div class="label">Total minutes</div><div class="value mono">${s.total_minutes}</div></div>
-    `;
-    const max = Math.max(1, ...s.timeseries.map(t=>t.calls));
-    document.getElementById('evaChart').innerHTML = s.timeseries.map(t=>`
-      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
-        <div style="width:100%;background:linear-gradient(180deg,#5b6cff,#8b7bff);border-radius:4px 4px 0 0;height:${(t.calls/max*100)}%;min-height:${t.calls?4:0}px;"></div>
-        <div style="font-size:9px;color:#9aa0c9;margin-top:5px;">${t.date.slice(5)}</div>
-      </div>`).join('');
-  }catch(e){ toast(e.message); }
+        <td style="font-weight:700;">${escapeHtml(a.name)}</td>
+        <td>${escapeHtml(a.owner_name)}</td>
+        <td>${escapeHtml(a.gender)}</td>
+        <td>${escapeHtml(a.language)}</td>
+        <td>${a.created_at ? new Date(a.created_at).toLocaleDateString() : '—'}</td>
+      </tr>
+    `).join('') : `<tr><td colspan="5" class="empty-state">No agents configured yet</td></tr>`;
+  } catch (e) { toast(e.message, true); }
 }
 
-/* ---------------- init ---------------- */
-(async function init(){
-  await loadOverview();
-  await loadPlans();
-  await loadUsers();
-  populateTeamOwnerSelect();
-})();
+// ---------------- Campaigns ----------------
+async function loadCampaigns() {
+  try {
+    const data = await api('/api/admin/eva/campaigns');
+    $('campaignsBody').innerHTML = (data.campaigns || []).length ? data.campaigns.map(c => `
+      <tr>
+        <td style="font-weight:700;">${escapeHtml(c.name)}</td>
+        <td>${escapeHtml(c.owner_name)}</td>
+        <td>${campaignStatusBadge(c.status)}</td>
+        <td>${c.stats?.completed ?? 0}</td>
+        <td>${c.stats?.failed ?? 0}</td>
+        <td>${c.stats?.pending ?? 0}</td>
+      </tr>
+    `).join('') : `<tr><td colspan="6" class="empty-state">No call campaigns yet</td></tr>`;
+  } catch (e) { toast(e.message, true); }
+}
+function campaignStatusBadge(s) {
+  const map = { running: 'b-blue', completed: 'b-green', draft: 'b-gray', scheduled: 'b-indigo', failed: 'b-red' };
+  const cls = map[s] || 'b-gray';
+  return `<span class="badge ${cls}">${escapeHtml(s || 'draft')}</span>`;
+}
+
+// ---------------- Call stats ----------------
+async function loadCallStats() {
+  try {
+    const s = await api('/api/admin/eva/stats');
+    $('callStatGrid').innerHTML = `
+      ${statCard('Total calls', s.total_calls)}
+      ${statCard('Completed', s.completed)}
+      ${statCard('Failed', s.failed)}
+      ${statCard('Total minutes', s.total_minutes)}
+    `;
+    const max = Math.max(1, ...s.timeseries.map(d => d.calls));
+    $('callsBarChart').innerHTML = s.timeseries.map(d => `
+      <div class="bar-col">
+        <div class="bar" style="height:${Math.max(3, (d.calls / max) * 100)}px" title="${d.calls} calls"></div>
+        <div class="bar-label">${d.date.slice(5)}</div>
+      </div>
+    `).join('');
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---------------- init ----------------
+loadOverview();
 </script>
 </body>
 </html>

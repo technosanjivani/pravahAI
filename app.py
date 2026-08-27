@@ -240,14 +240,59 @@ except Exception:
 
 
 def seed_admin_defaults():
-    """Creates the global Eva pricing document the first time the app boots."""
+    """Creates the global Eva pricing document and default plans the first
+    time the app boots."""
     if pricing_col.count_documents({"key": "global"}) == 0:
         pricing_col.insert_one({
             "key": "global",
             "india_price_per_min": 2.0,            # INR
             "international_price_per_min": 0.05,   # USD
+            "recharge_contact_number": "",         # shown to customers with no/expired plan
             "updated_at": datetime.utcnow(),
         })
+    if plans_col.count_documents({}) == 0:
+        plans_col.insert_many([
+            {
+                "name": "Starter", "region": "india", "currency": "INR",
+                "price": 3999.0, "billing_cycle": "monthly", "duration_days": 30,
+                "eva_minutes_included": 500, "lead_limit": 0,
+                "features": [
+                    "1 Phone Number", "1 Eva AI Agent", "500 AI Voice Minutes",
+                    "Voice Dashboard", "Conversation History", "Call Logs",
+                    "Call Recordings", "Basic Analytics", "Web Chat Widget",
+                    "API Access", "Basic Support",
+                ],
+                "created_at": datetime.utcnow(),
+            },
+            {
+                "name": "Growth", "region": "india", "currency": "INR",
+                "price": 7999.0, "billing_cycle": "monthly", "duration_days": 30,
+                "eva_minutes_included": 1100, "lead_limit": 0,
+                "features": [
+                    "1–3 Phone Numbers", "Up to 3 Eva AI Agents", "1100 AI Voice Minutes",
+                    "Advanced Dashboard", "Team Analytics", "Conversation History",
+                    "Call Recordings", "Web Chat", "API Access", "Team Members",
+                    "Workflow Automation", "Priority Support",
+                    "Email via Resend (3,000/month free tier)",
+                    "WhatsApp Official + Unofficial API",
+                ],
+                "created_at": datetime.utcnow(),
+            },
+            {
+                "name": "Business", "region": "india", "currency": "INR",
+                "price": 9999.0, "billing_cycle": "monthly", "duration_days": 30,
+                "eva_minutes_included": 2500, "lead_limit": 0,
+                "features": [
+                    "1–5 Phone Numbers", "Up to 5 Eva AI Agents", "2500 AI Voice Minutes",
+                    "Advanced Analytics", "Team Management", "CRM Integrations",
+                    "API Access", "Web Chat", "Voice Dashboard", "Conversation History",
+                    "Call Recordings", "Call Transcripts", "Workflow Automation",
+                    "Priority Support", "Resend Pro (50,000 emails/month)",
+                    "WhatsApp Official + Unofficial API",
+                ],
+                "created_at": datetime.utcnow(),
+            },
+        ])
 
 
 seed_admin_defaults()
@@ -705,11 +750,78 @@ def serialize_plan(p):
         "currency": p.get("currency", "USD"),
         "price": p.get("price", 0),
         "billing_cycle": p.get("billing_cycle", "monthly"),
+        "duration_days": p.get("duration_days", 30),
         "eva_minutes_included": p.get("eva_minutes_included", 0),
         "lead_limit": p.get("lead_limit", 0),
         "features": p.get("features", []),
         "created_at": p.get("created_at").isoformat() if p.get("created_at") else None,
     }
+
+
+def get_recharge_contact_number():
+    p = pricing_col.find_one({"key": "global"}) or {}
+    return p.get("recharge_contact_number", "")
+
+
+def get_plan_status(user):
+    """Returns this account's plan state. `active` is False when no plan is
+    assigned or the assigned plan has expired — feature-gated actions must
+    refuse to run in that case."""
+    plan_id = user.get("plan_id")
+    expires_at = user.get("plan_expires_at")
+    plan = None
+    if plan_id:
+        try:
+            plan = plans_col.find_one({"_id": ObjectId(plan_id)})
+        except InvalidId:
+            plan = None
+    now = datetime.utcnow()
+    expired = bool(expires_at) and expires_at <= now
+    active = bool(plan) and not expired
+    minutes_total = float(user.get("eva_minutes", 0) or 0)
+    minutes_used = float(user.get("eva_minutes_used", 0) or 0)
+    days_remaining = max(0, (expires_at - now).days) if expires_at else None
+    return {
+        "active": active,
+        "has_plan": bool(plan),
+        "expired": expired,
+        "plan": ({
+            "_id": str(plan["_id"]), "name": plan.get("name", ""),
+            "price": plan.get("price", 0), "currency": plan.get("currency", "USD"),
+            "duration_days": plan.get("duration_days", 30),
+            "features": plan.get("features", []),
+        } if plan else None),
+        "assigned_at": user.get("plan_assigned_at").isoformat() if user.get("plan_assigned_at") else None,
+        "expires_at": expires_at.isoformat() if expires_at else None,
+        "days_remaining": days_remaining,
+        "eva_minutes_total": minutes_total,
+        "eva_minutes_used": round(minutes_used, 2),
+        "eva_minutes_remaining": round(max(0.0, minutes_total - minutes_used), 2),
+        "recharge_contact_number": get_recharge_contact_number(),
+    }
+
+
+def require_active_plan(view):
+    """Blocks a feature-usage route unless the account has an active,
+    non-expired plan. Returns 402 so the frontend can show a recharge popup."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        try:
+            user = users_col.find_one({"_id": ObjectId(current_user_id())})
+        except InvalidId:
+            user = None
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        status = get_plan_status(user)
+        if not status["active"]:
+            reason = "Your plan has expired" if status["expired"] else "No active plan on this account"
+            return jsonify({
+                "error": f"{reason}. Please recharge to keep using this feature.",
+                "plan_blocked": True,
+                "recharge_contact_number": status["recharge_contact_number"],
+            }), 402
+        return view(*args, **kwargs)
+    return wrapped
 
 
 def serialize_admin_user(u):
@@ -719,6 +831,14 @@ def serialize_admin_user(u):
             plan = plans_col.find_one({"_id": ObjectId(u["plan_id"])})
         except InvalidId:
             plan = None
+    expires_at = u.get("plan_expires_at")
+    now = datetime.utcnow()
+    if not plan:
+        plan_status = "none"
+    elif expires_at and expires_at <= now:
+        plan_status = "expired"
+    else:
+        plan_status = "active"
     return {
         "_id": str(u["_id"]),
         "username": u.get("username", ""),
@@ -730,6 +850,9 @@ def serialize_admin_user(u):
         "account_type": u.get("account_type", "user"),
         "region": u.get("region", "international"),
         "plan": {"_id": str(plan["_id"]), "name": plan.get("name", "")} if plan else None,
+        "plan_status": plan_status,
+        "plan_assigned_at": u.get("plan_assigned_at").isoformat() if u.get("plan_assigned_at") else None,
+        "plan_expires_at": expires_at.isoformat() if expires_at else None,
         "eva_minutes": float(u.get("eva_minutes", 0) or 0),
         "eva_minutes_used": float(u.get("eva_minutes_used", 0) or 0),
         "team_count": teams_col.count_documents({"owner_id": str(u["_id"])}),
@@ -1986,6 +2109,15 @@ def api_eva_webhook_widget_session_result():
     return jsonify({"received": True, "minutes_used": minutes_used})
 
 
+@app.route("/api/plan/status", methods=["GET"])
+@login_required
+def api_plan_status():
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify(get_plan_status(user))
+
+
 @app.route("/api/me", methods=["GET"])
 @login_required
 def api_me():
@@ -2468,6 +2600,7 @@ def api_lead_messages(lead_id):
 
 @app.route("/api/leads/<lead_id>/send-whatsapp", methods=["POST"])
 @login_required
+@require_active_plan
 def api_send_manual_whatsapp(lead_id):
     """Lets the owner or the lead's assigned team member send a one-off
     manual WhatsApp message from the lead detail view."""
@@ -3173,6 +3306,7 @@ def api_delete_campaign(campaign_id):
 @app.route("/api/campaigns/<campaign_id>/launch", methods=["POST"])
 @login_required
 @owner_required
+@require_active_plan
 def api_launch_campaign(campaign_id):
     try: ObjectId(campaign_id)
     except InvalidId: return jsonify({"error": "Invalid campaign id"}), 400
@@ -3758,9 +3892,9 @@ def api_admin_update_user_status(user_id):
 @admin_required
 def api_admin_assign_plan(user_id):
     """Assigning a plan sets (not increments) the customer's eva_minutes
-    wallet to the plan's included-minutes figure — that's their fresh
-    allotment for this plan. Use the separate 'add Eva minutes' endpoint
-    to top up extra minutes on top of whatever their plan already gives them."""
+    wallet to the plan's included-minutes figure, and starts a fresh
+    assigned_at/expires_at window based on the plan's duration_days.
+    Passing an empty plan_id clears the plan (account goes inactive)."""
     try: oid = ObjectId(user_id)
     except InvalidId: return jsonify({"error": "Invalid user id"}), 400
     data = request.get_json(silent=True) or {}
@@ -3774,13 +3908,60 @@ def api_admin_assign_plan(user_id):
             return jsonify({"error": "Invalid plan id"}), 400
         if not plan:
             return jsonify({"error": "Plan not found"}), 404
+        now = datetime.utcnow()
+        duration_days = int(plan.get("duration_days", 30) or 30)
         update["eva_minutes"] = float(plan.get("eva_minutes_included", 0) or 0)
         update["eva_minutes_used"] = 0.0  # fresh plan cycle starts the usage counter over
+        update["plan_assigned_at"] = now
+        update["plan_expires_at"] = now + timedelta(days=duration_days)
+    else:
+        update["plan_assigned_at"] = None
+        update["plan_expires_at"] = None
 
     result = users_col.update_one({"_id": oid, "type": "user"}, {"$set": update})
     if result.matched_count == 0:
         return jsonify({"error": "User not found"}), 404
     return jsonify({"updated": True, "eva_minutes": update.get("eva_minutes")})
+
+
+@app.route("/api/admin/users/<user_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def api_admin_delete_user(user_id):
+    """Deletes a customer account and everything scoped to it. Admin
+    accounts can't be deleted through this endpoint."""
+    try:
+        oid = ObjectId(user_id)
+    except InvalidId:
+        return jsonify({"error": "Invalid user id"}), 400
+    user = users_col.find_one({"_id": oid, "type": "user"})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    if user.get("account_type") == "admin":
+        return jsonify({"error": "Cannot delete an admin account"}), 400
+
+    owner_id = str(oid)
+    leads_col.delete_many({"owner_id": owner_id})
+    campaigns_col.delete_many({"owner_id": owner_id})
+    executions_col.delete_many({"owner_id": owner_id})
+    messages_col.delete_many({"owner_id": owner_id})
+    teams_col.delete_many({"owner_id": owner_id})
+    segments_col.delete_many({"owner_id": owner_id})
+    db["pravah-web-widgets"].delete_many({"owner_id": owner_id})
+    meeting_templates_col.delete_many({"owner_id": owner_id})
+    meetings_col.delete_many({"owner_id": owner_id})
+    webhook_logs_col.delete_many({"owner_id": owner_id})
+    inventory_col.delete_many({"owner_id": owner_id})
+    site_visits_col.delete_many({"owner_id": owner_id})
+    caller_ids_col.delete_many({"owner_id": owner_id})
+    db["pravah-agents"].delete_many({"owner_id": owner_id})
+    db["pravah-voip"].delete_many({"owner_id": owner_id})
+    db["pravah-call-campaigns"].delete_many({"owner_id": owner_id})
+    db["pravah-calls"].delete_many({"owner_id": owner_id})
+    db["pravah-widget-sessions"].delete_many({"owner_id": owner_id})
+
+    users_col.delete_one({"_id": oid})
+    return jsonify({"deleted": True})
 
 
 @app.route("/api/admin/users/<user_id>/eva-minutes", methods=["POST"])
@@ -3837,6 +4018,7 @@ def api_admin_create_plan():
         "currency": "INR" if region == "india" else "USD",
         "price": float(data.get("price", 0) or 0),
         "billing_cycle": data.get("billing_cycle", "monthly"),
+        "duration_days": int(data.get("duration_days", 30) or 30),
         "eva_minutes_included": float(data.get("eva_minutes_included", 0) or 0),
         "lead_limit": int(data.get("lead_limit", 0) or 0),
         "features": data.get("features", []),
@@ -3860,6 +4042,7 @@ def api_admin_update_plan(plan_id):
         update["region"] = data["region"]
         update["currency"] = "INR" if data["region"] == "india" else "USD"
     if "price" in data: update["price"] = float(data["price"] or 0)
+    if "duration_days" in data: update["duration_days"] = int(data["duration_days"] or 30)
     if "eva_minutes_included" in data: update["eva_minutes_included"] = float(data["eva_minutes_included"] or 0)
     if "lead_limit" in data: update["lead_limit"] = int(data["lead_limit"] or 0)
     if "features" in data: update["features"] = data["features"]
@@ -3892,6 +4075,7 @@ def api_admin_get_pricing():
     return jsonify({
         "india_price_per_min": p.get("india_price_per_min", 2.0),
         "international_price_per_min": p.get("international_price_per_min", 0.05),
+        "recharge_contact_number": p.get("recharge_contact_number", ""),
         "updated_at": p.get("updated_at").isoformat() if p.get("updated_at") else None,
     })
 
@@ -3906,6 +4090,8 @@ def api_admin_save_pricing():
         update["india_price_per_min"] = float(data["india_price_per_min"] or 0)
     if "international_price_per_min" in data:
         update["international_price_per_min"] = float(data["international_price_per_min"] or 0)
+    if "recharge_contact_number" in data:
+        update["recharge_contact_number"] = (data.get("recharge_contact_number") or "").strip()
     pricing_col.update_one({"key": "global"}, {"$set": update}, upsert=True)
     return jsonify({"saved": True})
 
@@ -3975,6 +4161,7 @@ def api_admin_eva_stats():
 
 @app.route("/api/ai/generate", methods=["POST"])
 @login_required
+@require_active_plan
 def api_ai_generate():
     data = request.get_json(silent=True) or {}
     lead_id      = data.get("lead_id")
@@ -4010,6 +4197,7 @@ def api_ai_generate():
 @app.route("/api/campaigns/<campaign_id>/test-whatsapp", methods=["POST"])
 @login_required
 @owner_required
+@require_active_plan
 def api_test_campaign_whatsapp(campaign_id):
     data_in = request.get_json(silent=True) or {}
     node_id = data_in.get("node_id")
@@ -4153,11 +4341,15 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
         leads_col.update_one({"_id": lead["_id"]}, {"$set": update})
 
         # 3. Generate and send an AI auto-reply — only if the AI Bot toggle is
-        # on globally AND this specific number hasn't been muted from the inbox
+        # on globally, this number hasn't been muted, and the account has an
+        # active (non-expired) plan.
         creds = owner.get("integrations", {})
         if not creds.get("ai_bot_enabled"):
             return
         if lead.get("ai_disabled"):
+            return
+        if not get_plan_status(owner)["active"]:
+            log("WA-INBOUND", f"owner {owner_id}: plan inactive/expired, skipping AI auto-reply")
             return
 
         if owner.get("category") == "real_estate":
@@ -4274,12 +4466,15 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
                 update["assigned_to"] = assigned
         leads_col.update_one({"_id": lead["_id"]}, {"$set": update})
 
-        # 3. AI auto-reply, only if the bot toggle is on globally AND this
-        # specific number hasn't been muted from the inbox
+        # 3. AI auto-reply, only if the bot toggle is on globally, this
+        # specific number hasn't been muted, and the plan is active.
         creds = owner.get("integrations", {}) or {}
         if not creds.get("ai_bot_enabled"):
             return
         if lead.get("ai_disabled"):
+            return
+        if not get_plan_status(owner)["active"]:
+            log("WIREBASE-INBOUND", f"owner {owner_id}: plan inactive/expired, skipping AI auto-reply")
             return
 
         if owner.get("category") == "real_estate":
@@ -5101,6 +5296,7 @@ def init_eva(app, db, users_col, leads_col):
 
     @app.route("/api/call-campaigns/<campaign_id>/launch", methods=["POST"])
     @login_required
+    @require_active_plan
     def api_call_launch_campaign(campaign_id):
         data = request.get_json(silent=True) or {}
         ok, payload = launch_call_campaign_now(campaign_id, current_user_id(), data.get("lead_ids", "all"))
@@ -5130,6 +5326,7 @@ def init_eva(app, db, users_col, leads_col):
  
     @app.route("/api/leads/<lead_id>/call-now", methods=["POST"])
     @login_required
+    @require_active_plan
     def api_call_now(lead_id):
         data = request.get_json(silent=True) or {}
         agent_id = data.get("agent_id")
@@ -5157,6 +5354,7 @@ def init_eva(app, db, users_col, leads_col):
  
     @app.route("/api/test-call", methods=["POST"])
     @login_required
+    @require_active_plan
     def api_test_call():
         """Ad-hoc test call: no lead needs to exist in the DB — just an
         agent, a name, and a phone number, typed straight from the dashboard."""

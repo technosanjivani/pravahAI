@@ -652,6 +652,9 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
   <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92z"/></svg></span> Eva Voice AI
 </a>
     <div class="nav-label">Account</div>
+    <a class="nav-item" href="#" onclick="showPage('plan', this)">
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span> My Plan
+    </a>
     <a class="nav-item" href="#" onclick="showPage('profile', this)">
       <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M6 16c0-1.66 1.34-3 3-3s3 1.34 3 3"/><path d="M14 9h4M14 13h4"/></svg></span> Profile
     </a>
@@ -988,6 +991,31 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
       </div>
     </div>
 
+
+        <!-- ═══ PAGE: MY PLAN ═══ -->
+    <div class="page" id="page-plan">
+      <div class="page-header reveal">
+        <div class="page-header-top">
+          <span class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+          <div><h1>My Plan</h1><p>Your subscription, Eva minutes usage, and renewal status.</p></div>
+        </div>
+      </div>
+      <div class="settings-grid">
+        <div class="settings-card" id="plan-card">Loading…</div>
+        <div class="settings-card">
+          <div class="settings-card-title">🔄 Recharge / Reactivate</div>
+          <div class="settings-card-sub">Contact us to renew, upgrade, or reactivate your plan.</div>
+          <div id="plan-recharge-contact" style="font-size:16px;font-weight:700;margin-bottom:14px;">—</div>
+          <div class="settings-actions">
+            <a class="btn btn-primary btn-sm" id="plan-recharge-call" href="tel:">📞 Call to Recharge</a>
+            <a class="btn btn-ghost btn-sm" id="plan-recharge-wa" href="#" target="_blank">💬 WhatsApp</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PAGE: SETTINGS ═══ -->
+
     <!-- ═══ PAGE: SETTINGS ═══ -->
     <div class="page" id="page-settings">
       <div class="page-header reveal">
@@ -1113,6 +1141,8 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
         </div>
       </div>
     </div>
+
+    
 
   </main>
 </div>
@@ -1440,6 +1470,23 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('sv-reschedule-modal')">Cancel</button>
       <button class="btn btn-primary" onclick="confirmSvReschedule()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Plan Blocked / Recharge Popup -->
+<div class="modal-overlay" id="plan-blocked-modal">
+  <div class="modal-box">
+    <div class="modal-title">⚠️ Recharge Needed</div>
+    <div class="modal-sub" id="plan-blocked-msg">Your plan has expired. Please recharge to keep using this feature.</div>
+    <div class="form-row">
+      <label>Contact to recharge / reactivate</label>
+      <div id="plan-blocked-contact" style="font-weight:700;font-size:15px;">—</div>
+    </div>
+    <div class="modal-actions">
+      <a class="btn btn-ghost" id="plan-blocked-call" href="tel:">📞 Call</a>
+      <a class="btn btn-primary" id="plan-blocked-whatsapp" href="#" target="_blank">💬 WhatsApp</a>
+      <button class="btn btn-ghost" onclick="closeModal('plan-blocked-modal')">Close</button>
     </div>
   </div>
 </div>
@@ -1833,6 +1880,7 @@ async function previewAIGenerate(nodeId, kind) {
       body: JSON.stringify({ lead_id: leadId, type: kind, instructions: node.data.ai_instructions || "" })
     });
     const data = await res.json();
+    if (res.status === 402 && data.plan_blocked) { showPlanBlockedModal(data); return; }
     if (!res.ok) throw new Error(data.error || "Generation failed");
     if (kind === "whatsapp") { node.data.message = data.message; }
     else { node.data.subject = data.subject; node.data.body = data.body; }
@@ -1872,6 +1920,7 @@ async function sendTestWhatsApp() {
       body: JSON.stringify({ node_id: testNodeIdx, phone, lead_id: leadId || null })
     });
     const data = await res.json();
+    if (res.status === 402 && data.plan_blocked) { closeModal("test-whatsapp-modal"); showPlanBlockedModal(data); return; }
     if (!res.ok) throw new Error(data.error || "Test failed");
     showToast(`Test message sent to ${data.to} ✓`, "success");
     closeModal("test-whatsapp-modal");
@@ -1924,6 +1973,7 @@ async function confirmLaunch() {
       if (id === currentCampaignId) await saveFlow();
       const res = await fetch(`/api/campaigns/${id}/launch`, {method:"POST"});
       const data = await res.json();
+      if (res.status === 402 && data.plan_blocked) { closeModal("launch-modal"); showPlanBlockedModal(data); return; }
       if (!res.ok) throw new Error(data.error || "Launch failed");
       showToast(data.note ? `Campaign launched! 🚀 ${data.note}` : "Campaign launched! 🚀", "success");
     } else {
@@ -2058,6 +2108,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadDashboardStats();
   if (myRole === "owner") { loadCampaigns(); loadTeam(); loadIntegrations(); loadMeetingsChart(); }
   loadProfile();
+  await loadPlanStatus();
+  if (lastPlanStatus && !lastPlanStatus.active) {
+    showToast(
+      lastPlanStatus.has_plan ? "Your plan has expired — visit My Plan to recharge." : "No plan is active on this account — visit My Plan to recharge.",
+      "error"
+    );
+  }
   initRevealAnimations();
   initRippleEffect();
 });
@@ -2139,11 +2196,73 @@ function showPage(name, navEl) {
   if (name === 'team') loadTeam();
   if (name === 'dashboard') { loadDashboardStats(); buildMiniCalendar(); }
   if (name === 'profile') loadProfile();
+  if (name === 'plan') loadPlanStatus();
   if (name === 'inventory') loadInventory();
   if (name === 'sitevisits') { loadSiteVisits(); loadSiteVisitsBadge(); }
   if (name === 'whatsapp-bot') { loadWhatsappBot(); loadInbox(); loadWebhookLogs(); startWlogPolling(); }
   else { stopWlogPolling(); }
   initRevealAnimations();
+}
+
+/* ── Plan status + recharge popup ── */
+let lastPlanStatus = null;
+
+async function loadPlanStatus() {
+  try {
+    const res = await fetch("/api/plan/status");
+    const data = await res.json();
+    lastPlanStatus = data;
+    renderPlanCard(data);
+  } catch { /* silent */ }
+}
+
+function renderPlanCard(d) {
+  const card = document.getElementById("plan-card");
+  if (!card) return;
+  const pct = d.eva_minutes_total > 0 ? Math.min(100, (d.eva_minutes_used / d.eva_minutes_total) * 100) : 0;
+  const statusPill = d.active
+    ? `<span class="badge badge-active">Active</span>`
+    : d.has_plan
+      ? `<span class="badge" style="background:rgba(220,38,38,.12);color:var(--red);">Expired</span>`
+      : `<span class="badge" style="background:rgba(92,107,138,.14);color:var(--text-b);">No Plan</span>`;
+  card.innerHTML = `
+    <div class="settings-card-title">📦 ${d.plan ? esc(d.plan.name) : "No Plan Assigned"} &nbsp;${statusPill}</div>
+    <div class="settings-card-sub">${d.plan ? `${d.plan.currency||''} ${d.plan.price||0} · renews every ${d.plan.duration_days||30} days` : "Contact us to get started with a plan."}</div>
+    <div style="margin:14px 0;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-b);margin-bottom:4px;">
+        <span>Eva Minutes Used</span><span>${d.eva_minutes_used} / ${d.eva_minutes_total}</span>
+      </div>
+      <div style="background:var(--bg-hover);border-radius:99px;height:8px;overflow:hidden;">
+        <div style="background:var(--accent-grad);height:100%;width:${pct}%;"></div>
+      </div>
+    </div>
+    <div style="font-size:12.5px;color:var(--text-b);line-height:2;">
+      <div>Assigned: <b>${d.assigned_at ? new Date(d.assigned_at).toLocaleDateString() : "—"}</b></div>
+      <div>Expires: <b>${d.expires_at ? new Date(d.expires_at).toLocaleDateString() : "—"}</b></div>
+      ${d.expires_at ? `<div>Days remaining: <b>${d.days_remaining}</b></div>` : ""}
+    </div>
+    ${d.plan && d.plan.features && d.plan.features.length ? `
+      <div style="margin-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-h);margin-bottom:6px;">Includes:</div>
+        <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text-b);line-height:1.8;">
+          ${d.plan.features.map(f=>`<li>${esc(f)}</li>`).join("")}
+        </ul>
+      </div>` : ""}
+  `;
+  const num = d.recharge_contact_number || "";
+  const waHref = num ? `https://wa.me/${num.replace(/[^0-9]/g,'')}` : "#";
+  document.getElementById("plan-recharge-contact").textContent = num || "Contact support";
+  document.getElementById("plan-recharge-call").href = num ? `tel:${num}` : "#";
+  document.getElementById("plan-recharge-wa").href = waHref;
+}
+
+function showPlanBlockedModal(data) {
+  const num = (data && data.recharge_contact_number) || (lastPlanStatus && lastPlanStatus.recharge_contact_number) || "";
+  document.getElementById("plan-blocked-msg").textContent = (data && data.error) || "Please recharge your plan to continue.";
+  document.getElementById("plan-blocked-contact").textContent = num || "Contact support";
+  document.getElementById("plan-blocked-call").href = num ? `tel:${num}` : "#";
+  document.getElementById("plan-blocked-whatsapp").href = num ? `https://wa.me/${num.replace(/[^0-9]/g,'')}` : "#";
+  document.getElementById("plan-blocked-modal").classList.add("open");
 }
 
 function backToCampaigns() {
@@ -2592,6 +2711,7 @@ async function sendManualChatMessage() {
       method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({message: msg})
     });
     const data = await res.json();
+    if (res.status === 402 && data.plan_blocked) { showPlanBlockedModal(data); return; }
     if (!res.ok) throw new Error(data.error || "Send failed");
     document.getElementById("chat-manual-msg").value = "";
     showToast("Message sent ✓", "success");
@@ -3180,6 +3300,7 @@ async function sendInboxReply() {
       method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({message: msg})
     });
     const data = await res.json();
+    if (res.status === 402 && data.plan_blocked) { showPlanBlockedModal(data); return; }
     if (!res.ok) throw new Error(data.error || "Send failed");
     input.value = "";
     const name = document.getElementById("inbox-thread-title").textContent;
