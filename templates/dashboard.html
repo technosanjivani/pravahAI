@@ -349,6 +349,7 @@ td.col-aitask .cell-input { min-width: 160px; }
 .badge-running   { background: rgba(59,130,246,.14);  color: var(--yellow); }
 .badge-completed { background: rgba(8,145,178,.12);  color: var(--green); }
 .badge-paused    { background: rgba(79,70,229,.12); color: var(--purple); }
+.badge-trigger   { background: rgba(79,70,229,.14); color: var(--purple); }
 .camp-stat { font-size: 11.5px; color: var(--text-b); }
 .camp-stat.ok   { color: var(--green); }
 .camp-stat.bad  { color: var(--red); }
@@ -369,7 +370,13 @@ td.col-aitask .cell-input { min-width: 160px; }
 }
 .palette-item:hover { border-color: var(--accent-1); transform: translateX(2px); }
 .palette-item:active { cursor: grabbing; }
+.palette-item.disabled { opacity: .45; cursor: not-allowed; }
+.palette-item.disabled:hover { border-color: var(--border); transform: none; }
 .pi-icon { width: 17px; height: 17px; flex-shrink: 0; color: var(--accent-1); }
+
+.trigger-bar { display: flex; align-items: center; gap: 8px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 99px; padding: 6px 12px; }
+.trigger-select { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 8px; font-size: 12px; font-family: inherit; color: var(--text-h); outline: none; }
+.trigger-select:disabled { opacity: .5; }
 
 .canvas-viewport {
   flex: 1; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -397,6 +404,7 @@ td.col-aitask .cell-input { min-width: 160px; }
 .node-card[data-type="start"]     { border-left: 4px solid #5c6b8a; }
 .node-card[data-type="whatsapp"]  { border-left: 4px solid var(--green); }
 .node-card[data-type="email"]     { border-left: 4px solid var(--accent-1); }
+.node-card[data-type="call"]      { border-left: 4px solid var(--purple); }
 .node-card[data-type="wait"]      { border-left: 4px solid var(--yellow); }
 .node-card[data-type="condition"] { border-left: 4px solid var(--orange); }
 
@@ -806,14 +814,30 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 
     <!-- ═══ PAGE: FLOW BUILDER (CANVAS) ═══ -->
     <div class="page" id="page-flow-builder">
-      <div class="page-header" style="display:flex;align-items:center;gap:14px;">
+      <div class="page-header" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <button class="btn btn-ghost btn-sm" onclick="backToCampaigns()">← Back</button>
         <div>
           <h1 id="fb-campaign-name">Flow Builder</h1>
           <p id="fb-campaign-desc" style="font-size:13px;color:var(--text-b);">Design your automation sequence</p>
         </div>
         <div class="spacer"></div>
-        <button class="btn btn-ghost btn-sm" onclick="openLeadSelector()">👥 Assign Leads (<span id="fb-lead-count">0</span>)</button>
+
+        <div class="trigger-bar" id="fb-trigger-bar">
+          <label class="switch" style="width:34px;height:20px;">
+            <input type="checkbox" id="fb-trigger-toggle" onchange="onTriggerToggle(this.checked)" />
+            <span class="switch-track"><span class="switch-thumb" style="width:14px;height:14px;"></span></span>
+          </label>
+          <span style="font-size:12px;font-weight:600;color:var(--text-h);" id="fb-trigger-label">Broadcast</span>
+          <select class="trigger-select" id="fb-trigger-type" onchange="onTriggerTypeChange(this.value)" disabled>
+            <option value="">— Pick trigger —</option>
+            <option value="lead_added">🆕 New Lead Added</option>
+            <option value="call_ended">📞 Call Ends</option>
+            <option value="status_hot">🔥 Status becomes Hot</option>
+            <option value="status_warm">🌤 Status becomes Warm</option>
+          </select>
+        </div>
+
+        <button class="btn btn-ghost btn-sm" id="fb-assign-leads-btn" onclick="openLeadSelector()">👥 Assign Leads (<span id="fb-lead-count">0</span>)</button>
         <button class="btn btn-ghost btn-sm" onclick="saveFlow()">💾 Save Flow</button>
         <button class="btn btn-primary" id="launch-btn" onclick="openLaunchModal(currentCampaignId)">▶ Launch</button>
       </div>
@@ -823,6 +847,7 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
           <div class="palette-title">Drag onto canvas</div>
           <div class="palette-item" draggable="true" data-node-type="whatsapp" ondragstart="paletteDragStart(event)"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8V4"/><path d="M8 13.5h.01M16 13.5h.01"/><path d="M9 17h6"/></svg></span> WhatsApp</div>
           <div class="palette-item" draggable="true" data-node-type="email" ondragstart="paletteDragStart(event)"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span> Email</div>
+          <div class="palette-item" id="palette-call" draggable="true" data-node-type="call" ondragstart="paletteDragStart(event)" title="Requires a call-ready agent"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92z"/></svg></span> Call (Eva)</div>
           <div class="palette-item" draggable="true" data-node-type="wait" ondragstart="paletteDragStart(event)"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg></span> Wait</div>
           <div class="palette-item" draggable="true" data-node-type="condition" ondragstart="paletteDragStart(event)"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12a3 3 0 0 0 3 3h9"/><polyline points="15 15 18 18 21 15"/><circle cx="6" cy="18" r="2.4"/></svg></span> Condition</div>
           <div style="font-size:11px;color:var(--text-dim);line-height:1.7;margin-top:16px;">
@@ -1523,6 +1548,9 @@ let fbNodes  = [];   // {id, type, x, y, data}
 let fbEdges  = [];   // {id, source, target, source_handle}
 let selectedNodeId = null;
 let nodeIdCounter  = 1;
+let campaignTriggerEnabled = false;
+let campaignTriggerType    = "";
+let callReadiness = { any_ready: false, agents: [] };
 
 let dragSrcPaletteType = null;   // set when dragging FROM the left palette
 let nodeDragState  = null;       // {id, offsetX, offsetY} while dragging a node on canvas
@@ -1537,6 +1565,8 @@ async function openFlowBuilder(campaignId) {
   document.getElementById('page-flow-builder').classList.add('active');
   currentCampaignId = campaignId;
   selectedNodeId = null;
+  await loadCallReadiness();
+  updatePaletteCallAvailability();
   try {
     const res  = await fetch(`/api/campaigns/${campaignId}`);
     const data = await res.json();
@@ -1546,10 +1576,107 @@ async function openFlowBuilder(campaignId) {
     fbNodes = JSON.parse(JSON.stringify(c.nodes && c.nodes.length ? c.nodes : [{id:"start",type:"start",x:40,y:160,data:{}}]));
     fbEdges = JSON.parse(JSON.stringify(c.edges || []));
     currentCampaignLeadIds = c.lead_ids || [];
+    campaignTriggerEnabled = !!c.trigger_enabled;
+    campaignTriggerType = c.trigger_type || "";
+    renderTriggerBar();
     updateFbLeadCount();
     closeInspector();
     renderCanvas();
   } catch { showToast("Could not load campaign", "error"); }
+}
+
+function renderTriggerBar() {
+  document.getElementById("fb-trigger-toggle").checked = campaignTriggerEnabled;
+  document.getElementById("fb-trigger-type").value = campaignTriggerType;
+  document.getElementById("fb-trigger-type").disabled = !campaignTriggerEnabled;
+  document.getElementById("fb-trigger-label").textContent = campaignTriggerEnabled ? "Trigger" : "Broadcast";
+  document.getElementById("fb-assign-leads-btn").style.display = campaignTriggerEnabled ? "none" : "inline-flex";
+  document.getElementById("launch-btn").style.display = campaignTriggerEnabled ? "none" : "inline-flex";
+}
+
+// The toggle is ALWAYS clickable. Flipping it ON just reveals/enables the
+// trigger-event dropdown — nothing is saved to the backend until an event
+// is actually picked (activateTrigger below does that). Flipping it OFF
+// saves immediately since no event is required to turn off.
+async function onTriggerToggle(checked) {
+  const typeSelect = document.getElementById("fb-trigger-type");
+  typeSelect.disabled = !checked;   // unlock the dropdown the instant the switch is flipped
+  document.getElementById("fb-trigger-label").textContent = checked ? "Trigger" : "Broadcast";
+  document.getElementById("fb-assign-leads-btn").style.display = checked ? "none" : "inline-flex";
+  document.getElementById("launch-btn").style.display = checked ? "none" : "inline-flex";
+
+  if (!checked) {
+    await saveFlow();
+    try {
+      const res = await fetch(`/api/campaigns/${currentCampaignId}/trigger`, {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ enabled: false })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not update trigger");
+      campaignTriggerEnabled = false;
+      campaignTriggerType = data.campaign.trigger_type || "";   // keep the old pick prefilled for next time
+      renderTriggerBar();
+      showToast("Trigger turned off — back to manual/broadcast.", "success");
+    } catch(err) { showToast(err.message, "error"); renderTriggerBar(); }
+    return;
+  }
+
+  // Turned ON: if a trigger event was already picked before, activate right away.
+  // Otherwise just wait — the dropdown is now enabled, onTriggerTypeChange
+  // will activate it the moment the user picks one.
+  if (campaignTriggerType) {
+    await activateTrigger(campaignTriggerType);
+  } else {
+    showToast("Now pick a trigger event from the dropdown to activate.");
+  }
+}
+
+async function activateTrigger(type) {
+  await saveFlow();
+  try {
+    const res = await fetch(`/api/campaigns/${currentCampaignId}/trigger`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ enabled: true, trigger_type: type })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not update trigger");
+    campaignTriggerEnabled = !!data.campaign.trigger_enabled;
+    campaignTriggerType = data.campaign.trigger_type || "";
+    renderTriggerBar();
+    showToast("Trigger activated 🔔 — this flow now runs automatically.", "success");
+  } catch(err) {
+    document.getElementById("fb-trigger-toggle").checked = false;
+    document.getElementById("fb-trigger-type").disabled = true;
+    document.getElementById("fb-trigger-label").textContent = "Broadcast";
+    document.getElementById("fb-assign-leads-btn").style.display = "inline-flex";
+    document.getElementById("launch-btn").style.display = "inline-flex";
+    showToast(err.message, "error");
+  }
+}
+
+function onTriggerTypeChange(val) {
+  campaignTriggerType = val;
+  const toggleChecked = document.getElementById("fb-trigger-toggle").checked;
+  // Works both for the first-time pick (activates it) and for switching the
+  // event on an already-active trigger (re-saves with the new event).
+  if (toggleChecked && val) activateTrigger(val);
+}
+
+async function loadCallReadiness() {
+  try {
+    const res = await fetch("/api/campaigns/call-readiness");
+    callReadiness = await res.json();
+  } catch { callReadiness = { any_ready: false, agents: [] }; }
+}
+
+function updatePaletteCallAvailability() {
+  const el = document.getElementById("palette-call");
+  if (!el) return;
+  el.classList.toggle("disabled", !callReadiness.any_ready);
+  el.title = callReadiness.any_ready
+    ? "Drag onto canvas — calls a lead using Eva"
+    : "No call-ready agent yet — set up a VaniSetu number or Twilio, and assign an agent, under Eva Voice AI";
 }
 
 function updateFbLeadCount() {
@@ -1561,6 +1688,7 @@ const NODE_TYPE_INFO = {
   start:     { icon: "🚀", label: "Start" },
   whatsapp:  { icon: "💬", label: "WhatsApp" },
   email:     { icon: "📧", label: "Email" },
+  call:      { icon: "📞", label: "Call (Eva)" },
   wait:      { icon: "⏳", label: "Wait" },
   condition: { icon: "🔀", label: "Condition" },
 };
@@ -1570,6 +1698,10 @@ function nodeSummary(node) {
   if (node.type === "start") return "Flow begins here";
   if (node.type === "whatsapp") return d.use_ai ? "🤖 AI-generated message" : (d.message ? d.message.slice(0,60) : "No message set");
   if (node.type === "email") return (d.use_ai ? "🤖 AI-generated · " : "") + (d.subject || "No subject set");
+  if (node.type === "call") {
+    const agent = (callReadiness.agents||[]).find(a => a._id === d.agent_id);
+    return agent ? `📞 Call via ${agent.name}` : "No agent selected";
+  }
   if (node.type === "wait") return `Wait ${d.amount||1} ${d.unit||"minutes"}`;
   if (node.type === "condition") return `If ${d.field||"field"} ${d.operator||"exists"}${["equals","contains","not_contains"].includes(d.operator)?(" '"+(d.value||"")+"'"):""}`;
   return "";
@@ -1652,7 +1784,13 @@ function deleteNode(evt, nodeId) {
 
 /* ── palette drag-to-add ── */
 function paletteDragStart(event) {
-  dragSrcPaletteType = event.currentTarget.dataset.nodeType;
+  const type = event.currentTarget.dataset.nodeType;
+  if (type === "call" && !callReadiness.any_ready) {
+    event.preventDefault();
+    showToast("No call-ready agent yet — set up VaniSetu/Twilio and assign an agent in Eva Voice AI first.", "error");
+    return;
+  }
+  dragSrcPaletteType = type;
   event.dataTransfer.effectAllowed = "copy";
 }
 function canvasDragOver(event) { event.preventDefault(); document.getElementById("canvas-viewport").classList.add("drag-over"); }
@@ -1673,6 +1811,7 @@ function addNode(type, x, y) {
   const defaults = {
     whatsapp:  { message: "", use_ai: false, ai_instructions: "" },
     email:     { provider: "gmail", subject: "", body: "", use_ai: false, ai_instructions: "" },
+    call:      { agent_id: "" },
     wait:      { amount: 1, unit: "minutes" },
     condition: { field: "email", operator: "exists", value: "" },
   };
@@ -1821,6 +1960,21 @@ function inspectorFieldsHtml(node) {
         <div class="vars-hint">Variables: {{name}} {{business_name}} {{email}} {{phone}} {{website}} {{description}}</div>
       </div>
       ${aiBlockHtml(node, "email")}`;
+  }
+  if (node.type === "call") {
+    const readyAgents = (callReadiness.agents || []).filter(a => a.call_ready);
+    if (!readyAgents.length) {
+      return `<div class="vars-hint" style="color:var(--red);">No call-ready agent yet. Go to <b>Eva Voice AI</b>, create/select an agent, and configure a VaniSetu caller ID or Twilio number for it — then come back and pick it here.</div>`;
+    }
+    return `
+      <div class="step-field">
+        <label>Agent to call with</label>
+        <select class="step-select" onchange="updateNodeData('${node.id}','agent_id',this.value)">
+          <option value="">— Select agent —</option>
+          ${readyAgents.map(a => `<option value="${a._id}"${d.agent_id===a._id?" selected":""}>${esc(a.name)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="vars-hint">Eva calls the lead using this agent's own opening line & system prompt (edit those under Eva Voice AI → Agents).</div>`;
   }
   if (node.type === "wait") {
     return `
@@ -2901,6 +3055,11 @@ async function loadCampaigns() {
   } catch { showToast("Could not load campaigns", "error"); }
 }
 
+const TRIGGER_LABELS = {
+  lead_added: "🆕 New Lead", call_ended: "📞 Call Ends",
+  status_hot: "🔥 Goes Hot", status_warm: "🌤 Goes Warm",
+};
+
 function renderCampaigns() {
   const grid = document.getElementById("campaigns-grid");
   if (!campaigns.length) {
@@ -2908,17 +3067,22 @@ function renderCampaigns() {
     return;
   }
   grid.innerHTML = campaigns.map(c => {
+    const isTrigger = !!c.trigger_enabled;
     const badgeCls = `badge badge-${c.status}`;
     const stats = c.stats || {sent:0, failed:0, pending:0};
     return `<div class="campaign-card" onclick="openFlowBuilder('${c._id}')">
       <div class="camp-header">
         <div class="camp-name">${esc(c.name)}</div>
-        <span class="${badgeCls}">${c.status}</span>
+        ${isTrigger
+          ? `<span class="badge badge-trigger">🔔 ${TRIGGER_LABELS[c.trigger_type]||"Trigger"}</span>`
+          : `<span class="${badgeCls}">${c.status}</span>`}
       </div>
       <div class="camp-desc">${esc(c.description||"No description")}</div>
       <div class="camp-meta">
         <span class="camp-stat">📋 ${Math.max(0,(c.nodes||[]).length-1)} step${Math.max(0,(c.nodes||[]).length-1)===1?"":"s"}</span>
-        <span class="camp-stat">👥 ${c.lead_ids.length} lead${c.lead_ids.length===1?"":"s"}</span>
+        ${isTrigger
+          ? `<span class="camp-stat">⚡ auto-fires per lead</span>`
+          : `<span class="camp-stat">👥 ${c.lead_ids.length} lead${c.lead_ids.length===1?"":"s"}</span>`}
         <span class="camp-stat ok">✅ ${stats.sent||0} sent</span>
         <span class="camp-stat bad">❌ ${stats.failed||0} failed</span>
         ${stats.pending ? `<span class="camp-stat">⏳ ${stats.pending} pending</span>` : ""}
@@ -2927,11 +3091,24 @@ function renderCampaigns() {
       <div class="camp-actions" onclick="event.stopPropagation()">
         <button class="btn btn-ghost btn-sm" onclick="openFlowBuilder('${c._id}')">✏️ Edit Flow</button>
         <button class="btn btn-ghost btn-sm" onclick="openCampaignLogs('${c._id}','${esc(c.name)}')">📊 Logs</button>
-        <button class="btn btn-primary btn-sm" onclick="openLaunchModal('${c._id}')">▶ Launch</button>
+        ${isTrigger
+          ? `<button class="btn btn-danger btn-sm" onclick="quickToggleTrigger('${c._id}')">🔕 Turn Off</button>`
+          : `<button class="btn btn-primary btn-sm" onclick="openLaunchModal('${c._id}')">▶ Launch</button>`}
         <button class="btn btn-danger btn-sm" onclick="deleteCampaign('${c._id}')">🗑</button>
       </div>
     </div>`;
   }).join("");
+}
+
+async function quickToggleTrigger(id) {
+  try {
+    const res = await fetch(`/api/campaigns/${id}/trigger`, {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ enabled: false })
+    });
+    if (!res.ok) throw new Error("Could not turn off trigger");
+    showToast("Trigger turned off", "success");
+    loadCampaigns();
+  } catch(err) { showToast(err.message, "error"); }
 }
 
 function openNewCampaignModal() {

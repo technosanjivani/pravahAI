@@ -65,6 +65,7 @@ SUPABASE_PDF_BUCKET   = os.getenv("SUPABASE_PDF_BUCKET", "property-docs")
 
 BUSINESS_CATEGORIES = {"real_estate", "share_market", "import_export"}
 SITE_VISIT_STATUSES = {"new", "read", "confirmed", "done", "won", "lost", "rescheduled"}
+TRIGGER_EVENTS = {"lead_added", "call_ended", "status_hot", "status_warm"}
 
 
 def upload_media_to_cloudinary(file_storage, resource_type="auto"):
@@ -694,6 +695,8 @@ def serialize_campaign(c):
         "updated_at": c.get("updated_at").isoformat() if c.get("updated_at") else None,
         "last_run_at": c.get("last_run_at").isoformat() if c.get("last_run_at") else None,
         "stats": c.get("stats", {"sent": 0, "failed": 0, "pending": 0}),
+        "trigger_enabled": bool(c.get("trigger_enabled", False)),
+        "trigger_type": c.get("trigger_type", ""),
     }
 
 
@@ -1561,6 +1564,39 @@ def execute_campaign_for_lead(campaign, lead, user, owner_id):
 
             current_id = _find_next_node(edges_by_source, current_id)
 
+        elif node_type == "call":
+            agent_id = data.get("agent_id", "")
+            agent = None
+            if agent_id:
+                try:
+                    agent = db["pravah-agents"].find_one({"_id": ObjectId(agent_id), "owner_id": owner_id})
+                except InvalidId:
+                    agent = None
+
+            if not agent:
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), current_id, "failed", "call", "No agent selected/found for this call step")
+                _bump_campaign_stat(campaign["_id"], "failed")
+            elif not lead.get("phone"):
+                _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), current_id, "failed", "call", "Lead has no phone number")
+                _bump_campaign_stat(campaign["_id"], "failed")
+            else:
+                voip = db["pravah-voip"].find_one({"owner_id": owner_id})
+                # Reuses the same Eva calling pipeline as the "Call Now" / campaign-call features —
+                # picks a VaniSetu caller ID assigned to this agent, or falls back to Twilio creds.
+                call_result = place_outbound_call(
+                    owner_id, lead, agent, voip,
+                    db["pravah-call-campaigns"], db["pravah-calls"],
+                    campaign_id=campaign_id,
+                )
+                if call_result.get("success"):
+                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), current_id, "sent", "call")
+                    _bump_campaign_stat(campaign["_id"], "sent")
+                else:
+                    _log_execution(owner_id, campaign_id, lead_id, lead.get("name", ""), current_id, "failed", "call", call_result.get("error", "Call failed"))
+                    _bump_campaign_stat(campaign["_id"], "failed")
+
+            current_id = _find_next_node(edges_by_source, current_id)
+
         else:
             current_id = _find_next_node(edges_by_source, current_id)
 
@@ -1588,6 +1624,8 @@ def launch_campaign(campaign_id: str, owner_id: str):
     campaign = campaigns_col.find_one({"_id": ObjectId(campaign_id), "owner_id": owner_id})
     if not campaign:
         return False
+    if campaign.get("trigger_enabled"):
+        return False  # trigger campaigns run automatically — never launched manually
 
     if not any(n.get("type") == "start" for n in campaign.get("nodes", [])):
         return False  # flow hasn't been built yet
@@ -1630,6 +1668,47 @@ def launch_campaign(campaign_id: str, owner_id: str):
     t = threading.Thread(target=run, daemon=True)
     t.start()
     return True
+
+
+# ----------------------------------
+# Campaign triggers (auto-fire on lead events, instead of manual launch)
+# ----------------------------------
+
+def fire_trigger_campaigns(owner_id: str, lead: dict, event: str):
+    """Runs every trigger-enabled campaign listening for `event`, for this
+    ONE lead, in the background. This is the trigger-mode counterpart to
+    launch_campaign() (which is for the manual/broadcast flow with a fixed
+    lead_ids list)."""
+    if not owner_id or not lead or event not in TRIGGER_EVENTS:
+        return
+    user = users_col.find_one({"_id": ObjectId(owner_id)})
+    if not user:
+        return
+    matches = campaigns_col.find({
+        "owner_id": owner_id, "trigger_enabled": True,
+        "trigger_type": event, "status": "active",
+    })
+    for campaign in matches:
+        if not any(n.get("type") == "start" for n in campaign.get("nodes", [])):
+            continue
+        threading.Thread(
+            target=execute_campaign_for_lead,
+            args=(campaign, lead, user, owner_id),
+            daemon=True,
+            name=f"Trigger-{event}-{campaign['_id']}",
+        ).start()
+
+
+def fire_status_trigger(owner_id: str, lead: dict, old_status: str, new_status: str):
+    """Fires status_hot / status_warm only on a real transition INTO that
+    status — not every time a re-classification happens to land on the
+    same status again."""
+    if not lead or new_status == old_status:
+        return
+    if new_status == "hot":
+        fire_trigger_campaigns(owner_id, lead, "status_hot")
+    elif new_status == "warm":
+        fire_trigger_campaigns(owner_id, lead, "status_warm")
 
 
 # ==================================================================
@@ -2064,6 +2143,9 @@ def api_eva_webhook_widget_lead():
         assigned = assign_round_robin(owner_id)
         if assigned:
             leads_col.update_one({"_id": inserted.inserted_id}, {"$set": {"assigned_to": assigned}})
+        new_lead = leads_col.find_one({"_id": inserted.inserted_id})
+        fire_trigger_campaigns(owner_id, new_lead, "lead_added")   # 🔔 trigger campaigns
+        fire_status_trigger(owner_id, new_lead, "", "warm")        # 🔔 trigger campaigns
 
     return jsonify({"received": True, "lead_id": lead_id})
 
@@ -2101,8 +2183,11 @@ def api_eva_webhook_widget_session_result():
             if lead:
                 lead_text = " ".join(t.get("text", "") for t in transcript if t.get("role") == "lead")
                 if lead_text:
-                    new_status = classify_lead_temperature(lead, lead_text, [], lead.get("status", "warm"))
+                    old_status = lead.get("status", "warm")
+                    new_status = classify_lead_temperature(lead, lead_text, [], old_status)
                     leads_col.update_one({"_id": lead["_id"]}, {"$set": {"status": new_status, "updated_at": datetime.utcnow()}})
+                    fresh_lead = leads_col.find_one({"_id": lead["_id"]})
+                    fire_status_trigger(owner_id, fresh_lead, old_status, new_status)   # 🔔 trigger campaigns
         except Exception:
             pass
 
@@ -2184,6 +2269,7 @@ def api_create_lead():
     lead["updated_at"]  = datetime.utcnow()
     result = leads_col.insert_one(lead)
     saved  = leads_col.find_one({"_id": result.inserted_id})
+    fire_trigger_campaigns(current_user_id(), saved, "lead_added")   # 🔔 trigger campaigns
     return jsonify({"lead": serialize_lead(saved)}), 201
 
 
@@ -2216,6 +2302,7 @@ def api_bulk_save_leads():
             lead["updated_at"]  = datetime.utcnow()
             result = leads_col.insert_one(lead)
             created = leads_col.find_one({"_id": result.inserted_id})
+            fire_trigger_campaigns(current_user_id(), created, "lead_added")   # 🔔 trigger campaigns
             saved_leads.append(serialize_lead(created))
     return jsonify({"leads": saved_leads, "saved": len(saved_leads), "skipped": skipped})
 
@@ -2249,9 +2336,15 @@ def api_update_lead_status(lead_id):
     query = {"_id": oid, "owner_id": current_user_id()}
     if not is_owner():
         query["assigned_to"] = current_actor_id()
+    existing = leads_col.find_one(query)
+    if not existing:
+        return jsonify({"error": "Lead not found"}), 404
+    old_status = existing.get("status", "pending")
     result = leads_col.update_one(query, {"$set": {"status": status, "updated_at": datetime.utcnow()}})
     if result.matched_count == 0:
         return jsonify({"error": "Lead not found"}), 404
+    fresh = leads_col.find_one({"_id": oid})
+    fire_status_trigger(current_user_id(), fresh, old_status, status)   # 🔔 trigger campaigns
     return jsonify({"updated": True, "status": status})
 
 
@@ -2417,7 +2510,10 @@ def api_import_leads():
             "created_at": now, "updated_at": now,
         })
         inserted += 1
-    if docs: leads_col.insert_many(docs)
+    if docs:
+        leads_col.insert_many(docs)
+        for d in docs:
+            fire_trigger_campaigns(current_user_id(), d, "lead_added")   # 🔔 trigger campaigns
     return jsonify({"inserted": inserted, "skipped": skipped})
 
 
@@ -3231,6 +3327,8 @@ def api_create_campaign():
         "schedule_type": "now",
         "scheduled_at":  None,
         "stats":        {"sent": 0, "failed": 0, "pending": 0},
+        "trigger_enabled": False,
+        "trigger_type":    "",
         "created_at":   datetime.utcnow(),
         "updated_at":   datetime.utcnow(),
         "last_run_at":  None,
@@ -3317,6 +3415,69 @@ def api_launch_campaign(campaign_id):
         "launched": True,
         "note": f"Sending in bursts of {CAMPAIGN_BATCH_SIZE} with a {CAMPAIGN_BATCH_WAIT_MIN}-{CAMPAIGN_BATCH_WAIT_MAX}s gap between bursts.",
     })
+
+
+@app.route("/api/campaigns/<campaign_id>/trigger", methods=["POST"])
+@login_required
+@owner_required
+def api_set_campaign_trigger(campaign_id):
+    """Turns trigger mode on/off for a campaign. When ON, the campaign is
+    NOT launched manually — it fires automatically, per-lead, the instant
+    the chosen event happens (new lead / call ends / status goes hot or
+    warm). When OFF, it reverts to a normal broadcast campaign."""
+    try: oid = ObjectId(campaign_id)
+    except InvalidId: return jsonify({"error": "Invalid campaign id"}), 400
+    data = request.get_json(silent=True) or {}
+    campaign = campaigns_col.find_one({"_id": oid, "owner_id": current_user_id()})
+    if not campaign:
+        return jsonify({"error": "Campaign not found"}), 404
+
+    enabled = bool(data.get("enabled"))
+    update = {"updated_at": datetime.utcnow()}
+
+    if enabled:
+        trigger_type = (data.get("trigger_type") or campaign.get("trigger_type") or "").strip()
+        if trigger_type not in TRIGGER_EVENTS:
+            return jsonify({"error": "Pick a valid trigger event first"}), 400
+        if len(campaign.get("nodes", [])) < 2 or not any(n.get("type") == "start" for n in campaign.get("nodes", [])):
+            return jsonify({"error": "Build the flow (add at least one step) before activating"}), 400
+        update.update({
+            "trigger_enabled": True,
+            "trigger_type": trigger_type,
+            "status": "active",
+            "schedule_type": "trigger",
+            "scheduled_at": None,
+        })
+    else:
+        update.update({"trigger_enabled": False, "status": "draft"})
+
+    campaigns_col.update_one({"_id": oid}, {"$set": update})
+    return jsonify({"campaign": serialize_campaign(campaigns_col.find_one({"_id": oid}))})
+
+
+@app.route("/api/campaigns/call-readiness", methods=["GET"])
+@login_required
+@owner_required
+def api_campaigns_call_readiness():
+    """Tells the flow builder whether the 'Call' step can be used, and
+    which agents are actually call-ready (VaniSetu caller ID assigned, or
+    Twilio VOIP creds saved) — so the Call node only ever offers agents
+    that will really be able to dial."""
+    owner_id = current_user_id()
+    voip = db["pravah-voip"].find_one({"owner_id": owner_id}) or {}
+    has_twilio = bool(voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number"))
+    agents = list(db["pravah-agents"].find({"owner_id": owner_id}).sort("created_at", -1))
+    out = []
+    for a in agents:
+        has_vanisetu = bool(caller_ids_col.find_one({
+            "owner_id": owner_id, "agent_id": str(a["_id"]), "status": "active",
+            "direction": {"$in": ["outbound", "both"]},
+        }))
+        out.append({
+            "_id": str(a["_id"]), "name": a.get("name", ""),
+            "call_ready": has_twilio or has_vanisetu,
+        })
+    return jsonify({"any_ready": any(a["call_ready"] for a in out), "agents": out})
 
 
 @app.route("/api/campaigns/<campaign_id>/logs", methods=["GET"])
@@ -4330,7 +4491,8 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
         history = list(messages_col.find({"owner_id": owner_id, "lead_id": lead_id}).sort("created_at", 1))
 
         # 1. Score the lead's temperature based on the conversation so far
-        new_status = classify_lead_temperature(lead, text, history, lead.get("status", "cold"))
+        old_status = lead.get("status", "cold")
+        new_status = classify_lead_temperature(lead, text, history, old_status)
 
         # 2. Assign to a team member on first-ever reply, round robin
         update = {"status": new_status, "updated_at": datetime.utcnow()}
@@ -4339,6 +4501,8 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
             if assigned:
                 update["assigned_to"] = assigned
         leads_col.update_one({"_id": lead["_id"]}, {"$set": update})
+        fresh_lead = leads_col.find_one({"_id": lead["_id"]})
+        fire_status_trigger(owner_id, fresh_lead, old_status, new_status)   # 🔔 trigger campaigns
 
         # 3. Generate and send an AI auto-reply — only if the AI Bot toggle is
         # on globally, this number hasn't been muted, and the account has an
@@ -4443,6 +4607,8 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
             }
             inserted = leads_col.insert_one(new_lead)
             lead = leads_col.find_one({"_id": inserted.inserted_id})
+            fire_trigger_campaigns(owner_id, lead, "lead_added")   # 🔔 trigger campaigns
+            fire_status_trigger(owner_id, lead, "", "warm")        # 🔔 trigger campaigns
 
         lead_id = str(lead["_id"])
 
@@ -4458,13 +4624,16 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
         history = list(messages_col.find({"owner_id": owner_id, "lead_id": lead_id}).sort("created_at", 1))
 
         # 2. Score + round-robin assign on first-ever reply (same as the Evolution flow)
-        new_status = classify_lead_temperature(lead, text, history, lead.get("status", "cold"))
+        old_status = lead.get("status", "cold")
+        new_status = classify_lead_temperature(lead, text, history, old_status)
         update = {"status": new_status, "updated_at": datetime.utcnow()}
         if not lead.get("assigned_to"):
             assigned = assign_round_robin(owner_id)
             if assigned:
                 update["assigned_to"] = assigned
         leads_col.update_one({"_id": lead["_id"]}, {"$set": update})
+        fresh_lead = leads_col.find_one({"_id": lead["_id"]})
+        fire_status_trigger(owner_id, fresh_lead, old_status, new_status)   # 🔔 trigger campaigns
 
         # 3. AI auto-reply, only if the bot toggle is on globally, this
         # specific number hasn't been muted, and the plan is active.
@@ -5435,10 +5604,16 @@ def init_eva(app, db, users_col, leads_col):
         calls_col.update_one({"_id": oid}, {"$set": update})
  
         if lead.get("_id"):
+            old_status = lead.get("status", "cold")
             leads_col.update_one({"_id": lead["_id"]}, {"$set": {
                 "status": summary["lead_status"], "ai_score": summary["ai_score"],
                 "updated_at": datetime.utcnow(),
             }})
+            fresh_lead = leads_col.find_one({"_id": lead["_id"]})
+            fire_trigger_campaigns(call_doc["owner_id"], fresh_lead, "call_ended")                      # 🔔 trigger campaigns
+            fire_status_trigger(call_doc["owner_id"], fresh_lead, old_status, summary["lead_status"])    # 🔔 trigger campaigns
+        else:
+            fire_trigger_campaigns(call_doc["owner_id"], lead, "call_ended")                             # 🔔 trigger campaigns (ad-hoc/test call)
 
         if summary["send_whatsapp"] and summary["whatsapp_message"] and lead.get("phone"):
             owner = users_col.find_one({"_id": ObjectId(call_doc["owner_id"])})
