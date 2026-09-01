@@ -662,6 +662,10 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
 <a class="nav-item" href="/eva">
   <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92z"/></svg></span> Eva Voice AI
 </a>
+    <div class="nav-label" id="nav-label-app" style="display:none;">App</div>
+    <a class="nav-item" href="#" id="nav-install-app" onclick="installApp(); return false;" style="display:none;">
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></span> Install App
+    </a>
     <div class="nav-label">Account</div>
     <a class="nav-item" href="#" onclick="showPage('plan', this)">
       <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span> My Plan
@@ -701,8 +705,9 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
       <input type="text" id="global-search" placeholder="Search leads…" oninput="handleSearchInput()" />
     </div>
     <div class="topbar-right">
-      <button class="btn btn-ghost btn-sm" id="push-bell-btn" onclick="enablePushNotifications()" title="Enable notifications">🔔</button>
-      <button class="btn btn-ghost btn-sm" id="install-app-btn" onclick="installApp()" style="display:none;" title="Install PravaahAI">📲 Install App</button>
+      <button class="btn btn-ghost btn-sm" id="push-bell-btn" onclick="enablePushNotifications()" title="Enable notifications">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </button>
       <div class="top-avatar">{{ (display_name or user.username or "U")[0]|upper }}</div>
     </div>
   </header>
@@ -1552,17 +1557,34 @@ let meetingsRescheduleTargetId = null;
 let deferredInstallPrompt = null;
 let swRegistration = null;
 
+function isAppInstalled() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function showInstallNav() {
+  if (isAppInstalled()) return;   // never show if already running as an installed app
+  const item = document.getElementById('nav-install-app');
+  const label = document.getElementById('nav-label-app');
+  if (item) item.style.display = 'flex';
+  if (label) label.style.display = 'block';
+}
+
+function hideInstallNav() {
+  const item = document.getElementById('nav-install-app');
+  const label = document.getElementById('nav-label-app');
+  if (item) item.style.display = 'none';
+  if (label) label.style.display = 'none';
+}
+
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
-  const btn = document.getElementById('install-app-btn');
-  if (btn) btn.style.display = 'inline-flex';
+  showInstallNav();
 });
 
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
-  const btn = document.getElementById('install-app-btn');
-  if (btn) btn.style.display = 'none';
+  hideInstallNav();
   showToast('PravaahAI installed ✓', 'success');
 });
 
@@ -1571,7 +1593,7 @@ async function installApp() {
   deferredInstallPrompt.prompt();
   await deferredInstallPrompt.userChoice;
   deferredInstallPrompt = null;
-  document.getElementById('install-app-btn').style.display = 'none';
+  hideInstallNav();
 }
 
 function urlBase64ToUint8Array(base64String) {
@@ -1582,6 +1604,7 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 async function registerServiceWorkerAndPush() {
+  hideInstallNav();   // default state — beforeinstallprompt (if it fires) will reveal it
   if (!('serviceWorker' in navigator)) return;
   try {
     swRegistration = await navigator.serviceWorker.register('/sw.js');
@@ -1596,8 +1619,9 @@ function updateBellIcon() {
   const btn = document.getElementById('push-bell-btn');
   if (!btn) return;
   if (!('Notification' in window)) { btn.style.display = 'none'; return; }
-  btn.textContent = Notification.permission === 'granted' ? '🔔' : '🔕';
-  btn.title = Notification.permission === 'granted' ? 'Notifications enabled' : 'Enable notifications';
+  const enabled = Notification.permission === 'granted';
+  btn.style.color = enabled ? 'var(--accent-1)' : '';
+  btn.title = enabled ? 'Notifications enabled' : 'Enable notifications';
 }
 
 async function enablePushNotifications() {
