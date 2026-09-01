@@ -16,3 +16,6 @@ beautifulsoup4
 
 resend
 cloudinary
+
+pywebpush
+py-vapid
