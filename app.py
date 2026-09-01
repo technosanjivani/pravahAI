@@ -9,6 +9,7 @@ from flask import (
     jsonify,
     Response,
     send_file,
+    send_from_directory
 )
 
 from functools import wraps
@@ -35,7 +36,7 @@ import string
 import threading
 import time
 import json
-
+from pywebpush import webpush, WebPushException
 import pandas as pd
 
 # Sender modules
@@ -62,6 +63,13 @@ cloudinary.config(
 SUPABASE_URL          = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY  = os.getenv("SUPABASE_SERVICE_KEY", "")
 SUPABASE_PDF_BUCKET   = os.getenv("SUPABASE_PDF_BUCKET", "property-docs")
+
+
+VAPID_PUBLIC_KEY        = os.getenv("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY_PATH  = os.getenv("VAPID_PRIVATE_KEY_PATH", "private_key.pem")
+VAPID_CLAIMS_EMAIL      = os.getenv("VAPID_CLAIMS_EMAIL", "mailto:admin@pravaahai.app")
+
+
 
 BUSINESS_CATEGORIES = {"real_estate", "share_market", "import_export"}
 SITE_VISIT_STATUSES = {"new", "read", "confirmed", "done", "won", "lost", "rescheduled"}
@@ -236,6 +244,10 @@ try:
     site_visits_col.create_index([("owner_id", 1), ("status", 1)])
     caller_ids_col.create_index("owner_id")
     caller_ids_col.create_index("number", unique=True)
+    
+    push_subs_col = db["pravah-push-subs"]
+    push_subs_col.create_index("owner_id")
+    push_subs_col.create_index("endpoint", unique=True)
 except Exception:
     pass
 
@@ -515,6 +527,37 @@ def log_webhook_event(owner_id, source, direction, status, note="", payload=None
     except Exception as e:
         print(f"[WEBHOOK-LOG] failed to store event: {e}", flush=True)
 
+
+def _send_push_now(owner_id, title, body, url, tag):
+    if not (VAPID_PUBLIC_KEY and os.path.exists(VAPID_PRIVATE_KEY_PATH)):
+        return
+    payload = _json.dumps({"title": title, "body": body, "url": url, "tag": tag})
+    dead_ids = []
+    for s in push_subs_col.find({"owner_id": owner_id}):
+        try:
+            webpush(
+                subscription_info={"endpoint": s["endpoint"], "keys": s.get("keys", {})},
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY_PATH,
+                vapid_claims={"sub": VAPID_CLAIMS_EMAIL},
+            )
+        except WebPushException as e:
+            status = e.response.status_code if getattr(e, "response", None) is not None else None
+            if status in (404, 410):          # subscription is gone — browser unsubscribed it
+                dead_ids.append(s["_id"])
+        except Exception as e:
+            print(f"[PUSH] send failed for owner {owner_id}: {e}", flush=True)
+    if dead_ids:
+        push_subs_col.delete_many({"_id": {"$in": dead_ids}})
+
+
+def send_push_notification(owner_id, title, body, url="/dashboard", tag="pravaah-lead"):
+    """Fire-and-forget push to every device this owner has subscribed."""
+    if not owner_id:
+        return
+    threading.Thread(
+        target=_send_push_now, args=(owner_id, title, body, url, tag), daemon=True,
+    ).start()
 
 def serialize_webhook_log(d):
     return {
@@ -2146,6 +2189,7 @@ def api_eva_webhook_widget_lead():
         new_lead = leads_col.find_one({"_id": inserted.inserted_id})
         fire_trigger_campaigns(owner_id, new_lead, "lead_added")   # 🔔 trigger campaigns
         fire_status_trigger(owner_id, new_lead, "", "warm")        # 🔔 trigger campaigns
+        send_push_notification(owner_id, "🆕 New Lead (Web Widget)", f"{name} just chatted with your widget")
 
     return jsonify({"received": True, "lead_id": lead_id})
 
@@ -2270,6 +2314,10 @@ def api_create_lead():
     result = leads_col.insert_one(lead)
     saved  = leads_col.find_one({"_id": result.inserted_id})
     fire_trigger_campaigns(current_user_id(), saved, "lead_added")   # 🔔 trigger campaigns
+    send_push_notification(
+        current_user_id(), "🆕 New Lead",
+        f"{saved.get('name','A lead')} was just added" + (f" — {saved.get('business_name')}" if saved.get('business_name') else ""),
+    )
     return jsonify({"lead": serialize_lead(saved)}), 201
 
 
@@ -2303,6 +2351,7 @@ def api_bulk_save_leads():
             result = leads_col.insert_one(lead)
             created = leads_col.find_one({"_id": result.inserted_id})
             fire_trigger_campaigns(current_user_id(), created, "lead_added")   # 🔔 trigger campaigns
+            send_push_notification(current_user_id(), "🆕 New Lead", f"{created.get('name','A lead')} was just added")
             saved_leads.append(serialize_lead(created))
     return jsonify({"leads": saved_leads, "saved": len(saved_leads), "skipped": skipped})
 
@@ -2514,6 +2563,10 @@ def api_import_leads():
         leads_col.insert_many(docs)
         for d in docs:
             fire_trigger_campaigns(current_user_id(), d, "lead_added")   # 🔔 trigger campaigns
+        send_push_notification(
+            current_user_id(), "📥 Leads Imported",
+            f"{len(docs)} new lead{'s' if len(docs)!=1 else ''} imported from your file",
+        )
     return jsonify({"inserted": inserted, "skipped": skipped})
 
 
@@ -4609,6 +4662,7 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
             lead = leads_col.find_one({"_id": inserted.inserted_id})
             fire_trigger_campaigns(owner_id, lead, "lead_added")   # 🔔 trigger campaigns
             fire_status_trigger(owner_id, lead, "", "warm")        # 🔔 trigger campaigns
+            send_push_notification(owner_id, "🆕 New Lead (WhatsApp)", f"{push_name or phone_raw} messaged you on WhatsApp")
 
         lead_id = str(lead["_id"])
 
@@ -5642,6 +5696,56 @@ def init_eva(app, db, users_col, leads_col):
  
         return jsonify({"received": True})
  
+ 
+ #new apis 
+     
+     
+@app.route("/sw.js")
+def service_worker():
+    resp = send_from_directory("static", "sw.js", mimetype="application/javascript")
+    resp.headers["Service-Worker-Allowed"] = "/"
+    return resp
+
+
+@app.route("/api/push/vapid-public-key", methods=["GET"])
+@login_required
+def api_push_public_key():
+    return jsonify({"publicKey": VAPID_PUBLIC_KEY})
+
+
+@app.route("/api/push/subscribe", methods=["POST"])
+@login_required
+def api_push_subscribe():
+    data = request.get_json(silent=True) or {}
+    sub = data.get("subscription") or {}
+    if not sub.get("endpoint"):
+        return jsonify({"error": "Invalid subscription"}), 400
+    push_subs_col.update_one(
+        {"endpoint": sub["endpoint"]},
+        {
+            "$set": {
+                "owner_id": current_user_id(),
+                "endpoint": sub["endpoint"],
+                "keys": sub.get("keys", {}),
+                "user_agent": request.headers.get("User-Agent", ""),
+                "updated_at": datetime.utcnow(),
+            },
+            "$setOnInsert": {"created_at": datetime.utcnow()},
+        },
+        upsert=True,
+    )
+    return jsonify({"subscribed": True})
+
+
+@app.route("/api/push/unsubscribe", methods=["POST"])
+@login_required
+def api_push_unsubscribe():
+    data = request.get_json(silent=True) or {}
+    endpoint = data.get("endpoint", "")
+    if endpoint:
+        push_subs_col.delete_one({"endpoint": endpoint, "owner_id": current_user_id()})
+    return jsonify({"unsubscribed": True})
+     
     # ---------------- background follow-up scheduler ----------------
     def _followup_scanner():
         while True:

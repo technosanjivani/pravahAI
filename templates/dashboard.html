@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>PravaahAI – Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="manifest" href="/static/manifest.json" />
+<meta name="theme-color" content="#2563eb" />
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -698,6 +701,8 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
       <input type="text" id="global-search" placeholder="Search leads…" oninput="handleSearchInput()" />
     </div>
     <div class="topbar-right">
+      <button class="btn btn-ghost btn-sm" id="push-bell-btn" onclick="enablePushNotifications()" title="Enable notifications">🔔</button>
+      <button class="btn btn-ghost btn-sm" id="install-app-btn" onclick="installApp()" style="display:none;" title="Install PravaahAI">📲 Install App</button>
       <div class="top-avatar">{{ (display_name or user.username or "U")[0]|upper }}</div>
     </div>
   </header>
@@ -1541,6 +1546,106 @@ let meetingsChart     = null;
 let meetingsRange     = "today";
 let meetingsRescheduleTargetId = null;
 
+/* ════════════════════════════════════════════════
+   PWA INSTALL + PUSH NOTIFICATIONS
+════════════════════════════════════════════════ */
+let deferredInstallPrompt = null;
+let swRegistration = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('install-app-btn');
+  if (btn) btn.style.display = 'inline-flex';
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  const btn = document.getElementById('install-app-btn');
+  if (btn) btn.style.display = 'none';
+  showToast('PravaahAI installed ✓', 'success');
+});
+
+async function installApp() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  document.getElementById('install-app-btn').style.display = 'none';
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+async function registerServiceWorkerAndPush() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    swRegistration = await navigator.serviceWorker.register('/sw.js');
+    updateBellIcon();
+    if (Notification.permission === 'granted' && 'PushManager' in window) {
+      await subscribeToPush(swRegistration);
+    }
+  } catch (err) { console.warn('Service worker registration failed', err); }
+}
+
+function updateBellIcon() {
+  const btn = document.getElementById('push-bell-btn');
+  if (!btn) return;
+  if (!('Notification' in window)) { btn.style.display = 'none'; return; }
+  btn.textContent = Notification.permission === 'granted' ? '🔔' : '🔕';
+  btn.title = Notification.permission === 'granted' ? 'Notifications enabled' : 'Enable notifications';
+}
+
+async function enablePushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    showToast('Push notifications are not supported on this browser.', 'error');
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    showToast('Notifications are already enabled on this device.');
+    return;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    showToast('Notification permission was not granted.', 'error');
+    updateBellIcon();
+    return;
+  }
+  const reg = swRegistration || await navigator.serviceWorker.register('/sw.js');
+  const ok = await subscribeToPush(reg);
+  updateBellIcon();
+  if (ok) showToast('Push notifications enabled ✓ — you\'ll get an alert on new leads.', 'success');
+}
+
+async function subscribeToPush(reg) {
+  try {
+    const keyRes = await fetch('/api/push/vapid-public-key');
+    const { publicKey } = await keyRes.json();
+    if (!publicKey) { showToast('Push is not configured on the server yet.', 'error'); return false; }
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    return true;
+  } catch (err) {
+    console.warn('Push subscribe failed', err);
+    showToast('Could not enable push notifications on this device.', 'error');
+    return false;
+  }
+}
+
 // Flow builder (canvas) state
 let currentCampaignId      = null;
 let currentCampaignLeadIds = [];
@@ -2256,6 +2361,7 @@ function confirmLeadSelection() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   buildMiniCalendar();
+  registerServiceWorkerAndPush();
   await loadMe();
   await loadSegments();
   loadLeads();
