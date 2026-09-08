@@ -928,28 +928,28 @@ def render_template_vars(text: str, lead: dict) -> str:
 
 
 def _mistral_chat(system_prompt: str, user_prompt: str, force_json: bool = False):
-    """Low-level Mistral call shared by all AI helpers below."""
-    MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
-    MISTRAL_URL   = "https://api.mistral.ai/v1/chat/completions"
-    MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
-    if not MISTRAL_API_KEY:
-        return {"success": False, "error": "MISTRAL_API_KEY not configured"}
+    """Low-level LLM call shared by all AI helpers below."""
+    LLM_API_KEY = os.getenv("LLM_API_KEY")
+    LLM_API_URL = os.getenv("LLM_API_URL", "https://llm.sanjivanitechno.com/v1/chat/completions")
+    LLM_MODEL   = os.getenv("LLM_MODEL", "gemma-4-31b")
+    if not LLM_API_KEY:
+        return {"success": False, "error": "LLM_API_KEY not configured"}
     try:
         resp = requests.post(
-            MISTRAL_URL,
+            LLM_API_URL,
             headers={
-                "Authorization": f"Bearer {MISTRAL_API_KEY}",
+                "Authorization": f"Bearer {LLM_API_KEY}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": MISTRAL_MODEL,
+                "model": LLM_MODEL,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 "temperature": 0.7,
             },
-            timeout=30,
+            timeout=120,
         )
         resp.raise_for_status()
         text = resp.json()["choices"][0]["message"]["content"].strip()
@@ -1070,6 +1070,36 @@ def generate_chat_reply(lead: dict, incoming_message: str, history: list, task_p
         return {"success": False, "error": result.get("error", "AI reply generation failed")}
     return {"success": True, "message": result["text"]}
 
+
+def generate_agent_test_reply(agent: dict, incoming_message: str, history: list) -> dict:
+    """Lets the owner chat (in text) with a voice agent's persona straight
+    from the dashboard, using that agent's own system prompt, to sanity-check
+    tone/behavior before spending any real Eva calling minutes on it."""
+    recent_history = (history or [])[-10:]
+    history_text = "\n".join(
+        f"{'You' if h.get('role') == 'user' else 'Agent'}: {h.get('text', '')}"
+        for h in recent_history
+    )
+
+    base_prompt = (agent.get("system_prompt") or "").strip() or (
+        "You are a friendly, concise voice sales agent."
+    )
+    system = (
+        f"{base_prompt}\n\n"
+        "NOTE: This is a text-based test chat with the account owner, standing in "
+        "for a real phone call — reply exactly as you would to a real lead on a "
+        "live call, in 1-3 short, natural spoken-style sentences. No signatures, "
+        "no markdown, no placeholders."
+    )
+    user_prompt = (
+        f"Conversation so far:\n{history_text or '(nothing yet)'}\n\n"
+        f"Latest message: {incoming_message}\n\nReply now."
+    )
+
+    result = _mistral_chat(system, user_prompt, force_json=False)
+    if not result.get("success"):
+        return {"success": False, "error": result.get("error", "AI reply generation failed")}
+    return {"success": True, "message": result["text"]}
 
 
 def real_estate_extract(lead, incoming_message, history, known_budget="", known_location=""):
@@ -3658,7 +3688,7 @@ def api_whatsapp_bot_diagnose():
                 "value": "Wirebase is configured but active_provider is 'evo' — flip the toggle in Settings",
             })
 
-    checks.append({"check": "MISTRAL_API_KEY set on server", "ok": bool(os.getenv("MISTRAL_API_KEY"))})
+    checks.append({"check": "LLM_API_KEY set on server", "ok": bool(os.getenv("LLM_API_KEY"))})
 
     all_ok = all(c["ok"] for c in checks)
     return jsonify({"provider": provider, "all_ok": all_ok, "checks": checks})
@@ -4879,12 +4909,12 @@ def api_dashboard_stats():
 # AI RUN
 # ==================================================================
 
- 
 EVA_API_BASE_URL = os.environ.get("EVA_API_BASE_URL", "").rstrip("/")
 EVA_API_SECRET = os.environ.get("EVA_API_SECRET", "")
 PRAVAAH_PUBLIC_BASE_URL = os.environ.get("PRAVAAH_PUBLIC_BASE_URL", "").rstrip("/")
-MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY")            # reused, already in .env
-MISTRAL_MODEL = os.environ.get("MISTRAL_MODEL", "mistral-small-latest")
+LLM_API_KEY = os.environ.get("LLM_API_KEY")            # reused, already in .env
+LLM_API_URL = os.environ.get("LLM_API_URL", "https://llm.sanjivanitechno.com/v1/chat/completions")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gemma-4-31b")
  
 FOLLOWUP_SCAN_INTERVAL_SECS = 60
  
@@ -4914,16 +4944,16 @@ def _local_dial_number(num: str) -> str:
     return ("0" + digits) if digits else ""
  
 def _mistral_chat(system_prompt, user_prompt, force_json=False):
-    if not MISTRAL_API_KEY:
-        return {"success": False, "error": "MISTRAL_API_KEY not configured"}
+    if not LLM_API_KEY:
+        return {"success": False, "error": "LLM_API_KEY not configured"}
     try:
         resp = requests.post(
-            "https://api.mistral.ai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {MISTRAL_API_KEY}", "Content-Type": "application/json"},
-            json={"model": MISTRAL_MODEL, "temperature": 0.7, "messages": [
+            LLM_API_URL,
+            headers={"Authorization": f"Bearer {LLM_API_KEY}", "Content-Type": "application/json"},
+            json={"model": LLM_MODEL, "temperature": 0.7, "messages": [
                 {"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt},
             ]},
-            timeout=30,
+            timeout=120,
         )
         resp.raise_for_status()
         text = resp.json()["choices"][0]["message"]["content"].strip()
@@ -5339,7 +5369,32 @@ def init_eva(app, db, users_col, leads_col):
         if result.deleted_count == 0:
             return jsonify({"error": "Agent not found"}), 404
         return jsonify({"deleted": True})
- 
+
+    @app.route("/api/agents/<agent_id>/test-chat", methods=["POST"])
+    @login_required
+    def api_agent_test_chat(agent_id):
+        """Text-chat test of an agent's persona — no phone call, no Eva minutes."""
+        try:
+            oid = ObjectId(agent_id)
+        except InvalidId:
+            return jsonify({"error": "Invalid agent id"}), 400
+        agent = agents_col.find_one({"_id": oid, "owner_id": current_user_id()})
+        if not agent:
+            return jsonify({"error": "Agent not found"}), 404
+
+        data = request.get_json(silent=True) or {}
+        message = (data.get("message") or "").strip()
+        history = data.get("history") or []
+        if not message:
+            return jsonify({"error": "Message is required"}), 400
+        if not isinstance(history, list):
+            history = []
+
+        result = generate_agent_test_reply(agent, message, history)
+        if not result.get("success"):
+            return jsonify({"error": result.get("error", "AI reply failed")}), 400
+        return jsonify({"reply": result["message"]})
+
     # ---------------- VOIP creds ----------------
     @app.route("/api/voip", methods=["GET"])
     @login_required

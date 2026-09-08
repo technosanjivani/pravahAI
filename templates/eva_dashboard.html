@@ -500,7 +500,10 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
         <h2>Voice agents</h2>
         <div class="sub">Each agent is a persona Eva speaks as — its own name, prompt, voice and call limits.</div>
       </div>
-      <button class="btn btn-primary" onclick="openAgentModal()">+ New agent</button>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-ghost" onclick="openTestAgentModal()">💬 Test an agent</button>
+        <button class="btn btn-primary" onclick="openAgentModal()">+ New agent</button>
+      </div>
     </div>
     <div class="grid" id="agentsGrid"></div>
     <div class="empty" id="agentsEmpty" style="display:none;">No agents yet. Create one to start calling leads.</div>
@@ -811,6 +814,33 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
       </select>
     </div>
     <button class="btn btn-primary" style="width:100%;" onclick="createCallerId()">Add caller ID</button>
+  </div>
+</div>
+
+<!-- ===================== TEST AGENT — PICK MODAL ===================== -->
+<div class="modal-overlay" id="testAgentPickModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('testAgentPickModal')">✕</button>
+    <h3>Test an agent</h3>
+    <div class="field">
+      <label>Choose an agent to chat with</label>
+      <select id="testAgentPickSelect"></select>
+      <div class="hint">Starts a text conversation using that agent's system prompt and opening line — no phone call placed, no Eva minutes used.</div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;" onclick="startAgentTestChat()">Start chat</button>
+  </div>
+</div>
+
+<!-- ===================== TEST AGENT — CHAT MODAL ===================== -->
+<div class="modal-overlay" id="testAgentChatModal">
+  <div class="modal" style="max-width:520px;">
+    <button class="modal-close" onclick="closeModal('testAgentChatModal')">✕</button>
+    <h3 id="testAgentChatTitle">Chat with agent</h3>
+    <div id="testAgentChatLog" style="max-height:360px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px 14px; margin-bottom:12px; background:var(--bg-hover);"></div>
+    <form onsubmit="sendAgentTestMessage(event)" style="display:flex; gap:8px;">
+      <input type="text" id="testAgentChatInput" placeholder="Type a message..." style="flex:1;" autocomplete="off">
+      <button class="btn btn-primary" type="submit">Send</button>
+    </form>
   </div>
 </div>
 
@@ -1438,6 +1468,74 @@ async function quickMarkMeeting(id, status){
   }catch(e){ toast(e.message); }
 }
 
+
+// ---------------- test agent (text chat with a persona) ----------------
+let TEST_AGENT = null;
+let TEST_AGENT_HISTORY = [];
+
+function openTestAgentModal(){
+  if (!AGENTS.length){ toast('Create a voice agent first'); return; }
+  document.getElementById('testAgentPickSelect').innerHTML =
+    AGENTS.map(a => `<option value="${a._id}">${escapeHtml(a.name)}</option>`).join('');
+  openModal('testAgentPickModal');
+}
+
+function startAgentTestChat(){
+  const agentId = document.getElementById('testAgentPickSelect').value;
+  TEST_AGENT = AGENTS.find(a => a._id === agentId);
+  if (!TEST_AGENT){ toast('Pick an agent'); return; }
+
+  TEST_AGENT_HISTORY = [];
+  closeModal('testAgentPickModal');
+  document.getElementById('testAgentChatTitle').textContent = 'Chat with ' + TEST_AGENT.name;
+
+  const log = document.getElementById('testAgentChatLog');
+  log.innerHTML = '';
+  const opening = (TEST_AGENT.opening_line || 'Hi, how can I help you today?')
+    .replace(/\{\{.*?\}\}/g, '').trim() || 'Hi, how can I help you today?';
+  appendAgentChatBubble('agent', opening);
+  TEST_AGENT_HISTORY.push({role:'agent', text: opening});
+
+  openModal('testAgentChatModal');
+  setTimeout(() => document.getElementById('testAgentChatInput').focus(), 100);
+}
+
+function appendAgentChatBubble(role, text){
+  const log = document.getElementById('testAgentChatLog');
+  const bubble = document.createElement('div');
+  bubble.style.margin = '0 0 10px';
+  bubble.style.fontSize = '13.5px';
+  bubble.style.lineHeight = '1.5';
+  bubble.innerHTML = `<b style="color:${role==='agent'?'var(--accent-1)':'var(--text-h)'};">${role==='agent'?escapeHtml(TEST_AGENT.name):'You'}:</b> ${escapeHtml(text)}`;
+  log.appendChild(bubble);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function sendAgentTestMessage(e){
+  e.preventDefault();
+  const input = document.getElementById('testAgentChatInput');
+  const text = input.value.trim();
+  if (!text || !TEST_AGENT) return;
+
+  appendAgentChatBubble('user', text);
+  TEST_AGENT_HISTORY.push({role:'user', text});
+  input.value = '';
+  input.disabled = true;
+
+  try{
+    const d = await api(`/api/agents/${TEST_AGENT._id}/test-chat`, {method:'POST', body: JSON.stringify({
+      message: text,
+      history: TEST_AGENT_HISTORY,
+    })});
+    appendAgentChatBubble('agent', d.reply);
+    TEST_AGENT_HISTORY.push({role:'agent', text: d.reply});
+  }catch(err){
+    toast(err.message);
+  }finally{
+    input.disabled = false;
+    input.focus();
+  }
+}
 
 function escapeHtml(s){
   return (s || '').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
