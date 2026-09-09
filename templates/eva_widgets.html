@@ -159,6 +159,29 @@
           </div>
           <label class="switch"><input type="checkbox" id="wRequireLeadFirst" checked><span class="slider"></span></label>
         </div>
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight:600;">Auto-greet visitors</div>
+            <div class="hint">Eva speaks first after a delay, instead of waiting for a click.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="wAutoGreetEnabled" onchange="toggleAutoGreetFields(); renderPreview();"><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="field" id="autoGreetFields" style="display:none; margin-top:14px;">
+        <label>What should Eva say?</label>
+        <textarea id="wAutoGreetMessage" rows="3" placeholder="Hey there! I'm Eva — happy to help. What are you looking for today?" oninput="renderPreview()"></textarea>
+        <div class="hint">Spoken automatically on the visitor's site — they don't need to click anything first.</div>
+
+        <label style="margin-top:12px; display:block;">Speak after</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="wAutoGreetDelayValue" value="5" style="max-width:90px;" oninput="renderPreview()">
+          <select id="wAutoGreetDelayUnit" style="max-width:140px;" onchange="renderPreview()">
+            <option value="seconds">seconds</option>
+            <option value="minutes">minutes</option>
+          </select>
+        </div>
+        <div class="hint">How long a visitor sits on the page before Eva speaks first.</div>
       </div>
 
       <button class="btn btn-primary" style="width:100%; margin-top:20px;" id="saveWidgetBtn" onclick="saveWidget()">Create widget</button>
@@ -167,6 +190,7 @@
     <div class="preview-pane">
       <div class="pv-label">Live preview</div>
       <div class="pv-note" id="pvNote">Hi! How can I help you today?</div>
+      <div class="pv-note" id="pvAutoGreetNote" style="display:none; bottom:46px; color:var(--blue); font-weight:600;"></div>
       <div class="pv-bubble" id="pvBubble" style="background:#2454E8;">
         <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
       </div>
@@ -232,6 +256,9 @@ async function loadWidgets(){
     const agent = AGENTS.find(a => a._id === w.agent_id);
     const el = document.createElement('div');
     el.className = 'card';
+    const autoGreetLine = w.auto_greet_enabled
+      ? `Auto-greets after ${w.auto_greet_delay_secs}s`
+      : 'No auto-greet';
     el.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:flex-start;">
         <h3><span class="swatch" style="background:${w.primary_color}"></span>${escapeHtml(w.name)}</h3>
@@ -240,7 +267,7 @@ async function loadWidgets(){
       <div class="meta">
         Agent: ${escapeHtml(agent ? agent.name : '—')}<br>
         Public id: ${w.public_id}<br>
-        ${w.collect_lead ? 'Captures leads' : 'No lead capture'}
+        ${w.collect_lead ? 'Captures leads' : 'No lead capture'} · ${autoGreetLine}
       </div>
       <div class="card-actions">
         <button class="btn btn-ghost" onclick="showEmbed('${w._id}')">Get embed code</button>
@@ -264,8 +291,18 @@ function openWidgetModal(){
   document.getElementById('wGreeting').value = 'Hi! How can I help you today?';
   document.getElementById('wCollectLead').checked = true;
   document.getElementById('wRequireLeadFirst').checked = true;
+  document.getElementById('wAutoGreetEnabled').checked = false;
+  document.getElementById('wAutoGreetMessage').value = '';
+  document.getElementById('wAutoGreetDelayValue').value = '5';
+  document.getElementById('wAutoGreetDelayUnit').value = 'seconds';
+  toggleAutoGreetFields();
   renderPreview();
   document.getElementById('widgetModal').classList.add('active');
+}
+
+function toggleAutoGreetFields(){
+  const on = document.getElementById('wAutoGreetEnabled').checked;
+  document.getElementById('autoGreetFields').style.display = on ? 'block' : 'none';
 }
 
 function closeModal(){ document.getElementById('widgetModal').classList.remove('active'); }
@@ -281,6 +318,18 @@ function renderPreview(){
   document.getElementById('wColorHex').value = color;
   document.getElementById('pvBubble').style.background = color;
   document.getElementById('pvNote').textContent = document.getElementById('wGreeting').value || 'Hi! How can I help you today?';
+
+  const autoGreetOn = document.getElementById('wAutoGreetEnabled').checked;
+  const note = document.getElementById('pvAutoGreetNote');
+  if (autoGreetOn){
+    const val = parseInt(document.getElementById('wAutoGreetDelayValue').value, 10) || 5;
+    const unit = document.getElementById('wAutoGreetDelayUnit').value;
+    const msg = document.getElementById('wAutoGreetMessage').value.trim();
+    note.style.display = 'block';
+    note.textContent = `🔊 Speaks after ${val} ${unit}: "${msg || document.getElementById('wGreeting').value || 'Hi! How can I help you today?'}"`;
+  } else {
+    note.style.display = 'none';
+  }
 }
 document.getElementById('wColor').addEventListener('input', renderPreview);
 
@@ -289,12 +338,27 @@ async function saveWidget(){
   const agent_id = document.getElementById('wAgent').value;
   if (!name){ toast('Widget name is required'); return; }
   if (!agent_id){ toast('Pick an agent'); return; }
+
+  const autoGreetEnabled = document.getElementById('wAutoGreetEnabled').checked;
+  const autoGreetMessage = document.getElementById('wAutoGreetMessage').value.trim();
+  if (autoGreetEnabled && !autoGreetMessage){
+    toast('Write what Eva should say for the auto-greet, or turn it off');
+    return;
+  }
+  const delayValRaw = parseInt(document.getElementById('wAutoGreetDelayValue').value, 10);
+  const delayVal = isNaN(delayValRaw) || delayValRaw <= 0 ? 5 : delayValRaw;
+  const delayUnit = document.getElementById('wAutoGreetDelayUnit').value;
+  const autoGreetDelaySecs = delayUnit === 'minutes' ? delayVal * 60 : delayVal;
+
   const payload = {
     name, agent_id,
     primary_color: document.getElementById('wColor').value,
     greeting: document.getElementById('wGreeting').value.trim(),
     collect_lead: document.getElementById('wCollectLead').checked,
     require_lead_before_chat: document.getElementById('wRequireLeadFirst').checked,
+    auto_greet_enabled: autoGreetEnabled,
+    auto_greet_message: autoGreetMessage,
+    auto_greet_delay_secs: autoGreetDelaySecs,
   };
   try{
     if (editingId){

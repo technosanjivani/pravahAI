@@ -685,6 +685,9 @@ def serialize_widget(w):
         "greeting": w.get("greeting", "Hi! How can I help you today?"),
         "collect_lead": w.get("collect_lead", True),
         "require_lead_before_chat": w.get("require_lead_before_chat", True),
+        "auto_greet_enabled": w.get("auto_greet_enabled", False),
+        "auto_greet_message": w.get("auto_greet_message", ""),
+        "auto_greet_delay_secs": w.get("auto_greet_delay_secs", 5),
         "created_at": w.get("created_at").isoformat() if w.get("created_at") else None,
         "embed_snippet": build_widget_embed_snippet(w.get("public_id", ""), w.get("primary_color", "#2454E8")),
     }
@@ -926,7 +929,7 @@ def render_template_vars(text: str, lead: dict) -> str:
         text = text.replace(key, val)
     return text
 
-
+#new model
 def _mistral_chat(system_prompt: str, user_prompt: str, force_json: bool = False):
     """Low-level LLM call shared by all AI helpers below."""
     LLM_API_KEY = os.getenv("LLM_API_KEY")
@@ -2073,6 +2076,14 @@ def api_create_widget():
     if not agent:
         return jsonify({"error": "Agent not found"}), 404
 
+    auto_greet_enabled = bool(data.get("auto_greet_enabled", False))
+    auto_greet_message = (data.get("auto_greet_message") or "").strip()
+    try:
+        auto_greet_delay_secs = int(data.get("auto_greet_delay_secs", 5))
+    except (TypeError, ValueError):
+        auto_greet_delay_secs = 5
+    auto_greet_delay_secs = max(1, min(auto_greet_delay_secs, 600))  # clamp 1s .. 10min
+
     doc = {
         "owner_id": current_user_id(),
         "public_id": generate_public_widget_id(),
@@ -2083,6 +2094,9 @@ def api_create_widget():
         "greeting": (data.get("greeting") or "Hi! How can I help you today?").strip(),
         "collect_lead": bool(data.get("collect_lead", True)),
         "require_lead_before_chat": bool(data.get("require_lead_before_chat", True)),
+        "auto_greet_enabled": auto_greet_enabled,
+        "auto_greet_message": auto_greet_message,
+        "auto_greet_delay_secs": auto_greet_delay_secs,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
     }
@@ -2112,6 +2126,14 @@ def api_update_widget(widget_id):
     if "greeting" in data: update["greeting"] = data["greeting"]
     if "collect_lead" in data: update["collect_lead"] = bool(data["collect_lead"])
     if "require_lead_before_chat" in data: update["require_lead_before_chat"] = bool(data["require_lead_before_chat"])
+    if "auto_greet_enabled" in data: update["auto_greet_enabled"] = bool(data["auto_greet_enabled"])
+    if "auto_greet_message" in data: update["auto_greet_message"] = (data.get("auto_greet_message") or "").strip()
+    if "auto_greet_delay_secs" in data:
+        try:
+            delay = int(data.get("auto_greet_delay_secs"))
+        except (TypeError, ValueError):
+            delay = 5
+        update["auto_greet_delay_secs"] = max(1, min(delay, 600))
     if "status" in data and data["status"] in ("active", "paused"):
         update["status"] = data["status"]
 
@@ -2166,6 +2188,11 @@ def api_public_widget_config(public_id):
         "widget_id": str(widget["_id"]),
         "public_id": public_id,
         "require_lead_before_chat": widget.get("require_lead_before_chat", True),
+        "auto_greet": {
+            "enabled": bool(widget.get("auto_greet_enabled", False)),
+            "message": widget.get("auto_greet_message") or widget.get("greeting", ""),
+            "delay_secs": widget.get("auto_greet_delay_secs", 5),
+        },
         "agent": {
             "name": agent.get("name", ""),
             "system_prompt": agent.get("system_prompt", ""),
