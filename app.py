@@ -158,6 +158,7 @@ def serialize_caller_id(c):
         "number": c.get("number", ""),
         "label": c.get("label", ""),
         "agent_id": c.get("agent_id", ""),
+        "provider": c.get("provider", "vanisetu"),  # "vanisetu" | "voicelink"
         "direction": c.get("direction", "both"),   # "inbound" | "outbound" | "both"
         "status": c.get("status", "active"),
         "created_at": c.get("created_at").isoformat() if c.get("created_at") else None,
@@ -205,7 +206,9 @@ webhook_logs_col      = db["pravah-webhook-logs"]         # raw inbound/outbound
 webhook_logs_col      = db["pravah-webhook-logs"]         # raw inbound/outbound webhook events, for debugging
 inventory_col         = db["pravah-inventory"]             # real-estate property listings
 site_visits_col       = db["pravah-site-visits"]
-caller_ids_col         = db["pravah-caller-ids"]            # VaniSetu number -> owner + agent mapping
+caller_ids_col         = db["pravah-caller-ids"]            # VaniSetu/VoiceLink number -> owner + agent mapping
+voicelink_col          = db["pravah-voicelink"]              # per-owner VoiceLink login + DID config
+
 # ----------------------------------
 # Create Indexes
 # ----------------------------------
@@ -244,7 +247,8 @@ try:
     site_visits_col.create_index([("owner_id", 1), ("status", 1)])
     caller_ids_col.create_index("owner_id")
     caller_ids_col.create_index("number", unique=True)
-    
+    voicelink_col.create_index("owner_id", unique=True)
+
     push_subs_col = db["pravah-push-subs"]
     push_subs_col.create_index("owner_id")
     push_subs_col.create_index("endpoint", unique=True)
@@ -3091,6 +3095,7 @@ def api_create_caller_id():
         "number": number,
         "label": (data.get("label") or "").strip(),
         "agent_id": agent_id,
+        "provider": data.get("provider") if data.get("provider") in ("vanisetu", "voicelink") else "vanisetu",
         "direction": data.get("direction") if data.get("direction") in ("inbound", "outbound", "both") else "both",
         "status": "active",
         "created_at": datetime.utcnow(),
@@ -3108,6 +3113,8 @@ def api_update_caller_id(caller_id):
     data = request.get_json(silent=True) or {}
     update = {}
     if "label" in data: update["label"] = (data.get("label") or "").strip()
+    if "provider" in data and data["provider"] in ("vanisetu", "voicelink"):
+        update["provider"] = data["provider"]
     if "agent_id" in data:
         agents_col = db["pravah-agents"]
         try:
@@ -3137,6 +3144,41 @@ def api_delete_caller_id(caller_id):
     if result.deleted_count == 0:
         return jsonify({"error": "Caller ID not found"}), 404
     return jsonify({"deleted": True})
+
+
+# ==================================================================
+# VOICELINK ACCOUNT SETTINGS  (owner only)
+# ==================================================================
+
+@app.route("/api/voicelink", methods=["GET"])
+@login_required
+@owner_required
+def api_get_voicelink():
+    doc = voicelink_col.find_one({"owner_id": current_user_id()}) or {}
+    return jsonify({
+        "login_email": doc.get("login_email", ""),
+        "did_number": doc.get("did_number", ""),
+        "configured": bool(doc.get("login_email") and doc.get("login_password")),
+    })
+
+
+@app.route("/api/voicelink", methods=["POST"])
+@login_required
+@owner_required
+def api_save_voicelink():
+    data = request.get_json(silent=True) or {}
+    existing = voicelink_col.find_one({"owner_id": current_user_id()}) or {}
+    update = {
+        "owner_id": current_user_id(),
+        "login_email": (data.get("login_email") or existing.get("login_email", "")).strip(),
+        "did_number": (data.get("did_number") or existing.get("did_number", "")).strip(),
+    }
+    if data.get("login_password"):
+        update["login_password"] = data["login_password"].strip()
+    else:
+        update["login_password"] = existing.get("login_password", "")
+    voicelink_col.update_one({"owner_id": current_user_id()}, {"$set": update}, upsert=True)
+    return jsonify({"saved": True})
 
 
 @app.route("/api/public/caller-id-config/<path:number>", methods=["GET"])
@@ -4969,6 +5011,17 @@ def _local_dial_number(num: str) -> str:
         digits = digits[2:]
     digits = digits.lstrip("0")
     return ("0" + digits) if digits else ""
+
+
+def _voicelink_dial_number(num: str) -> str:
+    """VoiceLink's add_lead API wants digits + country code, no '+' and no
+    leading 0 — e.g. '919876543210'. Used only for the VoiceLink outbound path."""
+    digits = re.sub(r"\D", "", num or "")
+    digits = digits.lstrip("0")
+    if len(digits) == 10:          # bare 10-digit mobile, no country code yet
+        digits = "91" + digits
+    return digits
+
  
 def _mistral_chat(system_prompt, user_prompt, force_json=False):
     if not LLM_API_KEY:
@@ -5165,6 +5218,70 @@ def request_call_from_eva_vanisetu(call_id, to_number, caller_id, agent, lead, o
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
+def request_call_from_eva_voicelink(call_id, to_number, did_number, voicelink_creds, agent, lead, owner_id=None):
+    """VoiceLink counterpart of request_call_from_eva_vanisetu() — hits Eva's
+    /api/calls/voicelink endpoint. Eva owns the actual VoiceLink login +
+    add_lead call, plus the websocket_url VoiceLink streams audio to."""
+    if not EVA_API_BASE_URL:
+        return {"success": False, "error": "EVA_API_BASE_URL not set in PravaahAI's .env"}
+    if not PRAVAAH_PUBLIC_BASE_URL:
+        return {"success": False, "error": "PRAVAAH_PUBLIC_BASE_URL not set in PravaahAI's .env"}
+
+    meeting_ctx = get_meeting_context(owner_id) if owner_id else None
+    agent_system_prompt = agent.get("system_prompt", "")
+    if meeting_ctx:
+        agent_system_prompt += (
+            "\n\nYou can also book meetings on the account owner's calendar. "
+            f"Meetings are {meeting_ctx['duration_minutes']} minutes long. "
+            f"Available windows: {meeting_ctx['availability_text']}. "
+            "The lead's name and phone number are already provided below — never ask for them again. "
+            "If the lead wants to schedule a meeting, ask for their preferred date and time, "
+            "then confirm it by calling the booking webhook with that date/time. "
+            "If the webhook says the slot isn't available, offer one of the alternatives it returns."
+        )
+
+    try:
+        resp = requests.post(
+            f"{EVA_API_BASE_URL}/api/calls/voicelink",
+            headers={"X-Eva-Secret": EVA_API_SECRET, "Content-Type": "application/json"},
+            json={
+                "call_id": call_id,
+                "customer_number": to_number,
+                "did_number": did_number,
+                "voicelink_login_email": voicelink_creds.get("login_email"),
+                "voicelink_login_password": voicelink_creds.get("login_password"),
+                "custom_parameters": json.dumps({"call_id": call_id}),
+                "agent": {
+                    "name": agent.get("name", ""),
+                    "system_prompt": agent_system_prompt,
+                    "opening_line": agent.get("opening_line", ""),
+                    "min_duration_secs": agent.get("min_duration_secs", 20),
+                    "max_duration_secs": agent.get("max_duration_secs", 180),
+                },
+                "lead": {
+                    "name": lead.get("name", ""), "business_name": lead.get("business_name", ""),
+                    "email": lead.get("email", ""), "phone": lead.get("phone", ""),
+                    "website": lead.get("website", ""), "description": lead.get("description", ""),
+                },
+                "meeting": ({
+                    "owner_id": owner_id,
+                    "lead_id": str(lead.get("_id", "")) if lead.get("_id") else "",
+                    "agent_id": str(agent.get("_id", "")) if agent.get("_id") else "",
+                    **meeting_ctx,
+                } if meeting_ctx else None),
+                "callback_url": f"{PRAVAAH_PUBLIC_BASE_URL}/api/eva-webhook/call-result",
+            },
+            timeout=20,
+        )
+        data = resp.json()
+        if resp.status_code >= 400:
+            return {"success": False, "error": data.get("error", "Eva rejected the VoiceLink call request")}
+        return {"success": True, "call_sid": data.get("outbound_queue_id") or data.get("call_sid")}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, campaign_id=None):
     raw_phone = lead.get("phone", "")
     to_number_e164 = _e164(raw_phone)
@@ -5180,14 +5297,34 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
     inserted = calls_col.insert_one(call_doc)
     call_id = str(inserted.inserted_id)
 
-    # Prefer a VaniSetu caller ID assigned to this agent — falls back to
-    # the owner's own Twilio creds if none is configured.
-    vanisetu_row = caller_ids_col.find_one({
+    # Prefer whichever caller ID is assigned to this agent (VaniSetu or
+    # VoiceLink) — falls back to the owner's own Twilio creds if none is configured.
+    caller_row = caller_ids_col.find_one({
         "owner_id": owner_id, "agent_id": str(agent["_id"]), "status": "active",
         "direction": {"$in": ["outbound", "both"]},
     })
 
-    if vanisetu_row:
+    if caller_row and caller_row.get("provider") == "voicelink":
+        voicelink_creds = voicelink_col.find_one({"owner_id": owner_id}) or {}
+        to_number_voicelink = _voicelink_dial_number(raw_phone)
+        if not to_number_voicelink:
+            calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
+                "status": "failed", "hangup_reason": "Invalid phone number",
+                "ended_at": datetime.utcnow(),
+            }})
+            return {"success": False, "error": "Invalid phone number", "call_id": call_id}
+        if not (voicelink_creds.get("login_email") and voicelink_creds.get("login_password")):
+            calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
+                "status": "failed", "hangup_reason": "VoiceLink is not configured in Settings",
+                "ended_at": datetime.utcnow(),
+            }})
+            return {"success": False, "error": "VoiceLink is not configured in Settings", "call_id": call_id}
+
+        result = request_call_from_eva_voicelink(
+            call_id=call_id, to_number=to_number_voicelink, did_number=voicelink_creds.get("did_number", ""),
+            voicelink_creds=voicelink_creds, agent=agent, lead=lead, owner_id=owner_id,
+        )
+    elif caller_row:
         # VaniSetu dials in local Indian format — "0" + number, no +91/91.
         to_number_local = _local_dial_number(raw_phone)
         if not to_number_local:
@@ -5198,17 +5335,17 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
             return {"success": False, "error": "Invalid phone number", "call_id": call_id}
 
         result = request_call_from_eva_vanisetu(
-            call_id=call_id, to_number=to_number_local, caller_id=vanisetu_row["number"],
+            call_id=call_id, to_number=to_number_local, caller_id=caller_row["number"],
             agent=agent, lead=lead, owner_id=owner_id,
         )
     else:
         from_number = _e164((voip or {}).get("from_number", ""))
         if not from_number:
             calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
-                "status": "failed", "hangup_reason": "No VaniSetu number or Twilio number configured",
+                "status": "failed", "hangup_reason": "No caller ID or Twilio number configured",
                 "ended_at": datetime.utcnow(),
             }})
-            return {"success": False, "error": "No VaniSetu number or Twilio number configured for this agent", "call_id": call_id}
+            return {"success": False, "error": "No caller ID or Twilio number configured for this agent", "call_id": call_id}
         result = request_call_from_eva(
             call_id=call_id, to_number=to_number_e164,
             twilio_creds={**voip, "from_number": from_number}, agent=agent, lead=lead,
