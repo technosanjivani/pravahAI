@@ -5012,13 +5012,15 @@ def _local_dial_number(num: str) -> str:
 
 
 def _voicelink_dial_number(num: str) -> str:
-    """VoiceLink's add_lead API wants digits + country code, no '+' and no
-    leading 0 — e.g. '919876543210'. Used only for the VoiceLink outbound path."""
+    """Bare 10-digit number only — no '+', no leading 0, no country code
+    (91). Strips whatever format the lead's number was stored in down to
+    just the last 10 digits, per how this VoiceLink account expects calls
+    to be placed."""
     digits = re.sub(r"\D", "", num or "")
     digits = digits.lstrip("0")
-    if len(digits) == 10:          # bare 10-digit mobile, no country code yet
-        digits = "91" + digits
-    return digits
+    if digits.startswith("91") and len(digits) > 10:
+        digits = digits[2:]
+    return digits[-10:] if len(digits) >= 10 else digits
 
  
 def _mistral_chat(system_prompt, user_prompt, force_json=False):
