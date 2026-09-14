@@ -575,6 +575,18 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
         <div class="sub">Connect the phone line Eva dials out from. These are your own provider credentials.</div>
       </div>
     </div>
+
+    <div class="panel-block" style="margin-bottom:24px;">
+      <h3>Active outbound calling provider</h3>
+      <div class="sub" style="margin-bottom:12px;">Only one provider places calls at a time — switch here, no need to touch individual agents.</div>
+      <select id="activeCallingProvider" onchange="saveActiveCallingProvider()" style="max-width:320px;">
+        <option value="vanisetu">VaniSetu</option>
+        <option value="voicelink">VoiceLink</option>
+        <option value="twilio">Twilio</option>
+      </select>
+      <span class="hint" id="activeProviderStatus" style="margin-left:10px;"></span>
+    </div>
+
     <form class="panel-form" id="voipForm" onsubmit="saveVoip(event)" style="max-width:520px;">
       <div class="field">
         <label>Provider</label>
@@ -616,11 +628,7 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
         <label>Login password</label>
         <input type="password" id="voicelinkPassword" placeholder="Leave blank to keep current password">
       </div>
-      <div class="field">
-        <label>DID number</label>
-        <input type="text" id="voicelinkDid" placeholder="18001234567">
-        <div class="hint">Your purchased VoiceLink DID, in the format shown on your VoiceLink dashboard.</div>
-      </div>
+      <div class="hint" style="margin-bottom:14px;">Add your VoiceLink DID(s) below under "Caller IDs" — pick VoiceLink as the provider for each number, same as VaniSetu numbers.</div>
       <button class="btn btn-primary" type="submit">Save VoiceLink account</button>
       <span class="hint" id="voicelinkStatus" style="margin-left:10px;"></span>
     </form>
@@ -1343,7 +1351,6 @@ async function saveVoip(e){
 async function loadVoicelink(){
   const d = await api('/api/voicelink');
   document.getElementById('voicelinkEmail').value = d.login_email || '';
-  document.getElementById('voicelinkDid').value = d.did_number || '';
   document.getElementById('voicelinkPassword').placeholder = d.configured ? 'Saved — leave blank to keep it' : 'Enter password';
 }
 
@@ -1353,11 +1360,24 @@ async function saveVoicelink(e){
     await api('/api/voicelink', {method:'POST', body: JSON.stringify({
       login_email: document.getElementById('voicelinkEmail').value.trim(),
       login_password: document.getElementById('voicelinkPassword').value.trim(),
-      did_number: document.getElementById('voicelinkDid').value.trim(),
     })});
     document.getElementById('voicelinkStatus').textContent = 'Saved ✓';
     document.getElementById('voicelinkPassword').value = '';
     setTimeout(() => document.getElementById('voicelinkStatus').textContent = '', 2500);
+  }catch(e){ toast(e.message); }
+}
+
+async function loadActiveCallingProvider(){
+  const d = await api('/api/voip');
+  document.getElementById('activeCallingProvider').value = d.active_provider || 'vanisetu';
+}
+
+async function saveActiveCallingProvider(){
+  const provider = document.getElementById('activeCallingProvider').value;
+  try{
+    await api('/api/voip', {method:'POST', body: JSON.stringify({ active_provider: provider })});
+    document.getElementById('activeProviderStatus').textContent = 'Saved ✓';
+    setTimeout(() => document.getElementById('activeProviderStatus').textContent = '', 2000);
   }catch(e){ toast(e.message); }
 }
 
@@ -1613,7 +1633,7 @@ function escapeHtml(s){
 
 // ---------------- init ----------------
 (async function init(){
-    await Promise.all([loadMinutes(), loadAgents(), loadCampaigns(), loadCalls(), loadVoip(), loadVoicelink(), loadLeads(), loadMeetingTemplate(), loadCallerIds()]);
+    await Promise.all([loadMinutes(), loadAgents(), loadCampaigns(), loadCalls(), loadVoip(), loadVoicelink(), loadActiveCallingProvider(), loadLeads(), loadMeetingTemplate(), loadCallerIds()]);
   computeDashboardStats();
   renderDashCampaigns();
   renderDashRecentCalls();

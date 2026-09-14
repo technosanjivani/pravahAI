@@ -3157,7 +3157,6 @@ def api_get_voicelink():
     doc = voicelink_col.find_one({"owner_id": current_user_id()}) or {}
     return jsonify({
         "login_email": doc.get("login_email", ""),
-        "did_number": doc.get("did_number", ""),
         "configured": bool(doc.get("login_email") and doc.get("login_password")),
     })
 
@@ -3171,7 +3170,6 @@ def api_save_voicelink():
     update = {
         "owner_id": current_user_id(),
         "login_email": (data.get("login_email") or existing.get("login_email", "")).strip(),
-        "did_number": (data.get("did_number") or existing.get("did_number", "")).strip(),
     }
     if data.get("login_password"):
         update["login_password"] = data["login_password"].strip()
@@ -5297,22 +5295,23 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
     inserted = calls_col.insert_one(call_doc)
     call_id = str(inserted.inserted_id)
 
-    # Prefer whichever caller ID is assigned to this agent (VaniSetu or
-    # VoiceLink) — falls back to the owner's own Twilio creds if none is configured.
-    caller_row = caller_ids_col.find_one({
-        "owner_id": owner_id, "agent_id": str(agent["_id"]), "status": "active",
-        "direction": {"$in": ["outbound", "both"]},
-    })
+    # ONE account-wide toggle (Calling Settings) decides which provider
+    # EVERY agent dials through — not a per-agent fallback chain anymore.
+    active_provider = (voip or {}).get("active_provider", "vanisetu")
 
-    if caller_row and caller_row.get("provider") == "voicelink":
-        voicelink_creds = voicelink_col.find_one({"owner_id": owner_id}) or {}
-        to_number_voicelink = _voicelink_dial_number(raw_phone)
-        if not to_number_voicelink:
+    if active_provider == "voicelink":
+        caller_row = caller_ids_col.find_one({
+            "owner_id": owner_id, "agent_id": str(agent["_id"]), "status": "active",
+            "provider": "voicelink", "direction": {"$in": ["outbound", "both"]},
+        })
+        if not caller_row:
             calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
-                "status": "failed", "hangup_reason": "Invalid phone number",
+                "status": "failed", "hangup_reason": "No VoiceLink caller ID assigned to this agent",
                 "ended_at": datetime.utcnow(),
             }})
-            return {"success": False, "error": "Invalid phone number", "call_id": call_id}
+            return {"success": False, "error": "No VoiceLink caller ID assigned to this agent", "call_id": call_id}
+
+        voicelink_creds = voicelink_col.find_one({"owner_id": owner_id}) or {}
         if not (voicelink_creds.get("login_email") and voicelink_creds.get("login_password")):
             calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
                 "status": "failed", "hangup_reason": "VoiceLink is not configured in Settings",
@@ -5320,12 +5319,45 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
             }})
             return {"success": False, "error": "VoiceLink is not configured in Settings", "call_id": call_id}
 
+        to_number_voicelink = _voicelink_dial_number(raw_phone)
+        if not to_number_voicelink:
+            calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
+                "status": "failed", "hangup_reason": "Invalid phone number",
+                "ended_at": datetime.utcnow(),
+            }})
+            return {"success": False, "error": "Invalid phone number", "call_id": call_id}
+
         result = request_call_from_eva_voicelink(
-            call_id=call_id, to_number=to_number_voicelink, did_number=voicelink_creds.get("did_number", ""),
+            call_id=call_id, to_number=to_number_voicelink, did_number=caller_row["number"],
             voicelink_creds=voicelink_creds, agent=agent, lead=lead, owner_id=owner_id,
         )
-    elif caller_row:
-        # VaniSetu dials in local Indian format — "0" + number, no +91/91.
+
+    elif active_provider == "twilio":
+        from_number = _e164((voip or {}).get("from_number", ""))
+        if not from_number:
+            calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
+                "status": "failed", "hangup_reason": "No Twilio number configured",
+                "ended_at": datetime.utcnow(),
+            }})
+            return {"success": False, "error": "No Twilio number configured for this account", "call_id": call_id}
+        result = request_call_from_eva(
+            call_id=call_id, to_number=to_number_e164,
+            twilio_creds={**voip, "from_number": from_number}, agent=agent, lead=lead,
+            owner_id=owner_id,
+        )
+
+    else:  # "vanisetu" (default)
+        caller_row = caller_ids_col.find_one({
+            "owner_id": owner_id, "agent_id": str(agent["_id"]), "status": "active",
+            "provider": {"$ne": "voicelink"}, "direction": {"$in": ["outbound", "both"]},
+        })
+        if not caller_row:
+            calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
+                "status": "failed", "hangup_reason": "No VaniSetu caller ID assigned to this agent",
+                "ended_at": datetime.utcnow(),
+            }})
+            return {"success": False, "error": "No VaniSetu caller ID assigned to this agent", "call_id": call_id}
+
         to_number_local = _local_dial_number(raw_phone)
         if not to_number_local:
             calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
@@ -5337,19 +5369,6 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
         result = request_call_from_eva_vanisetu(
             call_id=call_id, to_number=to_number_local, caller_id=caller_row["number"],
             agent=agent, lead=lead, owner_id=owner_id,
-        )
-    else:
-        from_number = _e164((voip or {}).get("from_number", ""))
-        if not from_number:
-            calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
-                "status": "failed", "hangup_reason": "No caller ID or Twilio number configured",
-                "ended_at": datetime.utcnow(),
-            }})
-            return {"success": False, "error": "No caller ID or Twilio number configured for this agent", "call_id": call_id}
-        result = request_call_from_eva(
-            call_id=call_id, to_number=to_number_e164,
-            twilio_creds={**voip, "from_number": from_number}, agent=agent, lead=lead,
-            owner_id=owner_id,
         )
 
     if result.get("success"):
@@ -5569,6 +5588,7 @@ def init_eva(app, db, users_col, leads_col):
             "auth_token": "\u25cf" * 8 if doc.get("auth_token") else "",
             "from_number": doc.get("from_number", ""),
             "configured": bool(doc.get("account_sid") and doc.get("auth_token") and doc.get("from_number")),
+            "active_provider": doc.get("active_provider", "vanisetu"),  # "twilio" | "vanisetu" | "voicelink"
         })
  
     @app.route("/api/voip", methods=["POST"])
@@ -5586,6 +5606,8 @@ def init_eva(app, db, users_col, leads_col):
             update["auth_token"] = data["auth_token"].strip()
         else:
             update["auth_token"] = existing.get("auth_token", "")
+        if data.get("active_provider") in ("twilio", "vanisetu", "voicelink"):
+            update["active_provider"] = data["active_provider"]
         voip_col.update_one({"owner_id": current_user_id()}, {"$set": update}, upsert=True)
         return jsonify({"saved": True})
  
