@@ -621,8 +621,8 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
     </div>
     <form class="panel-form" id="voicelinkForm" onsubmit="saveVoicelink(event)" style="max-width:520px;">
       <div class="field">
-        <label>Login email</label>
-        <input type="text" id="voicelinkEmail" placeholder="you@example.com">
+        <label>Username</label>
+        <input type="text" id="voicelinkUsername" placeholder="your VoiceLink username">
       </div>
       <div class="field">
         <label>Login password</label>
@@ -1350,7 +1350,7 @@ async function saveVoip(e){
 
 async function loadVoicelink(){
   const d = await api('/api/voicelink');
-  document.getElementById('voicelinkEmail').value = d.login_email || '';
+  document.getElementById('voicelinkUsername').value = d.login_username || '';
   document.getElementById('voicelinkPassword').placeholder = d.configured ? 'Saved — leave blank to keep it' : 'Enter password';
 }
 
@@ -1358,7 +1358,7 @@ async function saveVoicelink(e){
   e.preventDefault();
   try{
     await api('/api/voicelink', {method:'POST', body: JSON.stringify({
-      login_email: document.getElementById('voicelinkEmail').value.trim(),
+      login_username: document.getElementById('voicelinkUsername').value.trim(),
       login_password: document.getElementById('voicelinkPassword').value.trim(),
     })});
     document.getElementById('voicelinkStatus').textContent = 'Saved ✓';

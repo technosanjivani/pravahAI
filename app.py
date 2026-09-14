@@ -3156,8 +3156,8 @@ def api_delete_caller_id(caller_id):
 def api_get_voicelink():
     doc = voicelink_col.find_one({"owner_id": current_user_id()}) or {}
     return jsonify({
-        "login_email": doc.get("login_email", ""),
-        "configured": bool(doc.get("login_email") and doc.get("login_password")),
+        "login_username": doc.get("login_username", ""),
+        "configured": bool(doc.get("login_username") and doc.get("login_password")),
     })
 
 
@@ -3169,7 +3169,7 @@ def api_save_voicelink():
     existing = voicelink_col.find_one({"owner_id": current_user_id()}) or {}
     update = {
         "owner_id": current_user_id(),
-        "login_email": (data.get("login_email") or existing.get("login_email", "")).strip(),
+        "login_username": (data.get("login_username") or existing.get("login_username", "")).strip(),
     }
     if data.get("login_password"):
         update["login_password"] = data["login_password"].strip()
@@ -5247,7 +5247,7 @@ def request_call_from_eva_voicelink(call_id, to_number, did_number, voicelink_cr
                 "call_id": call_id,
                 "customer_number": to_number,
                 "did_number": did_number,
-                "voicelink_login_email": voicelink_creds.get("login_email"),
+                "voicelink_login_username": voicelink_creds.get("login_username"),
                 "voicelink_login_password": voicelink_creds.get("login_password"),
                 "custom_parameters": json.dumps({"call_id": call_id}),
                 "agent": {
@@ -5312,7 +5312,7 @@ def place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, c
             return {"success": False, "error": "No VoiceLink caller ID assigned to this agent", "call_id": call_id}
 
         voicelink_creds = voicelink_col.find_one({"owner_id": owner_id}) or {}
-        if not (voicelink_creds.get("login_email") and voicelink_creds.get("login_password")):
+        if not (voicelink_creds.get("login_username") and voicelink_creds.get("login_password")):
             calls_col.update_one({"_id": inserted.inserted_id}, {"$set": {
                 "status": "failed", "hangup_reason": "VoiceLink is not configured in Settings",
                 "ended_at": datetime.utcnow(),
