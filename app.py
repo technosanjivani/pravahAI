@@ -208,7 +208,7 @@ inventory_col         = db["pravah-inventory"]             # real-estate propert
 site_visits_col       = db["pravah-site-visits"]
 caller_ids_col         = db["pravah-caller-ids"]            # VaniSetu/VoiceLink number -> owner + agent mapping
 voicelink_col          = db["pravah-voicelink"]              # per-owner VoiceLink login + DID config
-
+scheduled_calls_col    = db["pravah-scheduled-calls"]        # leads queued for auto-call until office hours open
 # ----------------------------------
 # Create Indexes
 # ----------------------------------
@@ -248,6 +248,8 @@ try:
     caller_ids_col.create_index("owner_id")
     caller_ids_col.create_index("number", unique=True)
     voicelink_col.create_index("owner_id", unique=True)
+    scheduled_calls_col.create_index("owner_id")
+    scheduled_calls_col.create_index([("status", 1), ("scheduled_at", 1)])
 
     push_subs_col = db["pravah-push-subs"]
     push_subs_col.create_index("owner_id")
@@ -1245,6 +1247,84 @@ def classify_lead_temperature(lead: dict, incoming_message: str, history: list, 
 # ----------------------------------
 # Team round-robin assignment
 # ----------------------------------
+
+# ----------------------------------
+# Office hours + auto-call-new-leads helpers
+# ----------------------------------
+
+IST_OFFSET = timedelta(hours=5, minutes=30)  # office-hours checks assume IST
+
+
+def _now_ist():
+    return datetime.utcnow() + IST_OFFSET
+
+
+def is_within_office_hours(agent: dict, dt=None) -> bool:
+    """True if `dt` (defaults to now, IST) falls inside this agent's
+    configured office hours. If office hours aren't enabled on the agent,
+    it's always considered open."""
+    if not agent.get("office_hours_enabled"):
+        return True
+    dt = dt or _now_ist()
+    days = agent.get("office_hours_days") or ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    weekday = dt.strftime("%A").lower()
+    if weekday not in days:
+        return False
+    hhmm = dt.strftime("%H:%M")
+    start = agent.get("office_hours_start", "09:00")
+    end = agent.get("office_hours_end", "18:00")
+    return start <= hhmm <= end
+
+
+def next_office_hours_start_utc(agent: dict) -> datetime:
+    """Scans forward (IST) to the next moment this agent's office hours
+    open, and returns that instant converted back to naive UTC."""
+    days = agent.get("office_hours_days") or ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    start = agent.get("office_hours_start", "09:00")
+    try:
+        start_h, start_m = [int(x) for x in start.split(":")]
+    except Exception:
+        start_h, start_m = 9, 0
+
+    now_ist = _now_ist()
+    for i in range(8):  # look up to a week ahead
+        candidate_date = (now_ist + timedelta(days=i)).date()
+        weekday = candidate_date.strftime("%A").lower()
+        if weekday not in days:
+            continue
+        candidate_ist = datetime.combine(candidate_date, datetime.min.time()) + timedelta(hours=start_h, minutes=start_m)
+        if candidate_ist > now_ist:
+            return candidate_ist - IST_OFFSET
+    return now_ist - IST_OFFSET + timedelta(days=1)  # fallback
+
+
+def auto_call_new_lead(owner_id: str, lead: dict):
+    """Called right after a new lead is created. Finds this owner's
+    auto-call-enabled agent (if any) and either calls immediately (inside
+    office hours) or queues it for the next business-hours slot."""
+    if not owner_id or not lead or not lead.get("phone"):
+        return
+    agent = db["pravah-agents"].find_one({"owner_id": owner_id, "auto_call_new_leads": True})
+    if not agent:
+        return
+
+    if is_within_office_hours(agent):
+        voip = db["pravah-voip"].find_one({"owner_id": owner_id})
+        place_outbound_call(
+            owner_id, lead, agent, voip,
+            db["pravah-call-campaigns"], db["pravah-calls"], campaign_id=None,
+        )
+    else:
+        scheduled_at = next_office_hours_start_utc(agent)
+        scheduled_calls_col.insert_one({
+            "owner_id": owner_id,
+            "lead_id": str(lead.get("_id", "")),
+            "agent_id": str(agent["_id"]),
+            "scheduled_at": scheduled_at,
+            "status": "pending",
+            "created_at": datetime.utcnow(),
+        })
+
 
 def assign_round_robin(owner_id: str):
     """Picks the next active team member in rotation and returns their id
@@ -2250,6 +2330,7 @@ def api_eva_webhook_widget_lead():
         new_lead = leads_col.find_one({"_id": inserted.inserted_id})
         fire_trigger_campaigns(owner_id, new_lead, "lead_added")   # 🔔 trigger campaigns
         fire_status_trigger(owner_id, new_lead, "", "warm")        # 🔔 trigger campaigns
+        auto_call_new_lead(owner_id, new_lead)                     # 📞 auto-call (office-hours aware)
         send_push_notification(owner_id, "🆕 New Lead (Web Widget)", f"{name} just chatted with your widget")
 
     return jsonify({"received": True, "lead_id": lead_id})
@@ -2375,6 +2456,7 @@ def api_create_lead():
     result = leads_col.insert_one(lead)
     saved  = leads_col.find_one({"_id": result.inserted_id})
     fire_trigger_campaigns(current_user_id(), saved, "lead_added")   # 🔔 trigger campaigns
+    auto_call_new_lead(current_user_id(), saved)                     # 📞 auto-call (office-hours aware)
     send_push_notification(
         current_user_id(), "🆕 New Lead",
         f"{saved.get('name','A lead')} was just added" + (f" — {saved.get('business_name')}" if saved.get('business_name') else ""),
@@ -2412,6 +2494,7 @@ def api_bulk_save_leads():
             result = leads_col.insert_one(lead)
             created = leads_col.find_one({"_id": result.inserted_id})
             fire_trigger_campaigns(current_user_id(), created, "lead_added")   # 🔔 trigger campaigns
+            auto_call_new_lead(current_user_id(), created)                    # 📞 auto-call (office-hours aware)
             send_push_notification(current_user_id(), "🆕 New Lead", f"{created.get('name','A lead')} was just added")
             saved_leads.append(serialize_lead(created))
     return jsonify({"leads": saved_leads, "saved": len(saved_leads), "skipped": skipped})
@@ -2624,6 +2707,7 @@ def api_import_leads():
         leads_col.insert_many(docs)
         for d in docs:
             fire_trigger_campaigns(current_user_id(), d, "lead_added")   # 🔔 trigger campaigns
+            auto_call_new_lead(current_user_id(), d)                    # 📞 auto-call (office-hours aware)
         send_push_notification(
             current_user_id(), "📥 Leads Imported",
             f"{len(docs)} new lead{'s' if len(docs)!=1 else ''} imported from your file",
@@ -3058,6 +3142,27 @@ def api_update_site_visit_status(visit_id):
 # ==================================================================
 # VANISETU CALLER IDs  (owner dashboard CRUD + public lookup for Eva)
 # ==================================================================
+
+@app.route("/api/scheduled-calls", methods=["GET"])
+@login_required
+def api_list_scheduled_calls():
+    rows = list(scheduled_calls_col.find(
+        {"owner_id": current_user_id(), "status": "pending"}
+    ).sort("scheduled_at", 1).limit(100))
+    agents_map = {str(a["_id"]): a.get("name", "") for a in db["pravah-agents"].find({"owner_id": current_user_id()})}
+    out = []
+    for r in rows:
+        lead = None
+        if r.get("lead_id") and ObjectId.is_valid(r["lead_id"]):
+            lead = leads_col.find_one({"_id": ObjectId(r["lead_id"])})
+        out.append({
+            "_id": str(r["_id"]),
+            "lead_name": lead.get("name", "") if lead else "",
+            "agent_name": agents_map.get(r.get("agent_id", ""), ""),
+            "scheduled_at": r["scheduled_at"].isoformat() if r.get("scheduled_at") else None,
+        })
+    return jsonify({"scheduled_calls": out})
+
 
 @app.route("/api/caller-ids", methods=["GET"])
 @login_required
@@ -3610,24 +3715,43 @@ def api_set_campaign_trigger(campaign_id):
 @owner_required
 def api_campaigns_call_readiness():
     """Tells the flow builder whether the 'Call' step can be used, and
-    which agents are actually call-ready (VaniSetu caller ID assigned, or
-    Twilio VOIP creds saved) — so the Call node only ever offers agents
-    that will really be able to dial."""
+    which agents are actually call-ready — checked against whichever
+    provider is currently ACTIVE (Calling Settings), since that's the one
+    place_outbound_call() will actually use at runtime. A caller ID for a
+    provider that isn't active does NOT make an agent ready."""
     owner_id = current_user_id()
     voip = db["pravah-voip"].find_one({"owner_id": owner_id}) or {}
+    active_provider = voip.get("active_provider", "vanisetu")
     has_twilio = bool(voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number"))
+    voicelink_creds = voicelink_col.find_one({"owner_id": owner_id}) or {}
+    has_voicelink_creds = bool(voicelink_creds.get("login_username") and voicelink_creds.get("login_password"))
+
     agents = list(db["pravah-agents"].find({"owner_id": owner_id}).sort("created_at", -1))
     out = []
     for a in agents:
-        has_vanisetu = bool(caller_ids_col.find_one({
-            "owner_id": owner_id, "agent_id": str(a["_id"]), "status": "active",
-            "direction": {"$in": ["outbound", "both"]},
-        }))
+        if active_provider == "twilio":
+            call_ready = has_twilio
+        elif active_provider == "voicelink":
+            has_caller_id = bool(caller_ids_col.find_one({
+                "owner_id": owner_id, "agent_id": str(a["_id"]), "status": "active",
+                "provider": "voicelink", "direction": {"$in": ["outbound", "both"]},
+            }))
+            call_ready = has_voicelink_creds and has_caller_id
+        else:  # vanisetu
+            has_caller_id = bool(caller_ids_col.find_one({
+                "owner_id": owner_id, "agent_id": str(a["_id"]), "status": "active",
+                "provider": {"$ne": "voicelink"}, "direction": {"$in": ["outbound", "both"]},
+            }))
+            call_ready = has_caller_id
         out.append({
             "_id": str(a["_id"]), "name": a.get("name", ""),
-            "call_ready": has_twilio or has_vanisetu,
+            "call_ready": call_ready,
         })
-    return jsonify({"any_ready": any(a["call_ready"] for a in out), "agents": out})
+    return jsonify({
+        "any_ready": any(a["call_ready"] for a in out),
+        "active_provider": active_provider,
+        "agents": out,
+    })
 
 
 @app.route("/api/campaigns/<campaign_id>/logs", methods=["GET"])
@@ -5456,6 +5580,11 @@ def init_eva(app, db, users_col, leads_col):
             "speaker": a.get("speaker", ""), "opening_line": a.get("opening_line", ""),
             "whatsapp_details": a.get("whatsapp_details", ""),
             "min_duration_secs": a.get("min_duration_secs", 20), "max_duration_secs": a.get("max_duration_secs", 180),
+            "auto_call_new_leads": bool(a.get("auto_call_new_leads", False)),
+            "office_hours_enabled": bool(a.get("office_hours_enabled", False)),
+            "office_hours_start": a.get("office_hours_start", "09:00"),
+            "office_hours_end": a.get("office_hours_end", "18:00"),
+            "office_hours_days": a.get("office_hours_days") or ["monday","tuesday","wednesday","thursday","friday","saturday"],
             "created_at": a.get("created_at").isoformat() if a.get("created_at") else None,
         }
  
@@ -5503,6 +5632,11 @@ def init_eva(app, db, users_col, leads_col):
         name = (data.get("name") or "").strip()
         if not name:
             return jsonify({"error": "Agent name is required"}), 400
+        days_in = data.get("office_hours_days")
+        valid_days = {"monday","tuesday","wednesday","thursday","friday","saturday","sunday"}
+        office_days = [d for d in days_in if d in valid_days] if isinstance(days_in, list) else \
+            ["monday","tuesday","wednesday","thursday","friday","saturday"]
+
         doc = {
             "owner_id": current_user_id(), "name": name,
             "system_prompt": (data.get("system_prompt") or "").strip(),
@@ -5513,6 +5647,11 @@ def init_eva(app, db, users_col, leads_col):
             "min_duration_secs": int(data.get("min_duration_secs", 20) or 20),
             "max_duration_secs": int(data.get("max_duration_secs", 180) or 180),
             "whatsapp_details": (data.get("whatsapp_details") or "").strip(),
+            "auto_call_new_leads": bool(data.get("auto_call_new_leads", False)),
+            "office_hours_enabled": bool(data.get("office_hours_enabled", False)),
+            "office_hours_start": (data.get("office_hours_start") or "09:00").strip(),
+            "office_hours_end": (data.get("office_hours_end") or "18:00").strip(),
+            "office_hours_days": office_days,
             "created_at": datetime.utcnow(), "updated_at": datetime.utcnow(),
         }
         result = agents_col.insert_one(doc)
@@ -5538,6 +5677,17 @@ def init_eva(app, db, users_col, leads_col):
             update["min_duration_secs"] = int(data["min_duration_secs"] or 20)
         if "max_duration_secs" in data:
             update["max_duration_secs"] = int(data["max_duration_secs"] or 180)
+        if "auto_call_new_leads" in data:
+            update["auto_call_new_leads"] = bool(data["auto_call_new_leads"])
+        if "office_hours_enabled" in data:
+            update["office_hours_enabled"] = bool(data["office_hours_enabled"])
+        if "office_hours_start" in data:
+            update["office_hours_start"] = (data.get("office_hours_start") or "09:00").strip()
+        if "office_hours_end" in data:
+            update["office_hours_end"] = (data.get("office_hours_end") or "18:00").strip()
+        if "office_hours_days" in data and isinstance(data["office_hours_days"], list):
+            valid_days = {"monday","tuesday","wednesday","thursday","friday","saturday","sunday"}
+            update["office_hours_days"] = [d for d in data["office_hours_days"] if d in valid_days]
         result = agents_col.update_one({"_id": oid, "owner_id": current_user_id()}, {"$set": update})
         if result.matched_count == 0:
             return jsonify({"error": "Agent not found"}), 404
@@ -6097,8 +6247,37 @@ def _meeting_reminder_scanner():
                 meetings_col.update_one({"_id": m["_id"]}, {"$set": {"reminder_5_sent": True}})
 
 
+def _scheduled_calls_scanner():
+    """Every minute, places calls that were queued because a new lead came
+    in outside an agent's office hours and are now due."""
+    while True:
+        time.sleep(60)
+        try:
+            due = list(scheduled_calls_col.find({
+                "status": "pending", "scheduled_at": {"$lte": datetime.utcnow()},
+            }))
+        except Exception as e:
+            log("SCHEDULED-CALL", f"scan error: {e}")
+            continue
+        for s in due:
+            scheduled_calls_col.update_one({"_id": s["_id"]}, {"$set": {"status": "processed"}})
+            try:
+                lead = leads_col.find_one({"_id": ObjectId(s["lead_id"])}) if ObjectId.is_valid(s.get("lead_id","")) else None
+                agent = db["pravah-agents"].find_one({"_id": ObjectId(s["agent_id"])}) if ObjectId.is_valid(s.get("agent_id","")) else None
+                voip = db["pravah-voip"].find_one({"owner_id": s["owner_id"]})
+            except Exception:
+                continue
+            if not (lead and agent):
+                continue
+            place_outbound_call(
+                s["owner_id"], lead, agent, voip,
+                db["pravah-call-campaigns"], db["pravah-calls"], campaign_id=None,
+            )
+
+
 threading.Thread(target=_wa_campaign_scheduler, daemon=True, name="PravaahCampaignScheduler").start()
 threading.Thread(target=_meeting_reminder_scanner, daemon=True, name="PravaahMeetingReminderScanner").start()
+threading.Thread(target=_scheduled_calls_scanner, daemon=True, name="PravaahScheduledCallScanner").start()
 
 init_eva(app, db, users_col, leads_col)
 if __name__ == "__main__":

@@ -1799,13 +1799,18 @@ async function loadCallReadiness() {
   } catch { callReadiness = { any_ready: false, agents: [] }; }
 }
 
+function providerLabel(key){
+  return {vanisetu:"VaniSetu", voicelink:"VoiceLink", twilio:"Twilio"}[key] || key || "your calling provider";
+}
+
 function updatePaletteCallAvailability() {
   const el = document.getElementById("palette-call");
   if (!el) return;
+  const label = providerLabel(callReadiness.active_provider);
   el.classList.toggle("disabled", !callReadiness.any_ready);
   el.title = callReadiness.any_ready
-    ? "Drag onto canvas — calls a lead using Eva"
-    : "No call-ready agent yet — set up a VaniSetu number or Twilio, and assign an agent, under Eva Voice AI";
+    ? `Drag onto canvas — calls a lead using Eva via ${label}`
+    : `No agent is call-ready via ${label} (your active provider) — set this up under Eva Voice AI → Calling Settings`;
 }
 
 function updateFbLeadCount() {
@@ -2092,8 +2097,9 @@ function inspectorFieldsHtml(node) {
   }
   if (node.type === "call") {
     const readyAgents = (callReadiness.agents || []).filter(a => a.call_ready);
+    const label = providerLabel(callReadiness.active_provider);
     if (!readyAgents.length) {
-      return `<div class="vars-hint" style="color:var(--red);">No call-ready agent yet. Go to <b>Eva Voice AI</b>, create/select an agent, and configure a VaniSetu caller ID or Twilio number for it — then come back and pick it here.</div>`;
+      return `<div class="vars-hint" style="color:var(--red);">No agent is ready to call via <b>${esc(label)}</b> (your active calling provider). Go to <b>Eva Voice AI → Calling Settings</b> and add a ${esc(label)} caller ID for an agent — or switch the active provider there if you meant to use a different one.</div>`;
     }
     return `
       <div class="step-field">
@@ -2103,7 +2109,7 @@ function inspectorFieldsHtml(node) {
           ${readyAgents.map(a => `<option value="${a._id}"${d.agent_id===a._id?" selected":""}>${esc(a.name)}</option>`).join("")}
         </select>
       </div>
-      <div class="vars-hint">Eva calls the lead using this agent's own opening line & system prompt (edit those under Eva Voice AI → Agents).</div>`;
+      <div class="vars-hint">Calls go out via <b>${esc(label)}</b> (your active calling provider), using this agent's own opening line & system prompt.</div>`;
   }
   if (node.type === "wait") {
     return `

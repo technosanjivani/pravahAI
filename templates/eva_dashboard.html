@@ -275,6 +275,32 @@ textarea{resize:vertical; min-height:80px;}
 .modal{background:#fff; border-radius:var(--radius-lg); padding:26px; width:100%; max-width:560px; box-shadow:0 24px 60px rgba(11,30,61,.22); animation:modalPop .3s cubic-bezier(.16,1,.3,1); border:1px solid var(--border);}
 @keyframes modalPop{from{opacity:0; transform:translateY(14px) scale(.97);} to{opacity:1; transform:translateY(0) scale(1);}}
 .modal h3{margin-top:0; font-size:17px; margin-bottom:16px;}
+.agent-tab-bar{display:flex; gap:6px; border-bottom:1px solid var(--border); margin-bottom:18px; flex-wrap:wrap;}
+.agent-tab-btn{background:none; border:none; padding:9px 14px; font-size:13px; font-weight:700; color:var(--text-b); cursor:pointer; border-bottom:2px solid transparent; font-family:inherit;}
+.agent-tab-btn:hover{color:var(--accent-1);}
+.agent-tab-btn.active{color:var(--accent-1); border-bottom-color:var(--accent-1);}
+.agent-tab-panel{display:none;}
+.agent-tab-panel.active{display:block; animation:fadeIn .25s ease;}
+.day-chip{display:inline-flex; align-items:center; gap:6px; background:var(--bg-hover); border:1px solid var(--border); padding:6px 12px; border-radius:99px; font-size:12.5px; font-weight:600; cursor:pointer;}
+.day-chip input{width:auto; accent-color:var(--accent-1);}
+
+.agents-layout{display:grid; grid-template-columns:250px 1fr; gap:20px; align-items:start;}
+.agents-sidebar{background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow-sm); position:sticky; top:0;}
+.agents-sidebar-label{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-dim); margin-bottom:10px;}
+.agent-list-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; cursor:pointer; margin-bottom:6px; transition:background .15s;}
+.agent-list-item:hover{background:var(--bg-hover);}
+.agent-list-item.active{background:rgba(37,99,235,.09);}
+.agent-list-avatar{width:34px; height:34px; border-radius:50%; background:var(--accent-grad); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0; position:relative;}
+.agent-list-avatar .dot{position:absolute; bottom:-1px; right:-1px; width:10px; height:10px; border-radius:50%; background:var(--green); border:2px solid #fff;}
+.agent-list-name{font-size:13.5px; font-weight:700; color:var(--text-h);}
+.agent-list-role{font-size:11.5px; color:var(--accent-1); font-weight:600;}
+.agents-panel{background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); min-height:560px;}
+.agents-panel-top{display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:10px;}
+.agents-panel-top h3{font-size:16px; margin:0;}
+.saved-pill{font-size:11.5px; font-weight:700; color:var(--green); background:rgba(8,145,178,.12); padding:4px 11px; border-radius:99px; opacity:0; transition:opacity .3s;}
+.saved-pill.show{opacity:1;}
+.agents-panel-body{padding:22px;}
+.agents-empty-state{padding:80px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 .modal-close{float:right; background:var(--bg-hover); border:1px solid var(--border); border-radius:8px; width:28px; height:28px; font-size:14px; cursor:pointer; color:var(--text-b); transition:all .18s;}
 .modal-close:hover{color:var(--red); background:rgba(220,38,38,.1); border-color:rgba(220,38,38,.25);}
 
@@ -382,10 +408,7 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1"/><circle cx="9" cy="14" r="1.2"/><circle cx="15" cy="14" r="1.2"/><path d="M4 13H2M22 13h-2"/></svg></span>
         Voice Agents
       </button>
-      <button class="nav-link" data-tab="campaigns">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 19 4c1 0 3 1 3 4a12.88 12.88 0 0 1-7.05 6c-.95.53-1.6 1.53-2 3z"/><path d="M9 12H4s.55-2.23 2-3c1.62-.87 4 0 4 0"/><path d="M12 15v5s2.23-.55 3-2c.87-1.62 0-4 0-4"/></svg></span>
-        Campaigns
-      </button>
+
       <button class="nav-link" data-tab="testcall">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
         Test Call
@@ -481,9 +504,10 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
 
     <div class="dash-grid">
       <div class="panel-block">
-        <h3>Active campaigns</h3>
-        <div id="dashCampaignList"></div>
-        <div class="empty" id="dashCampaignEmpty" style="display:none; padding:24px;">No campaigns running right now.</div>
+        <h3>Waiting for office hours</h3>
+        <div class="sub" style="margin-bottom:10px;">New leads that came in outside an agent's office hours — Eva will call them automatically once hours open.</div>
+        <div id="dashScheduledList"></div>
+        <div class="empty" id="dashScheduledEmpty" style="display:none; padding:24px;">Nothing queued.</div>
       </div>
       <div class="panel-block">
         <h3>Recent calls</h3>
@@ -495,32 +519,161 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
 
   <!-- ===================== AGENTS ===================== -->
   <div class="tab-panel" id="panel-agents">
-    <div class="row">
-      <div>
-        <h2>Voice agents</h2>
-        <div class="sub">Each agent is a persona Eva speaks as — its own name, prompt, voice and call limits.</div>
+    <div class="agents-layout">
+      <div class="agents-sidebar">
+        <div class="agents-sidebar-label">Your AI Agents</div>
+        <button class="btn btn-primary" style="width:100%; margin-bottom:14px;" onclick="newAgent()">+ Add New Agent</button>
+        <div id="agentsList"></div>
+        <div class="empty" id="agentsEmpty" style="display:none; padding:16px 4px; font-size:12px;">No agents yet.</div>
       </div>
-      <div style="display:flex; gap:10px;">
-        <button class="btn btn-ghost" onclick="openTestAgentModal()">💬 Test an agent</button>
-        <button class="btn btn-primary" onclick="openAgentModal()">+ New agent</button>
+
+      <div class="agents-panel" id="agentsPanel">
+        <div class="agents-empty-state" id="agentsPanelEmpty">Select an agent on the left, or create a new one to get started.</div>
+
+        <div id="agentsPanelContent" style="display:none;">
+          <div class="agents-panel-top">
+            <h3 id="agentPanelTitle">Agent Configuration</h3>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <button class="btn btn-ghost" onclick="openTestAgentModal()">🎧 Test Agent</button>
+              <button class="btn btn-ghost" onclick="newAgent()">+ Add Agent</button>
+              <span class="saved-pill" id="agentSavedPill">Saved</span>
+              <button class="btn btn-primary" onclick="saveAgent()">💾 Save</button>
+            </div>
+          </div>
+
+          <div class="agent-tab-bar" style="padding:0 22px; margin:14px 0 0;">
+            <button type="button" class="agent-tab-btn active" data-atab="profile" onclick="switchAgentTab('profile')">Profile</button>
+            <button type="button" class="agent-tab-btn" data-atab="role" onclick="switchAgentTab('role')">Role</button>
+            <button type="button" class="agent-tab-btn" data-atab="workflow" onclick="switchAgentTab('workflow')">Workflow</button>
+            <button type="button" class="agent-tab-btn" data-atab="hours" onclick="switchAgentTab('hours')">Office Hours</button>
+            <button type="button" class="agent-tab-btn" data-atab="actions" onclick="switchAgentTab('actions')">Actions</button>
+          </div>
+
+          <div class="agents-panel-body">
+            <!-- PROFILE -->
+            <div class="agent-tab-panel active" id="atab-profile">
+              <div class="two-col">
+                <div class="field">
+                  <label>Agent Avatar</label>
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <div class="agent-list-avatar" id="agentAvatarPreview" style="width:52px;height:52px;font-size:19px;">N</div>
+                    <div class="hint" style="margin:0;">Avatar is auto-generated from agent name.</div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Name</label>
+                  <input type="text" id="agentName" placeholder="e.g. Riya — Outbound Sales" oninput="onAgentNameInput()">
+                </div>
+              </div>
+              <div class="two-col">
+                <div class="field">
+                  <label>Voice gender</label>
+                  <select id="agentGender">
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Language</label>
+                  <select id="agentLanguage">
+                    <option value="auto">Auto-detect (mirror the lead)</option>
+                    <option value="en">English only</option>
+                    <option value="hi">Hinglish only</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label>Opening line</label>
+                <input type="text" id="agentOpening" placeholder="Hi {{name}}, this is calling from our team, got a minute?">
+                <div class="hint">Use {{name}}, {{business_name}} etc. — same merge tags as your WhatsApp/email templates.</div>
+              </div>
+            </div>
+
+            <!-- ROLE -->
+            <div class="agent-tab-panel" id="atab-role">
+              <div class="field">
+                <label>System prompt</label>
+                <textarea id="agentPrompt" placeholder="You are a warm, concise outbound sales agent for..." style="min-height:160px;"></textarea>
+              </div>
+              <div class="field">
+                <label>WhatsApp info Eva can send</label>
+                <textarea id="agentWhatsapp" placeholder="Pricing, catalog link, brochure text, etc. Eva will draft a WhatsApp message from this if the lead asks for details during the call."></textarea>
+              </div>
+            </div>
+
+            <!-- WORKFLOW -->
+            <div class="agent-tab-panel" id="atab-workflow">
+              <div class="two-col">
+                <div class="field">
+                  <label>Wait for reply (seconds)</label>
+                  <input type="number" id="agentMinDuration" value="20">
+                  <div class="hint">If the lead says nothing by this point, Eva hangs up as "no response".</div>
+                </div>
+                <div class="field">
+                  <label>Max call length (seconds)</label>
+                  <input type="number" id="agentMaxDuration" value="180">
+                  <div class="hint">Hard cap on how long Eva stays on any single call.</div>
+                </div>
+              </div>
+              <div class="field" style="background:var(--bg-hover); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px;">
+                <label style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                  <input type="checkbox" id="agentAutoCall" style="width:auto; accent-color:var(--accent-1);">
+                  Auto-call new leads
+                </label>
+                <div class="hint">When ON, Eva automatically calls every new lead as soon as it's added — respecting office hours below. When OFF, leads are only called manually or via campaigns/caller IDs.</div>
+              </div>
+            </div>
+
+            <!-- OFFICE HOURS -->
+            <div class="agent-tab-panel" id="atab-hours">
+              <div class="field">
+                <label style="display:flex; align-items:center; gap:10px;">
+                  <input type="checkbox" id="agentHoursEnabled" style="width:auto; accent-color:var(--accent-1);" onchange="toggleAgentHoursFields()">
+                  Restrict auto-calls to office hours
+                </label>
+                <div class="hint">If a new lead comes in outside these hours, Eva waits and calls automatically at the next available business hour instead of calling right away.</div>
+              </div>
+              <div id="agentHoursFields">
+                <div class="two-col">
+                  <div class="field">
+                    <label>Start time</label>
+                    <input type="time" id="agentHoursStart" value="09:00">
+                  </div>
+                  <div class="field">
+                    <label>End time</label>
+                    <input type="time" id="agentHoursEnd" value="18:00">
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Working days</label>
+                  <div id="agentHoursDays" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="agent-tab-panel" id="atab-actions">
+              <div class="field" style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:16px; margin-bottom:14px;">
+                <label style="margin-bottom:4px;">Test this agent</label>
+                <div class="hint" style="margin-bottom:10px;">Chat with this agent's persona in text, or place a real test call — no leads needed.</div>
+                <div style="display:flex; gap:10px;">
+                  <button class="btn btn-ghost" onclick="openTestAgentModal()">💬 Text chat test</button>
+                  <button class="btn btn-ghost" onclick="switchMainTab('testcall')">📞 Test call</button>
+                </div>
+              </div>
+              <div class="field" style="border:1px solid rgba(220,38,38,.25); background:var(--red-soft); border-radius:var(--radius-sm); padding:16px;">
+                <label style="color:var(--red); margin-bottom:4px;">Delete this agent</label>
+                <div class="hint" style="margin-bottom:10px;">This can't be undone. Campaigns, caller IDs and widgets using this agent will stop working.</div>
+                <button class="btn btn-danger" onclick="deleteAgent()">🗑 Delete agent</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="grid" id="agentsGrid"></div>
-    <div class="empty" id="agentsEmpty" style="display:none;">No agents yet. Create one to start calling leads.</div>
   </div>
 
-  <!-- ===================== CAMPAIGNS ===================== -->
-  <div class="tab-panel" id="panel-campaigns">
-    <div class="row">
-      <div>
-        <h2>Call campaigns</h2>
-        <div class="sub">Send one agent calling through a batch of leads. Eva calls, transcribes, and schedules follow-ups automatically.</div>
-      </div>
-      <button class="btn btn-primary" onclick="openCampaignModal()">+ New campaign</button>
-    </div>
-    <div class="grid" id="campaignsGrid"></div>
-    <div class="empty" id="campaignsEmpty" style="display:none;">No campaigns yet.</div>
-  </div>
+
 
   <!-- ===================== TEST CALL ===================== -->
   <div class="tab-panel" id="panel-testcall">
@@ -702,107 +855,9 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
   </div>
 </div>
 
-<!-- ===================== AGENT MODAL ===================== -->
-<div class="modal-overlay" id="agentModal">
-  <div class="modal">
-    <button class="modal-close" onclick="closeModal('agentModal')">✕</button>
-    <h3>New voice agent</h3>
-    <div class="field">
-      <label>Agent name</label>
-      <input type="text" id="agentName" placeholder="e.g. Riya — Outbound Sales">
-    </div>
-    <div class="two-col">
-      <div class="field">
-        <label>Voice gender</label>
-        <select id="agentGender">
-          <option value="female">Female</option>
-          <option value="male">Male</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Language</label>
-        <select id="agentLanguage">
-          <option value="auto">Auto-detect (mirror the lead)</option>
-          <option value="en">English only</option>
-          <option value="hi">Hinglish only</option>
-        </select>
-      </div>
-    </div>
-    <div class="field">
-      <label>Opening line</label>
-      <input type="text" id="agentOpening" placeholder="Hi {{name}}, this is calling from our team, got a minute?">
-      <div class="hint">Use {{name}}, {{business_name}} etc. — same merge tags as your WhatsApp/email templates.</div>
-    </div>
 
-    <div class="field">
-      <label>WhatsApp info Eva can send</label>
-      <textarea id="agentWhatsapp" placeholder="Pricing, catalog link, brochure text, etc. Eva will draft a WhatsApp message from this if the lead asks for details during the call."></textarea>
-    </div>
 
-    <div class="field">
-      <label>System prompt</label>
-      <textarea id="agentPrompt" placeholder="You are a warm, concise outbound sales agent for..."></textarea>
-    </div>
-    <div class="two-col">
-      <div class="field">
-        <label>Wait for reply (seconds)</label>
-        <input type="number" id="agentMinDuration" value="20">
-        <div class="hint">If the lead says nothing by this point, Eva hangs up as "no response".</div>
-      </div>
-      <div class="field">
-        <label>Max call length (seconds)</label>
-        <input type="number" id="agentMaxDuration" value="180">
-        <div class="hint">Hard cap on how long Eva stays on any single call.</div>
-      </div>
-    </div>
-    <button class="btn btn-primary" style="width:100%;" onclick="createAgent()">Create agent</button>
-  </div>
-</div>
 
-<!-- ===================== CAMPAIGN MODAL ===================== -->
-<div class="modal-overlay" id="campaignModal">
-  <div class="modal">
-    <button class="modal-close" onclick="closeModal('campaignModal')">✕</button>
-    <h3>New campaign</h3>
-    <div class="field">
-      <label>Campaign name</label>
-      <input type="text" id="campaignName" placeholder="e.g. July cold list — round 1">
-    </div>
-    <div class="field">
-      <label>Agent</label>
-      <select id="campaignAgent"></select>
-    </div>
-    <div class="field">
-      <label>Leads to call</label>
-      <div class="hint" style="margin-bottom:8px;">Leave all unchecked to call every lead, or pick specific ones below.</div>
-      <div class="lead-picker" id="leadPicker"></div>
-    </div>
-
-    <div class="field">
-      <label>When should this run?</label>
-      <div style="display:flex; gap:16px; margin-bottom:10px;">
-        <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:13px;">
-          <input type="radio" name="campaignSchedule" value="now" checked onchange="toggleScheduleFields()" style="width:auto; accent-color:var(--accent-1);"> Run now
-        </label>
-        <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:13px;">
-          <input type="radio" name="campaignSchedule" value="schedule" onchange="toggleScheduleFields()" style="width:auto; accent-color:var(--accent-1);"> Schedule for later
-        </label>
-      </div>
-      <div class="two-col" id="scheduleFields" style="display:none;">
-        <div class="field" style="margin-bottom:0;">
-          <label>Date</label>
-          <input type="date" id="campaignDate">
-        </div>
-        <div class="field" style="margin-bottom:0;">
-          <label>Time</label>
-          <input type="time" id="campaignTime">
-        </div>
-      </div>
-    </div>
-
-    <button class="btn btn-primary" style="width:100%;" onclick="createCampaign()">Create campaign</button>
-  </div>
-</div>
 
 <!-- ===================== CALL DETAIL MODAL ===================== -->
 <div class="modal-overlay" id="callModal">
@@ -887,9 +942,11 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
 
 <script>
 let AGENTS = [];
-let CAMPAIGNS = [];
 let LEADS = [];
 let CALLS = [];
+let SCHEDULED_CALLS = [];
+let EDITING_AGENT_ID = null;
+const OFFICE_DAYS = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"];
 
 // ---------------- sidebar nav ----------------
 document.querySelectorAll('.nav-link[data-tab]').forEach(btn => {
@@ -1086,69 +1143,199 @@ function renderDashRecentCalls(){
     </div>`).join('');
 }
 
+async function loadScheduledCalls(){
+  try{
+    const d = await api('/api/scheduled-calls');
+    SCHEDULED_CALLS = d.scheduled_calls || [];
+  }catch(e){ SCHEDULED_CALLS = []; }
+}
+
+function renderDashScheduled(){
+  const box = document.getElementById('dashScheduledList');
+  const empty = document.getElementById('dashScheduledEmpty');
+  empty.style.display = SCHEDULED_CALLS.length ? 'none' : 'block';
+  box.innerHTML = SCHEDULED_CALLS.map(s => `
+    <div class="queue-row">
+      <div>
+        <div class="qname">${escapeHtml(s.lead_name || 'Lead')}</div>
+        <div class="qmeta">${escapeHtml(s.agent_name || '—')} · calling at ${s.scheduled_at ? new Date(s.scheduled_at).toLocaleString() : '—'}</div>
+      </div>
+      <span class="status-pill status-scheduled">waiting</span>
+    </div>`).join('');
+}
+
 async function refreshDashboard(){
-  await Promise.all([loadCalls(), loadCampaigns(), loadLeads()]);
+  await Promise.all([loadCalls(), loadScheduledCalls(), loadLeads()]);
   computeDashboardStats();
-  renderDashCampaigns();
+  renderDashScheduled();
   renderDashRecentCalls();
   renderCallsLineChart();
 }
 
-// ---------------- agents ----------------
+// ---------------- agents (inline page UI, no modal) ----------------
+let AGENT_IS_NEW = false;
+
 async function loadAgents(){
   const d = await api('/api/agents');
   AGENTS = d.agents;
-  const grid = document.getElementById('agentsGrid');
-  const empty = document.getElementById('agentsEmpty');
-  grid.innerHTML = '';
-  empty.style.display = AGENTS.length ? 'none' : 'block';
-  AGENTS.forEach(a => {
-    const el = document.createElement('div');
-    el.className = 'card';
-    el.innerHTML = `
-      <h3>${escapeHtml(a.name)}</h3>
-      <div class="meta">
-        <span class="tag">${a.gender}</span><span class="tag">${a.language}</span><br>
-        Waits ${a.min_duration_secs}s for reply · caps at ${a.max_duration_secs}s
-      </div>
-      <div class="card-actions">
-        <button class="btn btn-ghost" onclick="deleteAgent('${a._id}')">Delete</button>
-      </div>`;
-    grid.appendChild(el);
-  });
-  const sel = document.getElementById('campaignAgent');
-  sel.innerHTML = AGENTS.map(a => `<option value="${a._id}">${escapeHtml(a.name)}</option>`).join('') || '<option disabled>Create an agent first</option>';
+  renderAgentList();
 
   const testSel = document.getElementById('testCallAgent');
   testSel.innerHTML = AGENTS.map(a => `<option value="${a._id}">${escapeHtml(a.name)}</option>`).join('') || '<option disabled>Create an agent first</option>';
+
+  if (EDITING_AGENT_ID && !AGENTS.find(a => a._id === EDITING_AGENT_ID)) {
+    EDITING_AGENT_ID = null;
+    showAgentEmptyState();
+  } else if (!EDITING_AGENT_ID && AGENTS.length && !AGENT_IS_NEW) {
+    selectAgent(AGENTS[0]._id);
+  }
 }
 
-function openAgentModal(){ openModal('agentModal'); }
+function renderAgentList(){
+  const box = document.getElementById('agentsList');
+  const empty = document.getElementById('agentsEmpty');
+  empty.style.display = AGENTS.length ? 'none' : 'block';
+  box.innerHTML = AGENTS.map(a => `
+    <div class="agent-list-item ${a._id===EDITING_AGENT_ID?'active':''}" onclick="selectAgent('${a._id}')">
+      <div class="agent-list-avatar">${escapeHtml((a.name||'?')[0].toUpperCase())}<span class="dot"></span></div>
+      <div>
+        <div class="agent-list-name">${escapeHtml(a.name)}</div>
+        <div class="agent-list-role">${a.auto_call_new_leads ? 'Auto-call ON' : 'Sales'}</div>
+      </div>
+    </div>`).join('');
+}
 
-async function createAgent(){
+function showAgentEmptyState(){
+  document.getElementById('agentsPanelEmpty').style.display = 'block';
+  document.getElementById('agentsPanelContent').style.display = 'none';
+}
+
+function switchAgentTab(tab){
+  document.querySelectorAll('.agent-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.atab === tab));
+  document.querySelectorAll('.agent-tab-panel').forEach(p => p.classList.toggle('active', p.id === 'atab-' + tab));
+}
+
+function toggleAgentHoursFields(){
+  const on = document.getElementById('agentHoursEnabled').checked;
+  const box = document.getElementById('agentHoursFields');
+  box.style.opacity = on ? '1' : '.45';
+  box.style.pointerEvents = on ? 'auto' : 'none';
+}
+
+function renderAgentHoursDayPicker(selectedDays){
+  const box = document.getElementById('agentHoursDays');
+  const selected = (selectedDays && selectedDays.length) ? selectedDays : ["monday","tuesday","wednesday","thursday","friday","saturday"];
+  box.innerHTML = OFFICE_DAYS.map(d => `
+    <label class="day-chip">
+      <input type="checkbox" class="agent-day-check" value="${d}" ${selected.includes(d) ? 'checked' : ''}>
+      ${d[0].toUpperCase()+d.slice(1,3)}
+    </label>`).join('');
+}
+
+function onAgentNameInput(){
   const name = document.getElementById('agentName').value.trim();
-  if(!name){ toast('Agent name is required'); return; }
+  document.getElementById('agentAvatarPreview').textContent = (name[0]||'?').toUpperCase();
+  document.getElementById('agentPanelTitle').textContent = name || 'New voice agent';
+}
+
+function fillAgentPanel(agent){
+  document.getElementById('agentName').value = agent ? agent.name : '';
+  document.getElementById('agentGender').value = agent ? agent.gender : 'female';
+  document.getElementById('agentLanguage').value = agent ? agent.language : 'auto';
+  document.getElementById('agentOpening').value = agent ? agent.opening_line : '';
+  document.getElementById('agentPrompt').value = agent ? agent.system_prompt : '';
+  document.getElementById('agentWhatsapp').value = agent ? agent.whatsapp_details : '';
+  document.getElementById('agentMinDuration').value = agent ? agent.min_duration_secs : 20;
+  document.getElementById('agentMaxDuration').value = agent ? agent.max_duration_secs : 180;
+  document.getElementById('agentAutoCall').checked = agent ? !!agent.auto_call_new_leads : false;
+  document.getElementById('agentHoursEnabled').checked = agent ? !!agent.office_hours_enabled : false;
+  document.getElementById('agentHoursStart').value = agent ? (agent.office_hours_start || '09:00') : '09:00';
+  document.getElementById('agentHoursEnd').value = agent ? (agent.office_hours_end || '18:00') : '18:00';
+  renderAgentHoursDayPicker(agent ? agent.office_hours_days : null);
+  toggleAgentHoursFields();
+  onAgentNameInput();
+  document.getElementById('agentPanelTitle').textContent = agent ? agent.name : 'New voice agent';
+}
+
+function selectAgent(agentId){
+  EDITING_AGENT_ID = agentId;
+  AGENT_IS_NEW = false;
+  const agent = AGENTS.find(a => a._id === agentId);
+  if (!agent) { showAgentEmptyState(); return; }
+  document.getElementById('agentsPanelEmpty').style.display = 'none';
+  document.getElementById('agentsPanelContent').style.display = 'block';
+  fillAgentPanel(agent);
+  switchAgentTab('profile');
+  renderAgentList();
+}
+
+function newAgent(){
+  EDITING_AGENT_ID = null;
+  AGENT_IS_NEW = true;
+  document.getElementById('agentsPanelEmpty').style.display = 'none';
+  document.getElementById('agentsPanelContent').style.display = 'block';
+  fillAgentPanel(null);
+  switchAgentTab('profile');
+  renderAgentList();
+  setTimeout(() => document.getElementById('agentName').focus(), 50);
+}
+
+async function saveAgent(){
+  const name = document.getElementById('agentName').value.trim();
+  if(!name){ toast('Agent name is required'); switchAgentTab('profile'); return; }
+  const payload = {
+    name,
+    gender: document.getElementById('agentGender').value,
+    language: document.getElementById('agentLanguage').value,
+    opening_line: document.getElementById('agentOpening').value.trim(),
+    system_prompt: document.getElementById('agentPrompt').value.trim(),
+    whatsapp_details: document.getElementById('agentWhatsapp').value.trim(),
+    min_duration_secs: parseInt(document.getElementById('agentMinDuration').value || '20'),
+    max_duration_secs: parseInt(document.getElementById('agentMaxDuration').value || '180'),
+    auto_call_new_leads: document.getElementById('agentAutoCall').checked,
+    office_hours_enabled: document.getElementById('agentHoursEnabled').checked,
+    office_hours_start: document.getElementById('agentHoursStart').value || '09:00',
+    office_hours_end: document.getElementById('agentHoursEnd').value || '18:00',
+    office_hours_days: Array.from(document.querySelectorAll('.agent-day-check:checked')).map(c => c.value),
+  };
   try{
-    await api('/api/agents', {method:'POST', body: JSON.stringify({
-      name,
-      gender: document.getElementById('agentGender').value,
-      language: document.getElementById('agentLanguage').value,
-      opening_line: document.getElementById('agentOpening').value.trim(),
-      system_prompt: document.getElementById('agentPrompt').value.trim(),
-      whatsapp_details: document.getElementById('agentWhatsapp').value.trim(),
-      min_duration_secs: parseInt(document.getElementById('agentMinDuration').value || '20'),
-      max_duration_secs: parseInt(document.getElementById('agentMaxDuration').value || '180'),
-    })});
-    closeModal('agentModal');
-    toast('Agent created');
+    let savedAgent;
+    if (EDITING_AGENT_ID){
+      const d = await api('/api/agents/' + EDITING_AGENT_ID, {method:'PATCH', body: JSON.stringify(payload)});
+      savedAgent = d.agent;
+    } else {
+      const d = await api('/api/agents', {method:'POST', body: JSON.stringify(payload)});
+      savedAgent = d.agent;
+      EDITING_AGENT_ID = savedAgent._id;
+      AGENT_IS_NEW = false;
+    }
     await loadAgents();
+    selectAgent(savedAgent._id);
+    flashSavedPill();
   }catch(e){ toast(e.message); }
 }
 
-async function deleteAgent(id){
+function flashSavedPill(){
+  const pill = document.getElementById('agentSavedPill');
+  pill.classList.add('show');
+  setTimeout(() => pill.classList.remove('show'), 2200);
+}
+
+async function deleteAgent(){
+  if (!EDITING_AGENT_ID) { showAgentEmptyState(); return; }
   if(!confirm('Delete this agent?')) return;
-  try{ await api('/api/agents/' + id, {method:'DELETE'}); await loadAgents(); }
-  catch(e){ toast(e.message); }
+  try{
+    await api('/api/agents/' + EDITING_AGENT_ID, {method:'DELETE'});
+    EDITING_AGENT_ID = null;
+    await loadAgents();
+    if (AGENTS.length) selectAgent(AGENTS[0]._id); else showAgentEmptyState();
+    toast('Agent deleted');
+  }catch(e){ toast(e.message); }
+}
+
+function switchMainTab(tabName){
+  const btn = document.querySelector(`.nav-link[data-tab="${tabName}"]`);
+  if (btn) btn.click();
 }
 
 // ---------------- campaigns ----------------
@@ -1648,9 +1835,9 @@ function escapeHtml(s){
 
 // ---------------- init ----------------
 (async function init(){
-    await Promise.all([loadMinutes(), loadAgents(), loadCampaigns(), loadCalls(), loadVoip(), loadVoicelink(), loadActiveCallingProvider(), loadLeads(), loadMeetingTemplate(), loadCallerIds()]);
+    await Promise.all([loadMinutes(), loadAgents(), loadScheduledCalls(), loadCalls(), loadVoip(), loadVoicelink(), loadActiveCallingProvider(), loadLeads(), loadMeetingTemplate(), loadCallerIds()]);
   computeDashboardStats();
-  renderDashCampaigns();
+  renderDashScheduled();
   renderDashRecentCalls();
   renderCallsLineChart();
   setInterval(loadMinutes, 20000);
