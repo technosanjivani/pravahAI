@@ -2095,6 +2095,7 @@ function inspectorFieldsHtml(node) {
       </div>
       ${aiBlockHtml(node, "email")}`;
   }
+  
   if (node.type === "call") {
     const readyAgents = (callReadiness.agents || []).filter(a => a.call_ready);
     const label = providerLabel(callReadiness.active_provider);

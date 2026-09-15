@@ -3754,6 +3754,7 @@ def api_campaigns_call_readiness():
     })
 
 
+
 @app.route("/api/campaigns/<campaign_id>/logs", methods=["GET"])
 @login_required
 @owner_required
