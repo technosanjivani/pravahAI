@@ -482,6 +482,16 @@ def normalize_phone(phone: str) -> str:
     return digits[-10:] if len(digits) >= 10 else digits
 
 
+def _wirebase_phone(phone: str) -> str:
+    """Wirebase's /api/public/send expects a plain digit string with country
+    code and NO '+', spaces, or dashes — e.g. "919876543210". Leads in this
+    app are stored in all kinds of formats ("+971 50 123 4567", "971-50-...",
+    etc.), so this strips everything down to digits only before we ever hit
+    the API. Sending an unstripped number is the #1 cause of Wirebase
+    returning a 500 instead of a clean 4xx."""
+    return re.sub(r"\D", "", phone or "")
+
+
 def generate_webhook_token() -> str:
     return secrets.token_urlsafe(24)
 
@@ -1527,27 +1537,50 @@ def get_meeting_context(owner_id):
 def send_whatsapp_via_wirebase(base_url: str, api_key: str, instance_name: str, phone: str, message: str) -> dict:
     if not (base_url and api_key and instance_name):
         return {"success": False, "error": "Wirebase is not fully configured in Settings"}
+
+    to_number = _wirebase_phone(phone)
+    if not to_number:
+        return {"success": False, "error": "Invalid phone number for Wirebase send"}
+
+    payload = {"instanceName": instance_name, "to": to_number, "type": "text", "message": message}
+
     try:
         resp = requests.post(
             f"{base_url.rstrip('/')}/api/public/send",
             headers={"X-API-Key": api_key, "Content-Type": "application/json"},
-            json={"instanceName": instance_name, "to": phone, "type": "text", "message": message},
-            timeout=10,
+            json=payload,
+            timeout=15,
         )
         status_code = resp.status_code
         try:
             body = resp.json()
         except ValueError:
             body = resp.text[:500]
-        resp.raise_for_status()
+
+        if status_code >= 400:
+            # Surface Wirebase's actual reason (e.g. "Instance ... not
+            # connected") instead of a generic "500 Server Error" string —
+            # this is what should show up in Settings → Test Connection
+            # and in the webhook debug log.
+            err_msg = body.get("error") if isinstance(body, dict) else None
+            return {
+                "success": False,
+                "error": err_msg or f"Wirebase returned HTTP {status_code}",
+                "status_code": status_code,
+                "raw": body,
+                "sent_payload": payload,
+            }
+
         return {"success": True, "raw": body, "status_code": status_code}
+
     except requests.exceptions.RequestException as e:
-        status_code = e.response.status_code if getattr(e, "response", None) is not None else None
-        try:
-            body = e.response.json() if getattr(e, "response", None) is not None else None
-        except ValueError:
-            body = e.response.text[:500] if getattr(e, "response", None) is not None else None
-        return {"success": False, "error": str(e), "status_code": status_code, "raw": body}
+        return {
+            "success": False,
+            "error": f"Could not reach Wirebase: {e}",
+            "status_code": None,
+            "raw": None,
+            "sent_payload": payload,
+        }
 
 def send_whatsapp_dispatch(user: dict, phone: str, message: str) -> dict:
     """Single entry point for every outbound WhatsApp send in the app.
