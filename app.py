@@ -1346,7 +1346,7 @@ def assign_round_robin(owner_id: str):
 
 MEETING_DAYS = {"monday","tuesday","wednesday","thursday","friday","saturday","sunday"}
 MEETING_STATUSES = {"scheduled", "completed", "missed", "rescheduled", "cancelled"}
-
+MEETING_PLATFORMS = {"google_meet", "zoom", "teams", "other"}
 
 def serialize_meeting_template(t):
     return {
@@ -1371,7 +1371,11 @@ def serialize_meeting(m):
         "scheduled_at": m.get("scheduled_at").isoformat() if m.get("scheduled_at") else None,
         "duration_minutes": m.get("duration_minutes", 30),
         "meet_link": m.get("meet_link", ""),
+        "platform": m.get("platform", "other"),
+        "description": m.get("description", ""),
+        "source": m.get("source", "eva"),   # "manual" | "eva"
         "status": m.get("status", "scheduled"),
+        "reminder_10_sent": m.get("reminder_10_sent", False),
         "reminder_15_sent": m.get("reminder_15_sent", False),
         "reminder_5_sent": m.get("reminder_5_sent", False),
         "rescheduled_from": m.get("rescheduled_from", ""),
@@ -3541,6 +3545,142 @@ def api_reschedule_meeting(meeting_id):
         call_note = f"Could not place reschedule call: {e}"
 
     return jsonify({"meeting": serialize_meeting(new_meeting), "call_note": call_note})
+
+
+# ==================================================================
+# MANUAL MEETINGS  (owner creates a meeting with any lead by hand)
+# ==================================================================
+
+@app.route("/api/meetings/manual", methods=["POST"])
+@login_required
+@owner_required
+@require_active_plan
+def api_create_manual_meeting():
+    """Owner manually books a meeting with any lead (or an ad-hoc contact).
+    Bypasses the weekly-availability template — this is a direct, deliberate
+    booking, not an AI/self-serve one. Sends a WhatsApp confirmation right
+    away via whichever provider is active (Evolution or Wirebase)."""
+    data = request.get_json(silent=True) or {}
+    lead_id = (data.get("lead_id") or "").strip()
+    lead_name = (data.get("lead_name") or "").strip()
+    lead_phone = (data.get("lead_phone") or "").strip()
+
+    lead = None
+    if lead_id:
+        try:
+            lead = leads_col.find_one({"_id": ObjectId(lead_id), "owner_id": current_user_id()})
+        except InvalidId:
+            lead = None
+        if not lead:
+            return jsonify({"error": "Lead not found"}), 404
+        lead_name = lead.get("name", "") or lead_name
+        lead_phone = lead.get("phone", "") or lead_phone
+
+    if not lead_name:
+        return jsonify({"error": "Lead name is required"}), 400
+    if not lead_phone:
+        return jsonify({"error": "Lead phone is required to send the WhatsApp confirmation"}), 400
+
+    scheduled_at = parse_iso_utc(data.get("scheduled_at", ""))
+    if not scheduled_at:
+        return jsonify({"error": "A valid meeting date/time is required"}), 400
+    if scheduled_at <= datetime.utcnow():
+        return jsonify({"error": "Meeting time must be in the future"}), 400
+
+    try:
+        duration_minutes = int(data.get("duration_minutes", 30) or 30)
+    except (TypeError, ValueError):
+        duration_minutes = 30
+
+    platform = (data.get("platform") or "other").strip()
+    if platform not in MEETING_PLATFORMS:
+        platform = "other"
+    meeting_link = (data.get("meeting_link") or "").strip()
+    description = (data.get("description") or "").strip()
+
+    doc = {
+        "owner_id": current_user_id(),
+        "lead_id": str(lead["_id"]) if lead else "",
+        "lead_name": lead_name,
+        "lead_phone": lead_phone,
+        "call_id": "", "agent_id": "",
+        "scheduled_at": scheduled_at,
+        "duration_minutes": duration_minutes,
+        "meet_link": meeting_link,
+        "platform": platform,
+        "description": description,
+        "status": "scheduled",
+        "source": "manual",
+        "reminder_10_sent": False,
+        "reminder_15_sent": False,
+        "reminder_5_sent": False,
+        "created_at": datetime.utcnow(),
+    }
+    inserted = meetings_col.insert_one(doc)
+    meeting = meetings_col.find_one({"_id": inserted.inserted_id})
+
+    owner = users_col.find_one({"_id": ObjectId(current_user_id())})
+    when_str = scheduled_at.strftime("%A, %d %b %Y at %H:%M UTC")
+    platform_label = {"google_meet": "Google Meet", "zoom": "Zoom", "teams": "Microsoft Teams", "other": "the link"}.get(platform, "the link")
+
+    whatsapp_note = None
+    if owner and lead_phone:
+        msg = f"Hi {lead_name.split(' ')[0] if lead_name else 'there'}, your meeting is confirmed for {when_str}."
+        if meeting_link:
+            msg += f"\nJoin via {platform_label}: {meeting_link}"
+        if description:
+            msg += f"\n\n{description}"
+        send_result = send_whatsapp_dispatch(owner, lead_phone, msg)
+        whatsapp_note = "Meeting scheduled ✓ WhatsApp confirmation sent." if send_result.get("success") \
+            else f"Meeting scheduled, but WhatsApp send failed: {send_result.get('error','unknown error')}"
+
+    return jsonify({"meeting": serialize_meeting(meeting), "whatsapp_note": whatsapp_note}), 201
+
+
+@app.route("/api/meetings/calendar", methods=["GET"])
+@login_required
+@owner_required
+def api_meetings_calendar():
+    """?month=YYYY-MM — returns {days: {"YYYY-MM-DD": {total, scheduled}}}
+    so the Meetings page calendar can put a dot on days that have meetings."""
+    month_str = request.args.get("month", "")
+    try:
+        year, month = [int(x) for x in month_str.split("-")]
+    except Exception:
+        now = datetime.utcnow()
+        year, month = now.year, now.month
+    start = datetime(year, month, 1)
+    end = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    rows = list(meetings_col.find(
+        {"owner_id": current_user_id(), "scheduled_at": {"$gte": start, "$lt": end}},
+        {"scheduled_at": 1, "status": 1},
+    ))
+    by_day = {}
+    for r in rows:
+        day = r["scheduled_at"].strftime("%Y-%m-%d")
+        by_day.setdefault(day, {"total": 0, "scheduled": 0})
+        by_day[day]["total"] += 1
+        if r.get("status", "scheduled") == "scheduled":
+            by_day[day]["scheduled"] += 1
+    return jsonify({"days": by_day})
+
+
+@app.route("/api/meetings/by-date", methods=["GET"])
+@login_required
+@owner_required
+def api_meetings_by_date():
+    """?date=YYYY-MM-DD — all meetings scheduled on that specific day."""
+    date_str = request.args.get("date", "")
+    try:
+        day_start = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"error": "Invalid date"}), 400
+    day_end = day_start + timedelta(days=1)
+    rows = list(meetings_col.find({
+        "owner_id": current_user_id(),
+        "scheduled_at": {"$gte": day_start, "$lt": day_end},
+    }).sort("scheduled_at", 1))
+    return jsonify({"meetings": [serialize_meeting(m) for m in rows]})
 
 
 # ==================================================================
@@ -6213,39 +6353,47 @@ def _wa_campaign_scheduler():
 
 
 def _meeting_reminder_scanner():
-    """Every minute, sends a 15-min-before and 5-min-before WhatsApp reminder
-    to both the lead and the account's configured admin number."""
+    """Every minute, checks for meetings starting in ~10 minutes and:
+      1) sends the lead + admin (if configured) an automatic WhatsApp reminder
+      2) sends the account owner an in-app push notification follow-up
+    """
     while True:
         time.sleep(60)
         try:
             now = datetime.utcnow()
             upcoming = list(meetings_col.find({
                 "status": "scheduled",
-                "scheduled_at": {"$gte": now, "$lte": now + timedelta(minutes=16)},
+                "reminder_10_sent": {"$ne": True},
+                "scheduled_at": {"$gte": now + timedelta(minutes=9, seconds=30), "$lte": now + timedelta(minutes=10, seconds=30)},
             }))
         except Exception:
             continue
         for m in upcoming:
-            minutes_out = (m["scheduled_at"] - now).total_seconds() / 60.0
             owner = users_col.find_one({"_id": ObjectId(m["owner_id"])})
             if not owner:
                 continue
             template = meeting_templates_col.find_one({"owner_id": m["owner_id"]}) or {}
             when_str = m["scheduled_at"].strftime("%H:%M UTC")
+            link_part = f" {m.get('meet_link')}" if m.get("meet_link") else ""
 
-            if not m.get("reminder_15_sent") and 14.5 <= minutes_out <= 15.5:
-                msg_lead = f"Reminder: your meeting is in 15 minutes ({when_str})." + (f" {m.get('meet_link')}" if m.get("meet_link") else "")
-                msg_admin = f"Reminder: meeting with {m.get('lead_name','a lead')} in 15 minutes ({when_str})."
-                if m.get("lead_phone"): send_meeting_whatsapp(owner, m["lead_phone"], msg_lead)
-                if template.get("admin_whatsapp"): send_meeting_whatsapp(owner, template["admin_whatsapp"], msg_admin)
-                meetings_col.update_one({"_id": m["_id"]}, {"$set": {"reminder_15_sent": True}})
+            # 1) Automatic WhatsApp reminder to the lead (+ admin number if configured)
+            msg_lead = f"Reminder: your meeting starts in 10 minutes ({when_str})." + link_part
+            msg_admin = f"Reminder: meeting with {m.get('lead_name','a lead')} starts in 10 minutes ({when_str})."
+            if m.get("lead_phone"):
+                send_meeting_whatsapp(owner, m["lead_phone"], msg_lead)
+            if template.get("admin_whatsapp"):
+                send_meeting_whatsapp(owner, template["admin_whatsapp"], msg_admin)
 
-            elif not m.get("reminder_5_sent") and 4.5 <= minutes_out <= 5.5:
-                msg_lead = f"Reminder: your meeting starts in 5 minutes ({when_str})." + (f" {m.get('meet_link')}" if m.get("meet_link") else "")
-                msg_admin = f"Reminder: meeting with {m.get('lead_name','a lead')} starts in 5 minutes ({when_str})."
-                if m.get("lead_phone"): send_meeting_whatsapp(owner, m["lead_phone"], msg_lead)
-                if template.get("admin_whatsapp"): send_meeting_whatsapp(owner, template["admin_whatsapp"], msg_admin)
-                meetings_col.update_one({"_id": m["_id"]}, {"$set": {"reminder_5_sent": True}})
+            # 2) In-app push follow-up notification to the owner
+            send_push_notification(
+                m["owner_id"], "📅 Meeting in 10 minutes",
+                f"{m.get('lead_name','A lead')} — {when_str}" + (f" · {m.get('meet_link')}" if m.get("meet_link") else ""),
+                url="/dashboard", tag="pravaah-meeting-reminder",
+            )
+
+            meetings_col.update_one({"_id": m["_id"]}, {"$set": {
+                "reminder_10_sent": True, "reminder_15_sent": True, "reminder_5_sent": True,
+            }})
 
 
 def _scheduled_calls_scanner():

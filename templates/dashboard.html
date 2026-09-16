@@ -643,6 +643,9 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
     <a class="nav-item" href="#" onclick="showPage('team', this)" id="nav-team">
       <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg></span> Team
     </a>
+    <a class="nav-item" href="#" onclick="showPage('meetings', this)" id="nav-meetings">
+      <span class="nav-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span> Meetings
+    </a>
 
     <div class="nav-label" id="nav-label-realestate" style="display:none;">Real Estate</div>
     <a class="nav-item" href="#" onclick="showPage('inventory', this)" id="nav-inventory" style="display:none;">
@@ -959,6 +962,58 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
       </div>
     </div>
 
+
+    <!-- ═══ PAGE: MEETINGS (Manual scheduling + calendar) ═══ -->
+    <div class="page" id="page-meetings">
+      <div class="page-header reveal">
+        <div class="page-header-top">
+          <span class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+          <div><h1>Meetings</h1><p>Schedule a meeting with any lead. A WhatsApp confirmation goes out immediately (via your active provider), and a reminder + follow-up notification fire 10 minutes before it starts.</p></div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="openNewMeetingModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Meeting</button>
+      </div>
+
+      <div class="dashboard-layout">
+        <div class="dashboard-main">
+          <div class="chart-card reveal" style="margin-bottom:16px;">
+            <h3 style="justify-content:space-between;">
+              <span style="display:flex;align-items:center;gap:8px;">
+                <span class="chart-icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+                <span id="mp-cal-month-label">—</span>
+              </span>
+              <span style="display:flex;gap:6px;">
+                <button class="btn btn-ghost btn-sm" onclick="shiftMeetingsCalendar(-1)">‹ Prev</button>
+                <button class="btn btn-ghost btn-sm" onclick="shiftMeetingsCalendar(0)">Today</button>
+                <button class="btn btn-ghost btn-sm" onclick="shiftMeetingsCalendar(1)">Next ›</button>
+              </span>
+            </h3>
+            <div class="mini-cal" id="mp-cal-grid" style="font-size:13px;"></div>
+          </div>
+
+          <div class="sheet-card">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px;color:var(--text-h);" id="mp-selected-date-label">
+              Select a date on the calendar to see meetings
+            </div>
+            <div class="logs-table-wrap" style="border:none;box-shadow:none;">
+              <table class="logs-table">
+                <thead><tr><th>Lead</th><th>Phone</th><th>Time</th><th>Platform</th><th>Status</th><th></th></tr></thead>
+                <tbody id="mp-day-tbody"><tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">No date selected.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <aside class="cal-card reveal">
+          <div class="cal-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg>
+            <h3>This Month</h3>
+          </div>
+          <div class="cal-meetings-summary" id="mp-month-summary">Loading…</div>
+        </aside>
+      </div>
+    </div>
 
     <!-- ═══ PAGE: INVENTORY (Real Estate) ═══ -->
     <div class="page" id="page-inventory">
@@ -1426,6 +1481,47 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('reschedule-modal')">Cancel</button>
       <button class="btn btn-primary" id="reschedule-confirm-btn" onclick="confirmReschedule()">Confirm Reschedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Manual Meeting -->
+<div class="modal-overlay" id="new-meeting-modal">
+  <div class="modal-box">
+    <div class="modal-title">📅 New Meeting</div>
+    <div class="modal-sub">A WhatsApp confirmation is sent to the lead right away via your active provider (Evolution or Wirebase).</div>
+    <div class="form-row">
+      <label>Lead</label>
+      <select class="form-input" id="nm-lead" onchange="onNewMeetingLeadChange()"><option value="">— Pick a lead —</option></select>
+    </div>
+    <div class="filter-row">
+      <div class="form-row"><label>Name <span style="color:var(--text-dim);font-size:11px;">(if no lead picked)</span></label><input class="form-input" id="nm-name" placeholder="Lead name" /></div>
+      <div class="form-row"><label>Phone <span style="color:var(--text-dim);font-size:11px;">(if no lead picked)</span></label><input class="form-input" id="nm-phone" placeholder="+971 50 123 4567" /></div>
+    </div>
+    <div class="filter-row">
+      <div class="form-row"><label>Date & Time</label><input class="form-input" type="datetime-local" id="nm-datetime" /></div>
+      <div class="form-row"><label>Duration (minutes)</label><input class="form-input" type="number" min="5" step="5" value="30" id="nm-duration" /></div>
+    </div>
+    <div class="form-row">
+      <label>Meeting Platform</label>
+      <select class="form-input" id="nm-platform" onchange="onNewMeetingPlatformChange()">
+        <option value="google_meet">Google Meet</option>
+        <option value="zoom">Zoom</option>
+        <option value="teams">Microsoft Teams</option>
+        <option value="other" selected>Other / None</option>
+      </select>
+    </div>
+    <div class="form-row" id="nm-link-row">
+      <label>Meeting Link <span style="color:var(--text-dim);font-size:11px;">(optional)</span></label>
+      <input class="form-input" id="nm-link" placeholder="https://…" />
+    </div>
+    <div class="form-row">
+      <label>Description <span style="color:var(--text-dim);font-size:11px;">(optional — included in the WhatsApp message)</span></label>
+      <textarea class="form-input" id="nm-description" rows="3" style="resize:vertical;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('new-meeting-modal')">Cancel</button>
+      <button class="btn btn-primary" id="nm-confirm-btn" onclick="submitNewMeeting()">📅 Schedule & Notify</button>
     </div>
   </div>
 </div>
@@ -2462,6 +2558,7 @@ async function loadMe() {
       document.getElementById("nav-team").style.display = "none";
       document.getElementById("nav-settings").style.display = "none";
       document.getElementById("nav-whatsapp-bot").style.display = "none";
+      document.getElementById("nav-meetings").style.display = "none";
       document.getElementById("sidebar-role-label").textContent = "Team Member";
     }
     if (myRole === "owner" && myCategory === "real_estate") {
@@ -2492,6 +2589,7 @@ function showPage(name, navEl) {
   if (name === 'plan') loadPlanStatus();
   if (name === 'inventory') loadInventory();
   if (name === 'sitevisits') { loadSiteVisits(); loadSiteVisitsBadge(); }
+  if (name === 'meetings') loadMeetingsPage();
   if (name === 'whatsapp-bot') { loadWhatsappBot(); loadInbox(); loadWebhookLogs(); startWlogPolling(); }
   else { stopWlogPolling(); }
   initRevealAnimations();
@@ -2739,6 +2837,170 @@ async function confirmReschedule(){
     loadMeetingsChart();
   } catch(err) { showToast(err.message, "error"); }
   finally { btn.disabled = false; }
+}
+
+/* ════════════════════════════════════════════════
+   MEETINGS PAGE (manual scheduling + click-a-date calendar)
+════════════════════════════════════════════════ */
+let mpCalendarDate = new Date();   // month currently shown
+let mpSelectedDate = null;         // "YYYY-MM-DD" currently selected
+let mpCalendarDays  = {};          // {"YYYY-MM-DD": {total, scheduled}}
+
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function loadMeetingsPage() {
+  mpCalendarDate = new Date();
+  mpSelectedDate = ymd(new Date());
+  await renderMeetingsCalendar();
+  loadMeetingsForDate(mpSelectedDate);
+}
+
+function shiftMeetingsCalendar(dir) {
+  if (dir === 0) { mpCalendarDate = new Date(); }
+  else { mpCalendarDate = new Date(mpCalendarDate.getFullYear(), mpCalendarDate.getMonth()+dir, 1); }
+  renderMeetingsCalendar();
+}
+
+async function renderMeetingsCalendar() {
+  const year = mpCalendarDate.getFullYear(), month = mpCalendarDate.getMonth();
+  document.getElementById("mp-cal-month-label").textContent = mpCalendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  try {
+    const monthStr = `${year}-${String(month+1).padStart(2,'0')}`;
+    const res = await fetch(`/api/meetings/calendar?month=${monthStr}`);
+    const data = await res.json();
+    mpCalendarDays = data.days || {};
+  } catch { mpCalendarDays = {}; }
+
+  const grid = document.getElementById("mp-cal-grid");
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = ymd(new Date());
+  let html = '';
+  ['S','M','T','W','T','F','S'].forEach(d => html += `<span class="mc-dow">${d}</span>`);
+  for (let i = 0; i < firstDay; i++) html += `<span></span>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const info = mpCalendarDays[dateStr];
+    const isToday = dateStr === todayStr;
+    const isSelected = dateStr === mpSelectedDate;
+    const dot = info && info.total ? `<div style="width:5px;height:5px;border-radius:50%;background:var(--accent-1);margin:2px auto 0;"></div>` : `<div style="height:7px;"></div>`;
+    html += `<span class="mc-day ${isToday?'mc-today':''}" style="cursor:pointer;${isSelected&&!isToday?'background:var(--bg-hover);font-weight:700;':''}" onclick="loadMeetingsForDate('${dateStr}')">${d}${dot}</span>`;
+  }
+  grid.innerHTML = html;
+
+  const totalThisMonth = Object.values(mpCalendarDays).reduce((s,v)=>s+v.total,0);
+  const scheduledThisMonth = Object.values(mpCalendarDays).reduce((s,v)=>s+v.scheduled,0);
+  document.getElementById("mp-month-summary").innerHTML = `
+    <div><span class="dot-ind" style="background:var(--accent-1);"></span>Total this month: <b>${totalThisMonth}</b></div>
+    <div><span class="dot-ind" style="background:var(--green);"></span>Still scheduled: <b>${scheduledThisMonth}</b></div>
+  `;
+}
+
+async function loadMeetingsForDate(dateStr) {
+  mpSelectedDate = dateStr;
+  renderMeetingsCalendar();
+  const label = document.getElementById("mp-selected-date-label");
+  const d = new Date(dateStr + "T00:00:00");
+  label.textContent = `Meetings on ${d.toLocaleDateString('default',{weekday:'long', month:'long', day:'numeric', year:'numeric'})}`;
+  const tbody = document.getElementById("mp-day-tbody");
+  tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">Loading…</td></tr>`;
+  try {
+    const res = await fetch(`/api/meetings/by-date?date=${dateStr}`);
+    const data = await res.json();
+    const meetings = data.meetings || [];
+    if (!meetings.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">No meetings on this date.</td></tr>`;
+      return;
+    }
+    const platformLabels = {google_meet:"Google Meet", zoom:"Zoom", teams:"MS Teams", other:"Other"};
+    tbody.innerHTML = meetings.map(m => `
+      <tr>
+        <td>${esc(m.lead_name||"—")}</td>
+        <td>${esc(m.lead_phone||"—")}</td>
+        <td>${m.scheduled_at ? new Date(m.scheduled_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : "—"} (${m.duration_minutes||30}m)</td>
+        <td>${esc(platformLabels[m.platform]||"—")}${m.meet_link?` · <a href="${m.meet_link}" target="_blank">link</a>`:""}</td>
+        <td><span class="log-status ${m.status==='completed'?'log-sent':(m.status==='missed'?'log-failed':'log-pending')}">${m.status}</span></td>
+        <td style="white-space:nowrap;">
+          ${m.status==='scheduled' ? `
+            <button class="btn btn-ghost btn-sm" onclick="markMeeting('${m._id}','completed').then(()=>loadMeetingsForDate('${dateStr}'))">✓</button>
+            <button class="btn btn-ghost btn-sm" onclick="markMeeting('${m._id}','missed').then(()=>loadMeetingsForDate('${dateStr}'))">✕</button>
+          ` : ""}
+        </td>
+      </tr>`).join("");
+  } catch { showToast("Could not load meetings for this date", "error"); }
+}
+
+async function openNewMeetingModal() {
+  await ensureAllLeadsCache();
+  const sel = document.getElementById("nm-lead");
+  sel.innerHTML = `<option value="">— Pick a lead —</option>` +
+    allLeadsCache.map(l => `<option value="${l._id}" data-phone="${esc(l.phone||"")}" data-name="${esc(l.name||"")}">${esc(l.name)}${l.phone?" ("+esc(l.phone)+")":""}</option>`).join("");
+  document.getElementById("nm-name").value = "";
+  document.getElementById("nm-phone").value = "";
+  document.getElementById("nm-duration").value = 30;
+  document.getElementById("nm-platform").value = "other";
+  document.getElementById("nm-link").value = "";
+  document.getElementById("nm-description").value = "";
+  onNewMeetingPlatformChange();
+  const dt = mpSelectedDate ? new Date(mpSelectedDate + "T10:00:00") : new Date(Date.now() + 60*60*1000);
+  document.getElementById("nm-datetime").value = new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  document.getElementById("new-meeting-modal").classList.add("open");
+}
+
+function onNewMeetingLeadChange() {
+  const sel = document.getElementById("nm-lead");
+  const opt = sel.options[sel.selectedIndex];
+  if (sel.value) {
+    document.getElementById("nm-name").value = opt.dataset.name || "";
+    document.getElementById("nm-phone").value = opt.dataset.phone || "";
+  }
+}
+
+function onNewMeetingPlatformChange() {
+  const platform = document.getElementById("nm-platform").value;
+  const linkInput = document.getElementById("nm-link");
+  const placeholders = { google_meet: "https://meet.google.com/…", zoom: "https://zoom.us/j/…", teams: "https://teams.microsoft.com/…", other: "https://…" };
+  linkInput.placeholder = placeholders[platform] || "https://…";
+}
+
+async function submitNewMeeting() {
+  const leadId = document.getElementById("nm-lead").value;
+  const name = document.getElementById("nm-name").value.trim();
+  const phone = document.getElementById("nm-phone").value.trim();
+  const dtVal = document.getElementById("nm-datetime").value;
+  if (!leadId && !name) { showToast("Pick a lead or enter a name.", "error"); return; }
+  if (!phone) { showToast("Phone number is required to send the WhatsApp confirmation.", "error"); return; }
+  if (!dtVal) { showToast("Pick a date and time.", "error"); return; }
+
+  const payload = {
+    lead_id: leadId || null,
+    lead_name: name,
+    lead_phone: phone,
+    scheduled_at: new Date(dtVal).toISOString(),
+    duration_minutes: parseInt(document.getElementById("nm-duration").value || "30", 10),
+    platform: document.getElementById("nm-platform").value,
+    meeting_link: document.getElementById("nm-link").value.trim(),
+    description: document.getElementById("nm-description").value.trim(),
+  };
+
+  const btn = document.getElementById("nm-confirm-btn");
+  btn.disabled = true; btn.textContent = "Scheduling…";
+  try {
+    const res = await fetch("/api/meetings/manual", {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (res.status === 402 && data.plan_blocked) { closeModal("new-meeting-modal"); showPlanBlockedModal(data); return; }
+    if (!res.ok) throw new Error(data.error || "Could not schedule meeting");
+    showToast(data.whatsapp_note || "Meeting scheduled ✓", "success");
+    closeModal("new-meeting-modal");
+    renderMeetingsCalendar();
+    if (mpSelectedDate) loadMeetingsForDate(mpSelectedDate);
+    loadMeetingsChart();
+  } catch(err) { showToast(err.message, "error"); }
+  finally { btn.disabled = false; btn.textContent = "📅 Schedule & Notify"; }
 }
 
 /* ════════════════════════════════════════════════
