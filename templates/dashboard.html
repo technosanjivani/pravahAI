@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#2563eb" />
 <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -1096,12 +1097,37 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
         <div class="settings-card" id="plan-card">Loading…</div>
         <div class="settings-card">
           <div class="settings-card-title">🔄 Recharge / Reactivate</div>
-          <div class="settings-card-sub">Contact us to renew, upgrade, or reactivate your plan.</div>
+          <div class="settings-card-sub">Pay online instantly, or contact us to renew/reactivate manually.</div>
+          <div class="settings-actions" style="margin-bottom:14px;">
+            <button class="btn btn-primary btn-sm" onclick="openRechargeMinutesModal()">⚡ Recharge Eva Minutes</button>
+          </div>
           <div id="plan-recharge-contact" style="font-size:16px;font-weight:700;margin-bottom:14px;">—</div>
           <div class="settings-actions">
             <a class="btn btn-primary btn-sm" id="plan-recharge-call" href="tel:">📞 Call to Recharge</a>
             <a class="btn btn-ghost btn-sm" id="plan-recharge-wa" href="#" target="_blank">💬 WhatsApp</a>
           </div>
+        </div>
+      </div>
+
+      <div class="page-header" style="margin:26px 0 12px;">
+        <h1 style="font-size:18px;">Available Plans</h1>
+        <p>Upgrade or switch plans — payment is processed securely via Razorpay.</p>
+      </div>
+      <div class="campaigns-grid" id="public-plans-grid">
+        <div class="empty-state">Loading plans…</div>
+      </div>
+    </div>
+
+    <!-- Recharge Eva Minutes modal -->
+    <div class="modal-overlay" id="recharge-minutes-modal">
+      <div class="modal-box">
+        <div class="modal-title">⚡ Recharge Eva Minutes</div>
+        <div class="modal-sub" id="recharge-rate-note">Enter how many extra minutes you'd like to add.</div>
+        <div class="form-row"><label>Minutes</label><input class="form-input" type="number" min="1" step="1" id="recharge-minutes-input" placeholder="e.g. 500" oninput="updateRechargeEstimate()"></div>
+        <div style="font-size:13px;font-weight:700;margin-top:6px;" id="recharge-estimate-total">—</div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal('recharge-minutes-modal')">Cancel</button>
+          <button class="btn btn-primary" id="recharge-pay-btn" onclick="startMinutesCheckout()">💳 Pay & Recharge</button>
         </div>
       </div>
     </div>
@@ -2498,6 +2524,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (myRole === "owner") { loadCampaigns(); loadTeam(); loadIntegrations(); loadMeetingsChart(); }
   loadProfile();
   await loadPlanStatus();
+  loadPublicPlans();
   if (lastPlanStatus && !lastPlanStatus.active) {
     showToast(
       lastPlanStatus.has_plan ? "Your plan has expired — visit My Plan to recharge." : "No plan is active on this account — visit My Plan to recharge.",
@@ -2586,7 +2613,7 @@ function showPage(name, navEl) {
   if (name === 'team') loadTeam();
   if (name === 'dashboard') { loadDashboardStats(); buildMiniCalendar(); }
   if (name === 'profile') loadProfile();
-  if (name === 'plan') loadPlanStatus();
+  if (name === 'plan') { loadPlanStatus(); loadPublicPlans(); }
   if (name === 'inventory') loadInventory();
   if (name === 'sitevisits') { loadSiteVisits(); loadSiteVisitsBadge(); }
   if (name === 'meetings') loadMeetingsPage();
@@ -2645,6 +2672,114 @@ function renderPlanCard(d) {
   document.getElementById("plan-recharge-contact").textContent = num || "Contact support";
   document.getElementById("plan-recharge-call").href = num ? `tel:${num}` : "#";
   document.getElementById("plan-recharge-wa").href = waHref;
+}
+
+let publicPlansCache = [];
+let currentRechargeRate = 0;
+let currentRechargeCurrency = "INR";
+
+async function loadPublicPlans() {
+  try {
+    const res = await fetch("/api/plans/public");
+    const data = await res.json();
+    publicPlansCache = data.plans || [];
+    renderPublicPlans();
+  } catch { document.getElementById("public-plans-grid").innerHTML = `<div class="empty-state">Could not load plans.</div>`; }
+}
+
+function renderPublicPlans() {
+  const grid = document.getElementById("public-plans-grid");
+  if (!publicPlansCache.length) { grid.innerHTML = `<div class="empty-state">No plans available yet — contact support.</div>`; return; }
+  const currentPlanId = lastPlanStatus && lastPlanStatus.plan ? lastPlanStatus.plan._id : null;
+  grid.innerHTML = publicPlansCache.map(p => `
+    <div class="campaign-card">
+      <div class="camp-header">
+        <div class="camp-name">${esc(p.name)} ${p._id===currentPlanId?'<span class="badge badge-active">Current</span>':''}</div>
+      </div>
+      <div class="camp-desc" style="font-size:20px;font-weight:800;color:var(--text-h);">${esc(p.currency)} ${p.price} <span style="font-size:12px;color:var(--text-b);">/ ${p.duration_days}d</span></div>
+      <div class="camp-desc">⚡ ${p.eva_minutes_included} Eva minutes included</div>
+      <ul style="margin:8px 0 0 18px;font-size:12.5px;color:var(--text-b);line-height:1.8;">
+        ${(p.features||[]).slice(0,6).map(f=>`<li>${esc(f)}</li>`).join("")}
+      </ul>
+      <div class="camp-actions">
+        <button class="btn btn-primary btn-sm" onclick="startPlanCheckout('${p._id}')" ${p._id===currentPlanId?'disabled':''}>${p._id===currentPlanId?'Active':'💳 Buy / Upgrade'}</button>
+      </div>
+    </div>`).join("");
+}
+
+async function startPlanCheckout(planId) {
+  try {
+    const res = await fetch("/api/payments/plan/create-order", {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({plan_id: planId})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not start payment");
+    const rzp = new Razorpay({
+      key: data.key_id, amount: data.amount, currency: data.currency,
+      name: "PravaahAI", description: `${data.plan_name} plan`, order_id: data.order_id,
+      theme: { color: "#2563eb" },
+      handler: async function(response) {
+        await verifyPaymentResponse(response);
+      },
+    });
+    rzp.open();
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+function openRechargeMinutesModal() {
+  const region = (lastPlanStatus && lastPlanStatus.region) || "international";
+  currentRechargeCurrency = region === "india" ? "INR" : "USD";
+  document.getElementById("recharge-minutes-input").value = "";
+  document.getElementById("recharge-estimate-total").textContent = "—";
+  document.getElementById("recharge-minutes-modal").classList.add("open");
+}
+
+function updateRechargeEstimate() {
+  const mins = parseFloat(document.getElementById("recharge-minutes-input").value || "0");
+  const el = document.getElementById("recharge-estimate-total");
+  if (!mins || mins <= 0) { el.textContent = "—"; return; }
+  el.textContent = `Estimated total will be calculated at checkout (rate set by admin).`;
+}
+
+async function startMinutesCheckout() {
+  const mins = parseFloat(document.getElementById("recharge-minutes-input").value || "0");
+  if (!mins || mins <= 0) { showToast("Enter a valid number of minutes", "error"); return; }
+  const btn = document.getElementById("recharge-pay-btn");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/payments/minutes/create-order", {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({minutes: mins})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not start payment");
+    closeModal("recharge-minutes-modal");
+    const rzp = new Razorpay({
+      key: data.key_id, amount: data.amount, currency: data.currency,
+      name: "PravaahAI", description: `${data.minutes} Eva minutes`, order_id: data.order_id,
+      theme: { color: "#2563eb" },
+      handler: async function(response) { await verifyPaymentResponse(response); },
+    });
+    rzp.open();
+  } catch(err) { showToast(err.message, "error"); }
+  finally { btn.disabled = false; }
+}
+
+async function verifyPaymentResponse(response) {
+  try {
+    const res = await fetch("/api/payments/verify", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        razorpay_order_id: response.razorpay_order_id,
+        razorpay_payment_id: response.razorpay_payment_id,
+        razorpay_signature: response.razorpay_signature,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Payment verification failed");
+    showToast("Payment successful ✓ Your account has been updated.", "success");
+    await loadPlanStatus();
+    await loadPublicPlans();
+  } catch(err) { showToast(err.message, "error"); }
 }
 
 function showPlanBlockedModal(data) {

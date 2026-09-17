@@ -599,7 +599,17 @@ tbody tr:hover { background: var(--bg-hover); }
       <div class="field"><label>Billing cycle</label><input type="text" id="pl_billing" value="monthly"></div>
       <div class="field"><label>Duration (days)</label><input type="number" id="pl_duration" value="30"></div>
       <div class="field"><label>Eva minutes included</label><input type="number" id="pl_minutes" value="0"></div>
-      <div class="field"><label>Features (one per line)</label><textarea id="pl_features"></textarea></div>
+      <div class="field"><label>Features (one per line, shown to customer)</label><textarea id="pl_features"></textarea></div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="pl_is_custom" style="width:auto;">
+          Custom plan (admin-assign only — hidden from self-serve purchase page)
+        </label>
+      </div>
+      <div class="field">
+        <label>Feature access (unchecking blocks that feature in the app with an upgrade popup)</label>
+        <div id="pl_feature_checks" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;"></div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('planModal')">Cancel</button>
@@ -855,7 +865,7 @@ async function loadPlans() {
     allPlansCache = data.plans || [];
     $('plansBody').innerHTML = allPlansCache.length ? allPlansCache.map(p => `
       <tr>
-        <td style="font-weight:700;">${escapeHtml(p.name)}</td>
+        <td style="font-weight:700;">${escapeHtml(p.name)} ${p.is_custom ? '<span class="badge b-indigo">Custom</span>' : ''}</td>
         <td>${badgeRegion(p.region)}</td>
         <td>${p.currency} ${p.price}</td>
         <td>${p.duration_days}d / ${escapeHtml(p.billing_cycle)}</td>
@@ -871,12 +881,42 @@ async function loadPlans() {
   } catch (e) { toast(e.message, true); }
 }
 
+const PLAN_FEATURE_KEYS = {
+  whatsapp_bot: "WhatsApp AI Auto-Reply",
+  email_campaigns: "Email Campaigns",
+  eva_voice: "Eva Voice AI Calling",
+  meetings: "Meeting Scheduling",
+  team_members: "Team Members",
+  inventory: "Real Estate Inventory / Site Visits",
+  campaigns_automation: "Automation Campaigns (Flow Builder)",
+  api_access: "API Access",
+};
+
+function renderFeatureChecks(flags) {
+  const box = $('pl_feature_checks');
+  flags = flags || {};
+  box.innerHTML = Object.entries(PLAN_FEATURE_KEYS).map(([key, label]) => `
+    <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text-h);">
+      <input type="checkbox" data-feature-key="${key}" ${flags[key] !== false ? 'checked' : ''} style="width:auto;">
+      ${label}
+    </label>`).join('');
+}
+function readFeatureChecks() {
+  const out = {};
+  document.querySelectorAll('#pl_feature_checks input[data-feature-key]').forEach(cb => {
+    out[cb.dataset.featureKey] = cb.checked;
+  });
+  return out;
+}
+
 $('openCreatePlan').addEventListener('click', () => {
   $('planModalTitle').textContent = 'New plan';
   $('pl_id').value = '';
   $('pl_name').value = ''; $('pl_region').value = 'india'; $('pl_price').value = '';
   $('pl_billing').value = 'monthly'; $('pl_duration').value = 30; $('pl_minutes').value = 0;
   $('pl_features').value = '';
+  $('pl_is_custom').checked = false;
+  renderFeatureChecks({});
   openModal('planModal');
 });
 
@@ -890,6 +930,8 @@ function editPlan(p) {
   $('pl_duration').value = p.duration_days;
   $('pl_minutes').value = p.eva_minutes_included;
   $('pl_features').value = (p.features || []).join('\n');
+  $('pl_is_custom').checked = !!p.is_custom;
+  renderFeatureChecks(p.features_enabled || {});
   openModal('planModal');
 }
 
@@ -904,6 +946,8 @@ $('submitPlan').addEventListener('click', async () => {
       duration_days: parseInt($('pl_duration').value || '30', 10),
       eva_minutes_included: parseFloat($('pl_minutes').value || '0'),
       features: $('pl_features').value.split('\n').map(s => s.trim()).filter(Boolean),
+      is_custom: $('pl_is_custom').checked,
+      features_enabled: readFeatureChecks(),
     };
     if (id) {
       await api(`/api/admin/plans/${id}`, { method: 'PUT', body: JSON.stringify(payload) });

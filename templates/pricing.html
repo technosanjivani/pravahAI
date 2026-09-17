@@ -101,29 +101,37 @@ section{ position:relative; }
 .section-head h2{ font-size:clamp(28px,3.4vw,40px); line-height:1.15; margin-bottom:16px; }
 .section-head p{ color:var(--muted); font-size:16.5px; line-height:1.65; }
 .section-head.center{ margin-left:auto; margin-right:auto; text-align:center; }
-.pricing-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:18px; align-items:stretch; }
-.price-card{background:var(--card); border:1.5px solid var(--line); border-radius:20px; padding:28px 20px; display:flex; flex-direction:column; transition:transform .35s var(--ease), box-shadow .35s var(--ease), border-color .35s var(--ease); position:relative; will-change:transform;}
-.price-card:hover{ box-shadow:var(--shadow-lg); border-color:rgba(21,94,239,.22); }
-.price-card.trial{ background:var(--paper); border-style:dashed; }
-.price-card.featured{ border-color:var(--accent-1); background:linear-gradient(180deg, #fff, #f5f9ff); }
-.price-card.enterprise{ background:var(--dark); border-color:var(--dark-line); color:#fff; }
-.price-card.enterprise .desc{ color:rgba(255,255,255,.55); }
-.price-card.enterprise .price{ color:#fff; }
-.price-card.enterprise li{ border-bottom-color:var(--dark-line); }
-.price-card.enterprise li svg{ stroke:var(--accent-2); }
-.price-card.enterprise .plan{ color:rgba(255,255,255,.55); }
-.price-card.enterprise .rate-note{ color:rgba(255,255,255,.45); }
-.price-badge{position:absolute; top:-13px; left:50%; transform:translateX(-50%); background:linear-gradient(120deg,var(--accent-1),var(--accent-2)); color:#fff; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:6px 15px; border-radius:20px; white-space:nowrap; box-shadow:0 8px 18px -6px rgba(21,94,239,.55);}
-.price-badge.trial-badge{ background:linear-gradient(120deg,#6b7688,#a6afbd); box-shadow:0 8px 18px -6px rgba(107,118,136,.45); }
-.price-card .plan{ font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:16px; }
-.price-card .price{ font-family:'Fraunces',serif; font-size:34px; margin-bottom:4px; display:flex; align-items:baseline; gap:4px; }
-.price-card .price small{ font-family:'Manrope',sans-serif; font-size:17px; font-weight:700; color:var(--faint); }
-.price-card .price span{ font-family:'Manrope',sans-serif; font-size:13.5px; color:var(--muted); font-weight:600; }
-.price-card .desc{ color:var(--muted); font-size:13.5px; margin-bottom:22px; line-height:1.55; min-height:40px; }
-.price-card ul{ list-style:none; margin-bottom:24px; flex:1; }
-.price-card li{ display:flex; align-items:flex-start; gap:9px; font-size:13.3px; padding:8.5px 0; border-bottom:1px dashed var(--line); line-height:1.4; }
-.price-card li svg{ width:15px; height:15px; stroke:var(--accent-1); flex-shrink:0; margin-top:1px; }
-.rate-note{ font-size:11.5px; color:var(--faint); margin-top:14px; text-align:center; }
+
+.pricing-list{ display:flex; flex-direction:column; gap:20px; }
+.price-row{
+  position:relative;
+  display:grid;
+  grid-template-columns: 1fr 280px;
+  gap:32px;
+  align-items:center;
+  background:var(--card);
+  border:1.5px solid var(--line);
+  border-radius:22px;
+  padding:34px 36px;
+  transition:transform .35s var(--ease), box-shadow .35s var(--ease), border-color .35s var(--ease);
+}
+.price-row:hover{ box-shadow:var(--shadow-lg); border-color:rgba(21,94,239,.22); transform:translateY(-2px); }
+.price-row.featured{ border-color:var(--accent-1); background:linear-gradient(180deg,#fff,#f5f9ff); box-shadow:0 12px 32px -14px rgba(21,94,239,.28); }
+.price-row-head{ display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+.plan-name{ font-family:'Fraunces',serif; font-size:22px; font-weight:600; color:var(--ink); }
+.plan-tag{ display:inline-flex; align-items:center; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:5px 12px; border-radius:20px; background:linear-gradient(120deg,var(--accent-1),var(--accent-2)); color:#fff; white-space:nowrap; }
+.price-row-desc{ color:var(--muted); font-size:14px; line-height:1.6; margin-bottom:16px; }
+.price-row-features{ list-style:none; display:grid; grid-template-columns:repeat(2,1fr); gap:7px 22px; }
+.price-row-features li{ display:flex; gap:7px; align-items:flex-start; font-size:13px; color:var(--ink); line-height:1.4; }
+.price-row-features li svg{ width:14px; height:14px; stroke:var(--accent-1); flex-shrink:0; margin-top:2px; }
+.price-row-price{ text-align:right; border-left:1px dashed var(--line); padding-left:32px; }
+.price-original{ font-size:14px; color:var(--faint); text-decoration:line-through; margin-bottom:2px; }
+.price-current{ font-family:'Fraunces',serif; font-size:32px; color:var(--ink); display:flex; justify-content:flex-end; align-items:baseline; gap:5px; }
+.price-current span{ font-family:'Manrope',sans-serif; font-size:13px; color:var(--muted); font-weight:600; }
+.price-save-badge{ display:inline-flex; align-items:center; gap:4px; background:rgba(34,197,94,.12); color:var(--accent-3); font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px; margin:8px 0 16px; }
+.price-row-price .btn{ width:100%; margin-top:4px; }
+.rate-note{ font-size:11.5px; color:var(--faint); margin-top:14px; text-align:right; }
+
 .calc-section{ background:var(--dark); color:#fff; padding:110px 0; overflow:hidden; }
 .calc-section .section-head p{ color:rgba(255,255,255,.55); }
 .calc-section .section-head h2{ color:#fff; }
@@ -153,7 +161,7 @@ input[type="range"]::-moz-range-thumb{ width:20px; height:20px; border-radius:50
 .calc-bar-total small{ display:block; font-family:'Manrope',sans-serif; font-size:10.5px; color:rgba(255,255,255,.35); font-weight:600; }
 .compare-section{ background:var(--card); }
 .table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow-sm); background:#fff; }
-table.compare{ width:100%; border-collapse:collapse; min-width:860px; }
+table.compare{ width:100%; border-collapse:collapse; min-width:680px; }
 table.compare thead th{text-align:left; padding:20px 20px; font-size:12px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); border-bottom:1.5px solid var(--line); background:var(--paper); position:sticky; top:0;}
 table.compare thead th:first-child{ border-top-left-radius:18px; }
 table.compare thead th:last-child{ border-top-right-radius:18px; }
@@ -166,6 +174,7 @@ table.compare tbody tr:hover{ background:var(--paper); }
 table.compare td.hl{ background:rgba(21,94,239,.035); }
 table.compare svg.yes{ width:17px; height:17px; stroke:var(--accent-3); }
 table.compare .no{ color:var(--faint); }
+table.compare .strike{ text-decoration:line-through; color:var(--faint); font-size:11px; margin-left:5px; }
 .meta-callout{display:flex; gap:20px; align-items:flex-start; background:linear-gradient(120deg, rgba(21,94,239,.05), rgba(0,184,217,.05)); border:1px solid rgba(21,94,239,.15); border-radius:18px; padding:28px 30px; margin-top:40px;}
 .meta-callout .icon{ width:44px; height:44px; border-radius:12px; background:#fff; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:var(--shadow-sm); }
 .meta-callout .icon svg{ width:20px; height:20px; stroke:var(--accent-1); }
@@ -195,9 +204,16 @@ footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px
 .footer-col a{ display:block; text-decoration:none; font-size:14px; color:rgba(255,255,255,.55); margin-bottom:11px; transition:color .2s; }
 .footer-col a:hover{ color:#fff; }
 .footer-bottom{ border-top:1px solid var(--dark-line); padding-top:26px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:14px; font-size:13px; }
-@media (max-width:1180px){.pricing-grid{ grid-template-columns:repeat(3,1fr); } .calc-shell{ grid-template-columns:1fr; }}
+@media (max-width:1180px){ .calc-shell{ grid-template-columns:1fr; } }
+@media (max-width:900px){
+  .price-row{ grid-template-columns:1fr; padding:26px; }
+  .price-row-price{ border-left:none; padding-left:0; text-align:left; border-top:1px dashed var(--line); padding-top:20px; margin-top:10px; }
+  .price-current{ justify-content:flex-start; }
+  .price-row-features{ grid-template-columns:1fr; }
+  .rate-note{ text-align:left; }
+}
+@media (max-width:680px){.nav-links{ display:none; } .burger{ display:flex; } .nav-cta .btn-ghost{ display:none; } .hero-stats-strip{ gap:28px; } .calc-bar-row{ grid-template-columns:74px 1fr 84px; gap:10px; } .calc-shell{ padding:26px 20px; } .footer-grid{ grid-template-columns:1fr; } .section{ padding:70px 0; } .meta-callout{ flex-direction:column; }}
 @media (max-width:980px){.footer-grid{ grid-template-columns:1fr 1fr; }}
-@media (max-width:680px){.nav-links{ display:none; } .burger{ display:flex; } .nav-cta .btn-ghost{ display:none; } .pricing-grid{ grid-template-columns:1fr; } .hero-stats-strip{ gap:28px; } .calc-bar-row{ grid-template-columns:74px 1fr 84px; gap:10px; } .calc-shell{ padding:26px 20px; } .footer-grid{ grid-template-columns:1fr; } .section{ padding:70px 0; } .meta-callout{ flex-direction:column; }}
 @media (prefers-reduced-motion: reduce){*{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }}
 </style>
 </head>
@@ -248,16 +264,16 @@ footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px
             <span class="inr-pill"><span class="dot"></span> Pricing in ₹ INR · billed monthly · cancel anytime</span>
         </div>
         <h1 class="reveal visible">One platform. Every <span class="flow-word">flow</span>, priced simply.</h1>
-        <p class="lead reveal visible">From a 7-day free trial to a fully AI-run sales desk — pick the plan that matches your lead volume today, and grow into the next one when you need it.</p>
+        <p class="lead reveal visible">Pick the plan that matches your lead volume today — every plan includes WhatsApp automation, email campaigns and EVA voice AI, and you can grow into the next tier whenever you need it.</p>
         <div class="hero-cta reveal visible" style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
             <a href="#plans" class="btn btn-primary btn-lg" data-scroll="#plans">Compare plans</a>
             <a href="#calculator" class="btn btn-ghost btn-lg" data-scroll="#calculator">Estimate EVA cost</a>
         </div>
         <div class="hero-stats-strip">
-            <div><strong class="counter" data-target="5">0</strong><span>Plan tiers</span></div>
-            <div><strong class="counter" data-target="7">0</strong><span>Days free trial</span></div>
-            <div><strong class="counter" data-target="5000">0</strong><span>Max EVA mins/mo</span></div>
-            <div><strong>₹3<small style="font-size:16px;">/min</small></strong><span>Lowest EVA overage</span></div>
+            <div><strong class="counter" data-target="3">0</strong><span>Plan tiers</span></div>
+            <div><strong class="counter" data-target="2000">0</strong><span>Max EVA mins/mo</span></div>
+            <div><strong class="counter" data-target="10000">0</strong><span>Max leads/mo</span></div>
+            <div><strong>₹4<small style="font-size:16px;">/min</small></strong><span>Lowest EVA overage</span></div>
         </div>
     </div>
 </header>
@@ -267,91 +283,104 @@ footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px
         <div class="section-head center reveal">
             <div class="eyebrow" style="justify-content:center;">Choose your plan</div>
             <h2>Built for every stage of your sales motion</h2>
-            <p>Start free for 7 days, then pick the plan that matches your lead volume — every paid plan includes WhatsApp automation, email campaigns and EVA voice AI.</p>
+            <p>Every plan includes WhatsApp automation, email campaigns and EVA voice AI — pick the one that matches your lead volume.</p>
         </div>
 
-        <div class="pricing-grid stagger reveal" id="pricingGrid">
+        <div class="pricing-list stagger reveal" id="pricingGrid">
 
-            <div class="price-card trial" style="--i:0">
-                <span class="price-badge trial-badge">7-day trial</span>
-                <div class="plan">Free Trial</div>
-                <div class="price">₹0<span>/ 7 days</span></div>
-                <p class="desc">Try the full flow before you commit — no card required.</p>
-                <ul>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>10 EVA voice mins</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>40 WhatsApp conversations</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Up to 100 leads</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>250 emails</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Basic lead capture</li>
-                </ul>
-                <a href="#" class="btn btn-ghost btn-block">Start free trial</a>
-                <div class="rate-note">Auto-expires after 7 days</div>
+            <div class="price-row" data-plan="starter" style="--i:0">
+                <div class="price-row-main">
+                    <div class="price-row-head">
+                        <span class="plan-name">Starter</span>
+                    </div>
+                    <p class="price-row-desc">Getting started with AI-powered sales automation.</p>
+                    <ul class="price-row-features">
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Unofficial WhatsApp API</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>200 WhatsApp conversations</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>1,000 emails/month</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>EVA voice AI · 200 mins, 1 agent</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Max 1,000 leads</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Basic lead qualification</li>
+                    </ul>
+                </div>
+                <div class="price-row-price">
+                    <div class="price-original">₹2,500</div>
+                    <div class="price-current">₹1,999<span>/month</span></div>
+                    <div class="price-save-badge">SAVE 26%</div>
+                    <a href="#" class="btn btn-ghost btn-block">Start with Starter</a>
+                    <div class="rate-note">Extra EVA minutes · ₹6/min</div>
+                </div>
             </div>
 
-            <div class="price-card" style="--i:1">
-                <div class="plan">Starter</div>
-                <div class="price">₹1,999<span>/month</span></div>
-                <p class="desc">Getting started with AI-powered sales automation.</p>
-                <ul>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Unofficial WhatsApp API</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>200 WhatsApp conversations</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>1,000 emails/month</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>EVA voice AI · 200 mins, 1 agent</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Max 1,000 leads</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Basic lead qualification</li>
-                </ul>
-                <a href="#" class="btn btn-ghost btn-block">Start with Starter</a>
-                <div class="rate-note">Extra EVA minutes · ₹6/min</div>
+            <div class="price-row featured" data-plan="growth" style="--i:1">
+                <div class="price-row-main">
+                    <div class="price-row-head">
+                        <span class="plan-name">Growth</span>
+                        <span class="plan-tag">Most popular</span>
+                    </div>
+                    <p class="price-row-desc">Official WhatsApp, AI lead assistance & scheduling.</p>
+                    <ul class="price-row-features">
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Official Meta WhatsApp Business API</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>2,000 emails/month</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>EVA voice AI · 1,000 mins, 2 agents</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Max 3,000 leads</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Meeting & site-visit booking</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Advanced lead qualification</li>
+                    </ul>
+                </div>
+                <div class="price-row-price">
+                    <div class="price-original">₹6,600</div>
+                    <div class="price-current">₹4,999<span>/month</span></div>
+                    <div class="price-save-badge">SAVE 32%</div>
+                    <a href="#" class="btn btn-primary btn-block">Start with Growth</a>
+                    <div class="rate-note">Extra EVA minutes · ₹5/min</div>
+                </div>
             </div>
 
-            <div class="price-card featured" style="--i:2">
-                <span class="price-badge">Most popular</span>
-                <div class="plan">Growth</div>
-                <div class="price">₹4,999<span>/month</span></div>
-                <p class="desc">Official WhatsApp, AI lead assistance & scheduling.</p>
-                <ul>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Official Meta WhatsApp Business API</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>2,000 emails/month</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>EVA voice AI · 1,000 mins, 2 agents</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Max 3,000 leads</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Meeting & site-visit booking</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Advanced lead qualification</li>
-                </ul>
-                <a href="#" class="btn btn-primary btn-block">Start with Growth</a>
-                <div class="rate-note">Extra EVA minutes · ₹5/min</div>
-            </div>
-
-            <div class="price-card" style="--i:3">
-                <div class="plan">Scale</div>
-                <div class="price">₹11,999<span>/month</span></div>
-                <p class="desc">Complete lead-to-booking automation, cross-channel.</p>
-                <ul>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Full lead journey automation</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>5,000 emails/month</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Cross-channel WhatsApp + Email + Voice</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>EVA voice AI · 2,000 mins, 5 agents</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Max 10,000 leads</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Multi-step AI workflows</li>
-                </ul>
-                <a href="#" class="btn btn-ghost btn-block">Start with Scale</a>
-                <div class="rate-note">Extra EVA minutes · ₹4/min</div>
+            <div class="price-row" data-plan="scale" style="--i:2">
+                <div class="price-row-main">
+                    <div class="price-row-head">
+                        <span class="plan-name">Scale</span>
+                    </div>
+                    <p class="price-row-desc">Complete lead-to-booking automation, cross-channel.</p>
+                    <ul class="price-row-features">
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Full lead journey automation</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>5,000 emails/month</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Cross-channel WhatsApp + Email + Voice</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>EVA voice AI · 2,000 mins, 5 agents</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Max 10,000 leads</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Multi-step AI workflows</li>
+                    </ul>
+                </div>
+                <div class="price-row-price">
+                    <div class="price-original">₹12,600</div>
+                    <div class="price-current">₹8,999<span>/month</span></div>
+                    <div class="price-save-badge">SAVE 40%</div>
+                    <a href="#" class="btn btn-ghost btn-block">Start with Scale</a>
+                    <div class="rate-note">Extra EVA minutes · ₹4/min</div>
+                </div>
             </div>
 
             <!--
-            <div class="price-card enterprise" style="--i:4">
-                <div class="plan">Custom</div>
-                <div class="price">₹15,000<small>+</small><span>/month</span></div>
-                <p class="desc">Custom-built around your integrations & workflows.</p>
-                <ul>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Everything in Scale, extended</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>5,000+ EVA mins, custom agents</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Custom CRM / ERP / API integrations</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Custom lead-routing logic</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Dedicated implementation support</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Priority support</li>
-                </ul>
-                <a href="#" class="btn btn-primary btn-block">Talk to sales</a>
-                <div class="rate-note">Extra EVA minutes · ₹3/min</div>
+            <div class="price-row" data-plan="custom" style="--i:3">
+                <div class="price-row-main">
+                    <div class="price-row-head">
+                        <span class="plan-name">Custom</span>
+                    </div>
+                    <p class="price-row-desc">Custom-built around your integrations & workflows.</p>
+                    <ul class="price-row-features">
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Everything in Scale, extended</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>5,000+ EVA mins, custom agents</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Custom CRM / ERP / API integrations</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Dedicated implementation support</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Priority support</li>
+                    </ul>
+                </div>
+                <div class="price-row-price">
+                    <div class="price-current">₹15,000<span>+/month</span></div>
+                    <a href="#" class="btn btn-primary btn-block">Talk to sales</a>
+                    <div class="rate-note">Extra EVA minutes · ₹3/min</div>
+                </div>
             </div>
             -->
 
@@ -376,12 +405,12 @@ footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px
                         <span>Minutes / month</span>
                         <strong id="calcValue">1,000</strong>
                     </div>
-                    <input type="range" id="calcSlider" min="0" max="6000" step="50" value="1000">
-                    <div class="calc-marks"><span>0</span><span>1,500</span><span>3,000</span><span>4,500</span><span>6,000</span></div>
+                    <input type="range" id="calcSlider" min="0" max="5000" step="50" value="1000">
+                    <div class="calc-marks"><span>0</span><span>1,250</span><span>2,500</span><span>3,750</span><span>5,000</span></div>
                 </div>
                 <div class="calc-hint">
                     <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                    Bars below recalculate live — base subscription plus any overage minutes beyond each plan's included bucket.
+                    Bars below recalculate live — subscription price plus any overage minutes beyond each plan's included bucket.
                 </div>
             </div>
             <div class="calc-bars" id="calcBars">
@@ -395,13 +424,8 @@ footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px
                     <div class="calc-bar-track"><div class="calc-bar-fill"></div></div>
                     <div class="calc-bar-total">₹0<small>total / mo</small></div>
                 </div>
-                <div class="calc-bar-row" data-plan="Scale" data-base="11999" data-included="2000" data-rate="4">
+                <div class="calc-bar-row" data-plan="Scale" data-base="8999" data-included="2000" data-rate="4">
                     <div class="calc-bar-name">Scale</div>
-                    <div class="calc-bar-track"><div class="calc-bar-fill"></div></div>
-                    <div class="calc-bar-total">₹0<small>total / mo</small></div>
-                </div>
-                <div class="calc-bar-row" data-plan="Custom" data-base="15000" data-included="5000" data-rate="3">
-                    <div class="calc-bar-name">Custom</div>
                     <div class="calc-bar-track"><div class="calc-bar-fill"></div></div>
                     <div class="calc-bar-total">₹0<small>total / mo</small></div>
                 </div>
@@ -423,31 +447,27 @@ footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px
                 <thead>
                     <tr>
                         <th>Feature</th>
-                        <th>Free Trial</th>
                         <th>Starter</th>
                         <th class="hl">Growth</th>
                         <th>Scale</th>
-                        <th>Custom</th>
                     </tr>
                 </thead>
                 <tbody id="compareBody">
-                    <tr><td>Monthly price</td><td>₹0 (7 days)</td><td>₹1,999</td><td class="hl">₹4,999</td><td>₹11,999</td><td>₹15,000+</td></tr>
-                    <tr><td>WhatsApp API</td><td>Unofficial</td><td>Unofficial</td><td class="hl">Official Meta API</td><td>Official Meta API</td><td>Custom</td></tr>
-                    <tr><td>WhatsApp conversations</td><td>40</td><td>200</td><td class="hl">Unlimited*</td><td>Unlimited*</td><td>Custom</td></tr>
-                    <tr><td>WhatsApp AI bot</td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
-                    <tr><td>Interactive buttons</td><td class="no">—</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
-                    <tr><td>Emails / month</td><td>250</td><td>1,000</td><td class="hl">2,000</td><td>5,000</td><td>Custom</td></tr>
-                    <tr><td>Max leads</td><td>100</td><td>1,000</td><td class="hl">3,000</td><td>10,000</td><td>Custom</td></tr>
-                    <tr><td>AI sales automation</td><td>Basic</td><td>Basic</td><td class="hl">Advanced</td><td>Complete</td><td>Custom</td></tr>
-                    <tr><td>EVA voice minutes</td><td>10</td><td>200</td><td class="hl">1,000</td><td>2,000</td><td>5,000+</td></tr>
-                    <tr><td>EVA agents</td><td>1</td><td>1</td><td class="hl">2</td><td>5</td><td>Custom</td></tr>
-                    <tr><td>Meeting booking</td><td class="no">—</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
-                    <tr><td>Site-visit booking</td><td class="no">—</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
-                    <tr><td>Real-estate inventory AI</td><td class="no">—</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
-                    <tr><td>End-to-end lead automation</td><td class="no">—</td><td class="no">—</td><td class="hl no">—</td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
-                    <tr><td>EVA extra minute rate</td><td>—</td><td>₹6/min</td><td class="hl">₹5/min</td><td>₹4/min</td><td>₹3/min</td></tr>
-                    <tr><td>Custom APIs & integrations</td><td class="no">—</td><td class="no">—</td><td class="hl no">—</td><td class="no">—</td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
-                    <tr><td>Priority support</td><td class="no">—</td><td class="no">—</td><td class="hl no">—</td><td class="no">—</td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>Monthly price</td><td>₹1,999 <span class="strike">₹2,500</span></td><td class="hl">₹4,999 <span class="strike">₹6,600</span></td><td>₹8,999 <span class="strike">₹12,600</span></td></tr>
+                    <tr><td>WhatsApp API</td><td>Unofficial</td><td class="hl">Official Meta API</td><td>Official Meta API</td></tr>
+                    <tr><td>WhatsApp conversations</td><td>200</td><td class="hl">Unlimited*</td><td>Unlimited*</td></tr>
+                    <tr><td>WhatsApp AI bot</td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>Interactive buttons</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>Emails / month</td><td>1,000</td><td class="hl">2,000</td><td>5,000</td></tr>
+                    <tr><td>Max leads</td><td>1,000</td><td class="hl">3,000</td><td>10,000</td></tr>
+                    <tr><td>AI sales automation</td><td>Basic</td><td class="hl">Advanced</td><td>Complete</td></tr>
+                    <tr><td>EVA voice minutes</td><td>200</td><td class="hl">1,000</td><td>2,000</td></tr>
+                    <tr><td>EVA agents</td><td>1</td><td class="hl">2</td><td>5</td></tr>
+                    <tr><td>Meeting booking</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>Site-visit booking</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>Real-estate inventory AI</td><td class="no">—</td><td class="hl"><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>End-to-end lead automation</td><td class="no">—</td><td class="hl no">—</td><td><svg class="yes" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></td></tr>
+                    <tr><td>EVA extra minute rate</td><td>₹6/min</td><td class="hl">₹5/min</td><td>₹4/min</td></tr>
                 </tbody>
             </table>
         </div>
@@ -456,7 +476,7 @@ footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px
             <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4.5 8-11.8V5l-8-3-8 3v5.2C4 17.5 12 22 12 22z"/></svg></div>
             <div>
                 <h4>Meta WhatsApp API charges are billed separately</h4>
-                <p>On the Growth, Scale and Custom plans, official Meta WhatsApp Business API conversation and template charges are set by Meta and billed directly to you — they're not part of the PravahAI subscription. When your 24-hour customer service window closes, approved message templates may apply. Meta's pricing and policies can change; PravahAI does not control these fees.</p>
+                <p>On the Growth and Scale plans, official Meta WhatsApp Business API conversation and template charges are set by Meta and billed directly to you — they're not part of the PravahAI subscription. When your 24-hour customer service window closes, approved message templates may apply. Meta's pricing and policies can change; PravahAI does not control these fees.</p>
             </div>
         </div>
     </div>
@@ -470,28 +490,24 @@ footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px
         </div>
         <div class="faq-list reveal">
             <div class="faq-item open">
-                <button class="faq-q"><span>What do I get with the free trial?</span><span class="plus"></span></button>
-                <div class="faq-a"><p>7 days of full access on a limited scale — 10 EVA voice minutes, 40 WhatsApp conversations, up to 100 leads and 250 emails. No card required, and the trial simply expires after 7 days unless you upgrade.</p></div>
-            </div>
-            <div class="faq-item">
                 <button class="faq-q"><span>Can I switch plans later?</span><span class="plus"></span></button>
                 <div class="faq-a"><p>Yes — upgrade or downgrade any time from your dashboard. Changes apply from your next billing cycle, and unused minutes or emails don't carry over between plans.</p></div>
             </div>
             <div class="faq-item">
                 <button class="faq-q"><span>What happens if I go over my EVA voice minutes?</span><span class="plus"></span></button>
-                <div class="faq-a"><p>Calls simply continue — you're billed for extra minutes at your plan's overage rate (₹6 on Starter down to ₹3 on Custom), shown on your monthly invoice. No calls are cut off mid-conversation. Extra minutes aren't billed during the free trial, which ends once your minutes run out or 7 days pass.</p></div>
+                <div class="faq-a"><p>Calls simply continue — you're billed for extra minutes at your plan's overage rate (₹6 on Starter down to ₹4 on Scale), shown on your monthly invoice. No calls are cut off mid-conversation.</p></div>
             </div>
             <div class="faq-item">
                 <button class="faq-q"><span>What's the difference between the unofficial and official WhatsApp API?</span><span class="plus"></span></button>
-                <div class="faq-a"><p>Free Trial and Starter use an unofficial WhatsApp API. Growth and above use the official Meta WhatsApp Business API, which unlocks interactive buttons, higher reliability and template messaging — but Meta's own messaging fees apply separately.</p></div>
+                <div class="faq-a"><p>Starter uses an unofficial WhatsApp API. Growth and Scale use the official Meta WhatsApp Business API, which unlocks interactive buttons, higher reliability and template messaging — but Meta's own messaging fees apply separately.</p></div>
             </div>
             <div class="faq-item">
                 <button class="faq-q"><span>Do I need a real-estate business to use the inventory AI?</span><span class="plus"></span></button>
-                <div class="faq-a"><p>No — it's built for real estate, but Growth, Scale and Custom's AI qualification, scheduling and follow-up workflows work well for any business with a structured product or service catalog.</p></div>
+                <div class="faq-a"><p>No — it's built for real estate, but Growth and Scale's AI qualification, scheduling and follow-up workflows work well for any business with a structured product or service catalog.</p></div>
             </div>
             <div class="faq-item">
                 <button class="faq-q"><span>Is there a setup fee or long-term contract?</span><span class="plus"></span></button>
-                <div class="faq-a"><p>No setup fee on the Free Trial, Starter, Growth or Scale plans — it's a straightforward monthly subscription you can cancel any time. Custom plans include dedicated implementation support scoped to your integrations, discussed with our team.</p></div>
+                <div class="faq-a"><p>No setup fee on the Starter, Growth or Scale plans — it's a straightforward monthly subscription you can cancel any time.</p></div>
             </div>
         </div>
     </div>
@@ -500,7 +516,7 @@ footer{ background:var(--dark); color:rgba(255,255,255,.55); padding:64px 0 30px
 <section class="cta-banner">
     <div class="wrap">
         <h2 class="reveal">Ready to put your sales flow on autopilot?</h2>
-        <p class="reveal">Start free for 7 days — upgrade the moment your lead volume asks for it.</p>
+        <p class="reveal">Get started today — upgrade the moment your lead volume asks for it.</p>
         <div class="cta-actions reveal">
             <a href="#plans" class="btn btn-primary btn-lg" data-scroll="#plans">Choose a plan</a>
             <a href="#" class="btn btn-ghost btn-lg" style="border-color:rgba(255,255,255,.25); color:#fff;">Talk to sales</a>
@@ -588,8 +604,8 @@ document.addEventListener('DOMContentLoaded', function(){
     }, { threshold:0.12, rootMargin:'0px 0px -60px 0px' });
     revealEls.forEach(function(el){ io.observe(el); });
 
-    document.querySelectorAll('.pricing-grid .price-card').forEach(function(card, i){
-        card.style.setProperty('--i', i);
+    document.querySelectorAll('.pricing-list .price-row').forEach(function(row, i){
+        row.style.setProperty('--i', i);
     });
 
     var counters = document.querySelectorAll('.counter');
@@ -617,18 +633,18 @@ document.addEventListener('DOMContentLoaded', function(){
         requestAnimationFrame(step);
     }
 
-    document.querySelectorAll('.price-card').forEach(function(card){
-        card.addEventListener('mousemove', function(e){
-            var rect = card.getBoundingClientRect();
+    document.querySelectorAll('.price-row').forEach(function(row){
+        row.addEventListener('mousemove', function(e){
+            var rect = row.getBoundingClientRect();
             var x = e.clientX - rect.left;
             var y = e.clientY - rect.top;
             var cx = rect.width / 2, cy = rect.height / 2;
-            var rotX = ((y - cy) / cy) * -4;
-            var rotY = ((x - cx) / cx) * 4;
-            card.style.transform = 'perspective(900px) rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) translateY(-4px)';
+            var rotX = ((y - cy) / cy) * -1.5;
+            var rotY = ((x - cx) / cx) * 1.5;
+            row.style.transform = 'perspective(1200px) rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) translateY(-2px)';
         });
-        card.addEventListener('mouseleave', function(){
-            card.style.transform = '';
+        row.addEventListener('mouseleave', function(){
+            row.style.transform = '';
         });
     });
 

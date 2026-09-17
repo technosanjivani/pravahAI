@@ -49,6 +49,9 @@ from scraper import scrape_website, normalize_website_for_dedupe
 
 import cloudinary
 import cloudinary.uploader
+import razorpay
+import hmac
+import hashlib
 
 CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
 CLOUDINARY_API_KEY    = os.getenv("CLOUDINARY_API_KEY", "")
@@ -70,11 +73,27 @@ VAPID_PRIVATE_KEY_PATH  = os.getenv("VAPID_PRIVATE_KEY_PATH", "private_key.pem")
 VAPID_CLAIMS_EMAIL      = os.getenv("VAPID_CLAIMS_EMAIL", "mailto:admin@pravaahai.app")
 
 
+RAZORPAY_KEY_ID     = os.getenv("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)) if (RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET) else None
+
+# Every gatable feature in the product. A plan stores features_enabled: {key: bool}.
+# Missing keys on an OLD plan doc default to True (so existing customers aren't broken).
+PLAN_FEATURE_KEYS = {
+    "whatsapp_bot":         "WhatsApp AI Auto-Reply",
+    "email_campaigns":      "Email Campaigns",
+    "eva_voice":            "Eva Voice AI Calling",
+    "meetings":             "Meeting Scheduling",
+    "team_members":         "Team Members",
+    "inventory":            "Real Estate Inventory / Site Visits",
+    "campaigns_automation": "Automation Campaigns (Flow Builder)",
+    "api_access":           "API Access",
+}
+DEFAULT_FEATURE_FLAGS = {k: True for k in PLAN_FEATURE_KEYS}
 
 BUSINESS_CATEGORIES = {"real_estate", "share_market", "import_export"}
 SITE_VISIT_STATUSES = {"new", "read", "confirmed", "done", "won", "lost", "rescheduled"}
 TRIGGER_EVENTS = {"lead_added", "call_ended", "status_hot", "status_warm"}
-
 
 def upload_media_to_cloudinary(file_storage, resource_type="auto"):
     if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):
@@ -254,8 +273,14 @@ try:
     push_subs_col = db["pravah-push-subs"]
     push_subs_col.create_index("owner_id")
     push_subs_col.create_index("endpoint", unique=True)
+
+    payment_orders_col = db["pravah-payment-orders"]  # razorpay order tracking (plan purchases + minute recharges)
+    payment_orders_col.create_index("owner_id")
+    payment_orders_col.create_index("razorpay_order_id", unique=True)
 except Exception:
     pass
+
+payment_orders_col = db["pravah-payment-orders"]
 
 
 def seed_admin_defaults():
@@ -808,6 +833,8 @@ def serialize_message(m):
 
 
 def serialize_plan(p):
+    flags = dict(DEFAULT_FEATURE_FLAGS)
+    flags.update({k: v for k, v in (p.get("features_enabled") or {}).items() if k in PLAN_FEATURE_KEYS})
     return {
         "_id": str(p["_id"]),
         "name": p.get("name", ""),
@@ -819,6 +846,8 @@ def serialize_plan(p):
         "eva_minutes_included": p.get("eva_minutes_included", 0),
         "lead_limit": p.get("lead_limit", 0),
         "features": p.get("features", []),
+        "features_enabled": flags,
+        "is_custom": bool(p.get("is_custom", False)),
         "created_at": p.get("created_at").isoformat() if p.get("created_at") else None,
     }
 
@@ -846,6 +875,13 @@ def get_plan_status(user):
     minutes_total = float(user.get("eva_minutes", 0) or 0)
     minutes_used = float(user.get("eva_minutes_used", 0) or 0)
     days_remaining = max(0, (expires_at - now).days) if expires_at else None
+
+    feature_flags = dict(DEFAULT_FEATURE_FLAGS)
+    if plan and isinstance(plan.get("features_enabled"), dict):
+        feature_flags.update({k: bool(v) for k, v in plan["features_enabled"].items() if k in PLAN_FEATURE_KEYS})
+    elif not plan:
+        feature_flags = {k: False for k in PLAN_FEATURE_KEYS}  # no plan at all -> nothing enabled
+
     return {
         "active": active,
         "has_plan": bool(plan),
@@ -855,7 +891,9 @@ def get_plan_status(user):
             "price": plan.get("price", 0), "currency": plan.get("currency", "USD"),
             "duration_days": plan.get("duration_days", 30),
             "features": plan.get("features", []),
+            "is_custom": bool(plan.get("is_custom", False)),
         } if plan else None),
+        "feature_flags": feature_flags,
         "assigned_at": user.get("plan_assigned_at").isoformat() if user.get("plan_assigned_at") else None,
         "expires_at": expires_at.isoformat() if expires_at else None,
         "days_remaining": days_remaining,
@@ -863,6 +901,8 @@ def get_plan_status(user):
         "eva_minutes_used": round(minutes_used, 2),
         "eva_minutes_remaining": round(max(0.0, minutes_total - minutes_used), 2),
         "recharge_contact_number": get_recharge_contact_number(),
+        "region": user.get("region", "international"),
+        "razorpay_key_id": RAZORPAY_KEY_ID,   # safe to expose — it's the public key
     }
 
 
@@ -887,6 +927,42 @@ def require_active_plan(view):
             }), 402
         return view(*args, **kwargs)
     return wrapped
+
+
+def require_feature(feature_key):
+    """Blocks a route unless the account's plan is active AND that plan
+    has this specific feature enabled. Use in addition to (below)
+    @login_required / @owner_required. Returns 402 with feature_blocked:true
+    so the frontend can show 'upgrade your plan' instead of 'recharge'."""
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            try:
+                user = users_col.find_one({"_id": ObjectId(current_user_id())})
+            except InvalidId:
+                user = None
+            if not user:
+                return jsonify({"error": "User not found"}), 404
+            status = get_plan_status(user)
+            if not status["active"]:
+                reason = "Your plan has expired" if status["expired"] else "No active plan on this account"
+                return jsonify({
+                    "error": f"{reason}. Please recharge to keep using this feature.",
+                    "plan_blocked": True,
+                    "recharge_contact_number": status["recharge_contact_number"],
+                }), 402
+            if not status["feature_flags"].get(feature_key, True):
+                label = PLAN_FEATURE_KEYS.get(feature_key, feature_key)
+                return jsonify({
+                    "error": f"Your current plan ({status['plan']['name']}) does not include {label}. Upgrade your plan to unlock it.",
+                    "plan_blocked": True,
+                    "feature_blocked": True,
+                    "feature_key": feature_key,
+                    "recharge_contact_number": status["recharge_contact_number"],
+                }), 402
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
 
 
 def serialize_admin_user(u):
@@ -2426,6 +2502,157 @@ def api_plan_status():
     return jsonify(get_plan_status(user))
 
 
+# ==================================================================
+# SELF-SERVE PLAN PURCHASE / UPGRADE + EVA MINUTE RECHARGE (Razorpay)
+# ==================================================================
+
+@app.route("/api/plans/public", methods=["GET"])
+@login_required
+@owner_required
+def api_public_plans():
+    """Plans a user can self-select for purchase/upgrade — never includes
+    admin-only custom plans, and is filtered to the account's region."""
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    region = (user.get("region") if user else "international") or "international"
+    plans = list(plans_col.find({"region": region, "is_custom": {"$ne": True}}).sort("price", 1))
+    return jsonify({"plans": [serialize_plan(p) for p in plans]})
+
+
+@app.route("/api/payments/plan/create-order", methods=["POST"])
+@login_required
+@owner_required
+def api_create_plan_order():
+    if not razorpay_client:
+        return jsonify({"error": "Payments are not configured on the server yet"}), 400
+    data = request.get_json(silent=True) or {}
+    plan_id = data.get("plan_id")
+    try:
+        plan = plans_col.find_one({"_id": ObjectId(plan_id)})
+    except InvalidId:
+        plan = None
+    if not plan:
+        return jsonify({"error": "Plan not found"}), 404
+    if plan.get("is_custom"):
+        return jsonify({"error": "This plan can only be assigned by an admin"}), 403
+
+    amount_paise = int(round(float(plan.get("price", 0)) * 100))
+    if amount_paise <= 0:
+        return jsonify({"error": "This plan has no payable price"}), 400
+
+    try:
+        rp_order = razorpay_client.order.create({
+            "amount": amount_paise,
+            "currency": plan.get("currency", "INR"),
+            "notes": {"owner_id": current_user_id(), "plan_id": str(plan["_id"]), "purchase_type": "plan"},
+        })
+    except Exception as e:
+        return jsonify({"error": f"Could not create payment order: {e}"}), 400
+
+    payment_orders_col.insert_one({
+        "owner_id": current_user_id(), "type": "plan", "plan_id": str(plan["_id"]),
+        "razorpay_order_id": rp_order["id"], "amount": amount_paise, "currency": plan.get("currency", "INR"),
+        "status": "created", "created_at": datetime.utcnow(),
+    })
+    return jsonify({
+        "order_id": rp_order["id"], "amount": amount_paise, "currency": plan.get("currency", "INR"),
+        "key_id": RAZORPAY_KEY_ID, "plan_name": plan.get("name", ""),
+    })
+
+
+@app.route("/api/payments/minutes/create-order", methods=["POST"])
+@login_required
+@owner_required
+def api_create_minutes_order():
+    if not razorpay_client:
+        return jsonify({"error": "Payments are not configured on the server yet"}), 400
+    data = request.get_json(silent=True) or {}
+    try:
+        minutes = float(data.get("minutes", 0))
+    except (TypeError, ValueError):
+        minutes = 0
+    if minutes <= 0:
+        return jsonify({"error": "Enter a valid number of minutes"}), 400
+
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    region = (user.get("region") if user else "international") or "international"
+    pricing = pricing_col.find_one({"key": "global"}) or {}
+    rate = float(pricing.get("india_price_per_min" if region == "india" else "international_price_per_min", 0) or 0)
+    currency = "INR" if region == "india" else "USD"
+    amount_units = round(minutes * rate, 2)          # rupees or dollars
+    amount_smallest = int(round(amount_units * 100))  # paise / cents
+    if amount_smallest <= 0:
+        return jsonify({"error": "Recharge pricing is not configured yet — contact support"}), 400
+
+    try:
+        rp_order = razorpay_client.order.create({
+            "amount": amount_smallest, "currency": currency,
+            "notes": {"owner_id": current_user_id(), "minutes": str(minutes), "purchase_type": "minutes"},
+        })
+    except Exception as e:
+        return jsonify({"error": f"Could not create payment order: {e}"}), 400
+
+    payment_orders_col.insert_one({
+        "owner_id": current_user_id(), "type": "minutes", "minutes": minutes,
+        "razorpay_order_id": rp_order["id"], "amount": amount_smallest, "currency": currency,
+        "status": "created", "created_at": datetime.utcnow(),
+    })
+    return jsonify({
+        "order_id": rp_order["id"], "amount": amount_smallest, "currency": currency,
+        "key_id": RAZORPAY_KEY_ID, "minutes": minutes, "rate": rate,
+    })
+
+
+@app.route("/api/payments/verify", methods=["POST"])
+@login_required
+@owner_required
+def api_verify_payment():
+    if not razorpay_client:
+        return jsonify({"error": "Payments are not configured on the server yet"}), 400
+    data = request.get_json(silent=True) or {}
+    order_id   = data.get("razorpay_order_id", "")
+    payment_id = data.get("razorpay_payment_id", "")
+    signature  = data.get("razorpay_signature", "")
+    if not (order_id and payment_id and signature):
+        return jsonify({"error": "Missing payment verification fields"}), 400
+
+    order_doc = payment_orders_col.find_one({"razorpay_order_id": order_id, "owner_id": current_user_id()})
+    if not order_doc:
+        return jsonify({"error": "Order not found for this account"}), 404
+    if order_doc.get("status") == "paid":
+        return jsonify({"success": True, "already_processed": True})
+
+    expected_sig = hmac.new(
+        RAZORPAY_KEY_SECRET.encode(), f"{order_id}|{payment_id}".encode(), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(expected_sig, signature):
+        payment_orders_col.update_one({"_id": order_doc["_id"]}, {"$set": {"status": "signature_failed"}})
+        return jsonify({"error": "Payment signature verification failed"}), 400
+
+    owner_id = order_doc["owner_id"]
+    if order_doc["type"] == "plan":
+        plan = plans_col.find_one({"_id": ObjectId(order_doc["plan_id"])})
+        if not plan:
+            return jsonify({"error": "Plan no longer exists"}), 404
+        now = datetime.utcnow()
+        duration_days = int(plan.get("duration_days", 30) or 30)
+        users_col.update_one({"_id": ObjectId(owner_id)}, {"$set": {
+            "plan_id": str(plan["_id"]),
+            "eva_minutes": float(plan.get("eva_minutes_included", 0) or 0),
+            "eva_minutes_used": 0.0,
+            "plan_assigned_at": now,
+            "plan_expires_at": now + timedelta(days=duration_days),
+        }})
+    else:  # minutes recharge — ADDS on top of whatever is left
+        minutes = float(order_doc.get("minutes", 0) or 0)
+        users_col.update_one({"_id": ObjectId(owner_id)}, {"$inc": {"eva_minutes": minutes}})
+
+    payment_orders_col.update_one({"_id": order_doc["_id"]}, {"$set": {
+        "status": "paid", "razorpay_payment_id": payment_id, "paid_at": datetime.utcnow(),
+    }})
+    user = users_col.find_one({"_id": ObjectId(owner_id)})
+    return jsonify({"success": True, "plan_status": get_plan_status(user)})
+
+
 @app.route("/api/me", methods=["GET"])
 @login_required
 def api_me():
@@ -2931,7 +3158,7 @@ def api_lead_messages(lead_id):
 
 @app.route("/api/leads/<lead_id>/send-whatsapp", methods=["POST"])
 @login_required
-@require_active_plan
+@require_feature("whatsapp_bot")
 def api_send_manual_whatsapp(lead_id):
     """Lets the owner or the lead's assigned team member send a one-off
     manual WhatsApp message from the lead detail view."""
@@ -3024,6 +3251,7 @@ def api_list_inventory():
 @app.route("/api/inventory", methods=["POST"])
 @login_required
 @owner_required
+@require_feature("inventory")
 def api_create_inventory():
     data = request.get_json(silent=True) or {}
     city = (data.get("city") or "").strip()
@@ -3587,7 +3815,7 @@ def api_reschedule_meeting(meeting_id):
 @app.route("/api/meetings/manual", methods=["POST"])
 @login_required
 @owner_required
-@require_active_plan
+@require_feature("meetings")
 def api_create_manual_meeting():
     """Owner manually books a meeting with any lead (or an ad-hoc contact).
     Bypasses the weekly-availability template — this is a direct, deliberate
@@ -3832,7 +4060,7 @@ def api_delete_campaign(campaign_id):
 @app.route("/api/campaigns/<campaign_id>/launch", methods=["POST"])
 @login_required
 @owner_required
-@require_active_plan
+@require_feature("campaigns_automation")
 def api_launch_campaign(campaign_id):
     try: ObjectId(campaign_id)
     except InvalidId: return jsonify({"error": "Invalid campaign id"}), 400
@@ -4256,6 +4484,7 @@ def api_list_team():
 @app.route("/api/team", methods=["POST"])
 @login_required
 @owner_required
+@require_feature("team_members")
 def api_invite_team_member():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip().lower()
@@ -4622,6 +4851,9 @@ def api_admin_create_plan():
     region = data.get("region")
     if not name or region not in ("india", "international"):
         return jsonify({"error": "name and a valid region (india/international) are required"}), 400
+    features_enabled = dict(DEFAULT_FEATURE_FLAGS)
+    if isinstance(data.get("features_enabled"), dict):
+        features_enabled.update({k: bool(v) for k, v in data["features_enabled"].items() if k in PLAN_FEATURE_KEYS})
     doc = {
         "name": name, "region": region,
         "currency": "INR" if region == "india" else "USD",
@@ -4631,11 +4863,12 @@ def api_admin_create_plan():
         "eva_minutes_included": float(data.get("eva_minutes_included", 0) or 0),
         "lead_limit": int(data.get("lead_limit", 0) or 0),
         "features": data.get("features", []),
+        "features_enabled": features_enabled,
+        "is_custom": bool(data.get("is_custom", False)),
         "created_at": datetime.utcnow(),
     }
     result = plans_col.insert_one(doc)
     return jsonify({"plan": serialize_plan(plans_col.find_one({"_id": result.inserted_id}))}), 201
-
 
 @app.route("/api/admin/plans/<plan_id>", methods=["PUT", "PATCH"])
 @login_required
@@ -4655,6 +4888,13 @@ def api_admin_update_plan(plan_id):
     if "eva_minutes_included" in data: update["eva_minutes_included"] = float(data["eva_minutes_included"] or 0)
     if "lead_limit" in data: update["lead_limit"] = int(data["lead_limit"] or 0)
     if "features" in data: update["features"] = data["features"]
+    if "is_custom" in data: update["is_custom"] = bool(data["is_custom"])
+    if isinstance(data.get("features_enabled"), dict):
+        existing = plans_col.find_one({"_id": oid}) or {}
+        flags = dict(DEFAULT_FEATURE_FLAGS)
+        flags.update({k: v for k, v in (existing.get("features_enabled") or {}).items() if k in PLAN_FEATURE_KEYS})
+        flags.update({k: bool(v) for k, v in data["features_enabled"].items() if k in PLAN_FEATURE_KEYS})
+        update["features_enabled"] = flags
     result = plans_col.update_one({"_id": oid}, {"$set": update})
     if result.matched_count == 0:
         return jsonify({"error": "Plan not found"}), 404
