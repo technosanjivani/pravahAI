@@ -19,3 +19,4 @@ cloudinary
 
 pywebpush
 py-vapid
+razorpay
