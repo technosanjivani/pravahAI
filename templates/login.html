@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PravahAI Login</title>
+<title>PravaahAI Login</title>
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
     :root{
@@ -17,83 +17,150 @@
         --faint:#a6afbd;
         --paper:#f5f7fb;
         --card:#ffffff;
-        --line:rgba(16,24,43,.08);
+        --line:rgba(16,24,43,.10);
         --accent-1:#155eef;
         --accent-2:#00b8d9;
         --error:#c0392b;
-        --shadow-sm:0 1px 2px rgba(16,24,40,.04);
-        --shadow-lg:0 24px 48px -16px rgba(16,24,40,.16);
         --ease:cubic-bezier(.22,1,.36,1);
     }
 
     *{box-sizing:border-box;}
 
+    html,body{ height:100%; margin:0; }
+
     body{
-        margin:0;
-        min-height:100vh;
-        display:flex;
-        justify-content:center;
-        align-items:center;
-        background:
-            radial-gradient(circle at 15% 10%, rgba(21,94,239,.05), transparent 40%),
-            radial-gradient(circle at 85% 90%, rgba(0,184,217,.06), transparent 45%),
-            var(--paper);
         font-family:'Manrope',sans-serif;
         color:var(--ink);
-        padding:24px;
     }
 
-    .auth-card{
+    .auth-wrapper{
+        display:flex;
+        min-height:100vh;
+        width:100%;
+    }
+
+    /* ---------- LEFT PANEL ---------- */
+    .auth-left{
+        flex:1 1 50%;
+        background:linear-gradient(135deg, #14337f 0%, var(--accent-1) 45%, var(--accent-2) 100%);
+        color:#fff;
+        padding:40px 56px;
+        display:flex;
+        flex-direction:column;
+        justify-content:space-between;
         position:relative;
-        width:420px;
-        max-width:100%;
-        background:var(--card);
-        border:1px solid var(--line);
-        border-radius:20px;
-        padding:44px 40px 38px;
-        box-shadow:var(--shadow-sm), var(--shadow-lg);
-        opacity:0;
-        transform:translateY(18px);
-        animation:card-in .7s var(--ease) .05s forwards;
         overflow:hidden;
     }
 
-    /* signature flow line — the "Pravah" (flow) mark */
-    .flow-mark{
-        display:block;
-        width:100%;
-        height:34px;
-        margin-bottom:18px;
-        overflow:visible;
+    .back-home{
+        display:inline-flex;
+        align-items:center;
+        gap:6px;
+        color:rgba(255,255,255,.75);
+        text-decoration:none;
+        font-size:14px;
+        font-weight:500;
+        width:fit-content;
+    }
+    .back-home svg{ width:16px; height:16px; }
+    .back-home:hover{ color:#fff; }
+
+    .brand-row{
+        display:flex;
+        align-items:center;
+        gap:12px;
+        margin-top:8px;
     }
 
-    .flow-path{
-        fill:none;
-        stroke:url(#flowGradient);
-        stroke-width:2.5;
-        stroke-linecap:round;
-        stroke-dasharray:340;
-        stroke-dashoffset:340;
-        animation:draw-flow 1.3s var(--ease) .25s forwards,
-                   shimmer-flow 3.2s linear 1.6s infinite;
+    .brand-badge{
+        width:40px;
+        height:40px;
+        border-radius:12px;
+        background:rgba(255,255,255,.16);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        flex:0 0 auto;
+    }
+    .brand-badge svg{ width:20px; height:20px; stroke:#fff; }
+
+    .brand-name{
+        font-size:22px;
+        font-weight:700;
+        letter-spacing:-.01em;
+    }
+    .brand-name .accent{ color:#8be9ff; font-weight:800; }
+
+    .left-body{
+        max-width:440px;
+    }
+
+    .left-headline{
+        font-size:36px;
+        line-height:1.2;
+        font-weight:800;
+        letter-spacing:-.01em;
+        margin:0 0 18px;
+    }
+
+    .left-copy{
+        font-size:15.5px;
+        line-height:1.6;
+        color:rgba(255,255,255,.85);
+        margin:0 0 30px;
+    }
+
+    .pill-row{
+        display:flex;
+        flex-wrap:wrap;
+        gap:10px;
+    }
+
+    .pill{
+        display:inline-flex;
+        align-items:center;
+        gap:7px;
+        background:rgba(255,255,255,.14);
+        border:1px solid rgba(255,255,255,.18);
+        color:#fff;
+        font-size:13.5px;
+        font-weight:600;
+        padding:8px 16px;
+        border-radius:999px;
+    }
+    .pill svg{ width:15px; height:15px; }
+
+    .left-footer{
+        font-size:12.5px;
+        color:rgba(255,255,255,.65);
+    }
+
+    /* ---------- RIGHT PANEL ---------- */
+    .auth-right{
+        flex:1 1 50%;
+        background:var(--paper);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:40px;
+    }
+
+    .auth-card{
+        width:100%;
+        max-width:400px;
     }
 
     .auth-title{
-        font-family:'Fraunces',serif;
-        font-size:32px;
-        font-weight:600;
+        font-size:30px;
+        font-weight:800;
         letter-spacing:-.01em;
-        margin:0 0 6px;
-        opacity:0;
-        animation:fade-up .6s var(--ease) .45s forwards;
+        margin:0 0 8px;
     }
 
     .auth-sub{
         color:var(--muted);
         font-size:14.5px;
-        margin:0 0 30px;
-        opacity:0;
-        animation:fade-up .6s var(--ease) .55s forwards;
+        margin:0 0 28px;
     }
 
     .flash-msg{
@@ -107,249 +174,269 @@
         border-radius:10px;
         font-size:13.5px;
         margin-bottom:20px;
-        opacity:0;
-        animation:fade-up .5s var(--ease) .1s forwards;
     }
 
-    form{
-        opacity:0;
-        animation:fade-up .6s var(--ease) .65s forwards;
+    .form-group{ margin-bottom:20px; }
+
+    .form-group > label{
+        display:block;
+        font-size:13.5px;
+        font-weight:600;
+        color:var(--ink);
+        margin-bottom:7px;
     }
 
-    .form-group{
-        position:relative;
-        margin-bottom:22px;
+    .input-wrap{ position:relative; }
+
+    .input-wrap .icon{
+        position:absolute;
+        left:14px;
+        top:50%;
+        transform:translateY(-50%);
+        width:17px;
+        height:17px;
+        stroke:var(--faint);
+        pointer-events:none;
     }
 
     .form-control{
         width:100%;
-        background:var(--paper);
+        background:#fff;
         border:1.5px solid var(--line);
         color:var(--ink);
         font-family:'Manrope',sans-serif;
-        font-size:15px;
-        padding:16px 16px 8px 44px;
-        border-radius:12px;
+        font-size:14.5px;
+        padding:13px 14px 13px 42px;
+        border-radius:10px;
         outline:none;
-        transition:border-color .25s var(--ease), box-shadow .25s var(--ease), background .25s var(--ease);
+        transition:border-color .2s var(--ease), box-shadow .2s var(--ease);
     }
 
-    .form-control::placeholder{ color:transparent; }
-
-    .form-group label{
-        position:absolute;
-        left:44px;
-        top:15px;
-        font-size:15px;
-        color:var(--faint);
-        pointer-events:none;
-        transition:transform .2s var(--ease), font-size .2s var(--ease), color .2s var(--ease), top .2s var(--ease);
-    }
-
-    .form-group .icon{
-        position:absolute;
-        left:15px;
-        top:15px;
-        width:18px;
-        height:18px;
-        stroke:var(--faint);
-        transition:stroke .25s var(--ease);
-        pointer-events:none;
-    }
-
-    .form-control:hover{
-        border-color:rgba(16,24,43,.16);
-    }
+    .form-control::placeholder{ color:var(--faint); }
 
     .form-control:focus{
         border-color:var(--accent-1);
-        background:#fff;
         box-shadow:0 0 0 4px rgba(21,94,239,.09);
     }
 
-    .form-control:focus ~ .icon,
-    .form-control:not(:placeholder-shown) ~ .icon{
-        stroke:var(--accent-1);
+    .form-control:focus ~ .icon{ stroke:var(--accent-1); }
+
+    .toggle-pass{
+        position:absolute;
+        right:14px;
+        top:50%;
+        transform:translateY(-50%);
+        background:none;
+        border:none;
+        padding:0;
+        cursor:pointer;
+        display:flex;
+    }
+    .toggle-pass svg{ width:18px; height:18px; stroke:var(--faint); }
+    .toggle-pass:hover svg{ stroke:var(--muted); }
+
+    .form-row{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        margin-bottom:24px;
+        font-size:13.5px;
     }
 
-    .form-control:focus ~ label,
-    .form-control:not(:placeholder-shown) ~ label{
-        top:7px;
-        font-size:11px;
-        font-weight:600;
-        letter-spacing:.02em;
-        color:var(--accent-1);
+    .remember{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        color:var(--muted);
+        cursor:pointer;
+        user-select:none;
     }
+    .remember input{
+        width:16px;
+        height:16px;
+        accent-color:var(--accent-1);
+        cursor:pointer;
+    }
+
+    .forgot-link{
+        color:var(--accent-1);
+        text-decoration:none;
+        font-weight:600;
+    }
+    .forgot-link:hover{ text-decoration:underline; }
 
     .btn-auth{
-        position:relative;
         width:100%;
         color:#fff;
         background:linear-gradient(120deg, var(--accent-1), var(--accent-2));
         border:none;
-        padding:15px;
-        border-radius:12px;
+        padding:14px;
+        border-radius:10px;
         font-family:'Manrope',sans-serif;
         font-size:15px;
         font-weight:700;
-        letter-spacing:.01em;
         cursor:pointer;
-        margin-top:6px;
-        overflow:hidden;
-        transition:transform .15s var(--ease), box-shadow .25s var(--ease);
+        transition:transform .15s var(--ease), box-shadow .2s var(--ease);
         box-shadow:0 8px 20px -8px rgba(21,94,239,.55);
-    }
-
-    .btn-auth::after{
-        content:"";
-        position:absolute;
-        top:0; left:-60%;
-        width:40%; height:100%;
-        background:linear-gradient(120deg, transparent, rgba(255,255,255,.35), transparent);
-        transform:skewX(-20deg);
-        transition:left .55s var(--ease);
     }
 
     .btn-auth:hover{
         transform:translateY(-2px);
         box-shadow:0 12px 26px -8px rgba(21,94,239,.62);
     }
-
-    .btn-auth:hover::after{ left:130%; }
-
-    .btn-auth:active{
-        transform:translateY(0) scale(.98);
-    }
-
-    .btn-auth:focus-visible,
-    .form-control:focus-visible{
-        outline:2px solid var(--accent-1);
-        outline-offset:2px;
-    }
+    .btn-auth:active{ transform:translateY(0) scale(.98); }
 
     .bottom-link{
         text-align:center;
-        margin-top:26px;
+        margin-top:24px;
         font-size:14px;
         color:var(--muted);
-        opacity:0;
-        animation:fade-up .6s var(--ease) .75s forwards;
     }
-
     .bottom-link a{
-        position:relative;
         color:var(--accent-1);
         text-decoration:none;
         font-weight:600;
-        margin-left:2px;
+        margin-left:4px;
     }
+    .bottom-link a:hover{ text-decoration:underline; }
 
-    .bottom-link a::after{
-        content:"";
-        position:absolute;
-        left:0; bottom:-2px;
-        width:100%; height:1.5px;
-        background:var(--accent-1);
-        transform:scaleX(0);
-        transform-origin:left;
-        transition:transform .25s var(--ease);
-    }
-
-    .bottom-link a:hover::after{ transform:scaleX(1); }
-
-    @keyframes card-in{
-        to{ opacity:1; transform:translateY(0); }
-    }
-
-    @keyframes fade-up{
-        from{ opacity:0; transform:translateY(8px); }
-        to{ opacity:1; transform:translateY(0); }
-    }
-
-    @keyframes draw-flow{
-        to{ stroke-dashoffset:0; }
-    }
-
-    @keyframes shimmer-flow{
-        0%{ stroke-dashoffset:0; }
-        100%{ stroke-dashoffset:-680; }
-    }
-
-    @media (prefers-reduced-motion: reduce){
-        *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
-    }
-
-    @media (max-width:480px){
-        .auth-card{ padding:34px 24px 30px; border-radius:16px; }
-        .auth-title{ font-size:27px; }
+    @media (max-width:860px){
+        .auth-wrapper{ flex-direction:column; }
+        .auth-left{ padding:32px 28px; }
+        .left-headline{ font-size:28px; }
+        .auth-right{ padding:32px 24px; }
     }
 </style>
 </head>
 <body>
 
-<div class="auth-card">
+<div class="auth-wrapper">
 
-    <svg class="flow-mark" viewBox="0 0 360 34" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs>
-            <linearGradient id="flowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#155eef"/>
-                <stop offset="50%" stop-color="#00b8d9"/>
-                <stop offset="100%" stop-color="#155eef"/>
-            </linearGradient>
-        </defs>
-        <path class="flow-path" d="M2 24 C 40 4, 70 4, 100 18 S 160 32, 190 16 S 250 2, 280 16 S 330 30, 358 12"/>
-    </svg>
+    <!-- LEFT: brand panel -->
+    <div class="auth-left">
+        <a href="/" class="back-home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back to home
+        </a>
 
-    <h1 class="auth-title">Pravah<span style="font-style:italic;font-weight:500;">AI</span></h1>
-    <p class="auth-sub">Sign in to your account</p>
+        <div>
+            <div class="brand-row">
+                <div class="brand-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>
+                </div>
+                <span class="brand-name">Pravaah <span class="accent">AI</span></span>
+            </div>
 
-    {% with messages = get_flashed_messages() %}
-    {% if messages %}
-        <div class="flash-msg">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            {{ messages[0] }}
-        </div>
-    {% endif %}
-    {% endwith %}
+            <div class="left-body" style="margin-top:56px;">
+                <h1 class="left-headline">Every conversation.<br>One continuous flow.</h1>
+                <p class="left-copy">Sign in to manage WhatsApp, Email, Voice and Web from a single, connected inbox — built for teams who don't want to switch tabs to talk to a customer.</p>
 
-    <form method="POST">
-
-        <div class="form-group">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <input
-                type="text"
-                id="username"
-                name="username"
-                class="form-control"
-                placeholder=" "
-                required>
-            <label for="username">Username</label>
-        </div>
-
-        <div class="form-group">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-            <input
-                type="password"
-                id="password"
-                name="password"
-                class="form-control"
-                placeholder=" "
-                required>
-            <label for="password">Password</label>
+                <div class="pill-row">
+                    <span class="pill">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                        WhatsApp
+                    </span>
+                    <span class="pill">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>
+                        Email
+                    </span>
+                    <span class="pill">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        Voice
+                    </span>
+                    <span class="pill">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                        Web
+                    </span>
+                </div>
+            </div>
         </div>
 
-        <button class="btn-auth" type="submit">
-            Sign In
-        </button>
+        <div class="left-footer">© 2026 PravaahAI · The complete BusinessOS for conversations</div>
+    </div>
 
-    </form>
+    <!-- RIGHT: login form -->
+    <div class="auth-right">
+        <div class="auth-card">
+            <h1 class="auth-title">Welcome back</h1>
+            <p class="auth-sub">Sign in to your PravaahAI account to continue.</p>
 
-    <div class="bottom-link">
-        Don't have an account?
-        <a href="/signup">Create Account</a>
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-msg">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    {{ messages[0] }}
+                </div>
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST">
+
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <div class="input-wrap">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <input
+                            type="text"
+                            id="username"
+                            name="username"
+                            class="form-control"
+                            placeholder="Enter your username"
+                            required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="input-wrap">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            class="form-control"
+                            placeholder="Enter your password"
+                            required>
+                        <button type="button" class="toggle-pass" id="togglePass" aria-label="Show password">
+                            <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label class="remember">
+                        <input type="checkbox" name="remember">
+                        Remember me
+                    </label>
+                    <a href="/forgot-password" class="forgot-link">Forgot password?</a>
+                </div>
+
+                <button class="btn-auth" type="submit">Sign In</button>
+
+            </form>
+
+            <div class="bottom-link">
+                Don't have an account?
+                <a href="/signup">Create Account</a>
+            </div>
+        </div>
     </div>
 
 </div>
+
+<script>
+    const toggleBtn = document.getElementById('togglePass');
+    const passInput = document.getElementById('password');
+    const eyeIcon = document.getElementById('eyeIcon');
+
+    toggleBtn.addEventListener('click', () => {
+        const isHidden = passInput.type === 'password';
+        passInput.type = isHidden ? 'text' : 'password';
+        eyeIcon.innerHTML = isHidden
+            ? '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+            : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    });
+</script>
 
 </body>
 </html>

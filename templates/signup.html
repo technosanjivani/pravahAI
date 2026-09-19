@@ -1,330 +1,289 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Create Your Account – PravaahAI</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Your Account — PravaahAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg-base:     #eef3fb;
-  --bg-surface:  #ffffff;
-  --border:      rgba(29, 78, 216, 0.10);
-  --accent-1:    #2563eb;
-  --accent-2:    #1e3a8a;
-  --accent-3:    #0ea5e9;
-  --accent-grad: linear-gradient(135deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%);
-  --accent-grad-soft: linear-gradient(135deg, rgba(56,189,248,.14) 0%, rgba(37,99,235,.14) 100%);
-  --text-h:      #0b1e3d;
-  --text-b:      #5c6b8a;
-  --text-dim:    #93a3c2;
-  --green:       #0891b2;
-  --red:         #dc2626;
-  --radius:      16px;
-  --radius-sm:   10px;
-  --shadow-sm: 0 1px 2px rgba(11,30,61,0.05), 0 2px 6px rgba(11,30,61,0.06);
-  --shadow-lg: 0 24px 60px rgba(15,58,138,0.16), 0 6px 18px rgba(15,58,138,0.08);
-  --shadow-glow: 0 0 0 1px rgba(37,99,235,.08), 0 18px 40px rgba(37,99,235,.20);
-}
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
-}
-html, body { height: 100%; }
-body {
-  font-family: 'Inter', sans-serif;
-  background: var(--bg-base);
-  color: var(--text-h);
-  min-height: 100vh;
-  overflow-x: hidden;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 26px 16px;
-}
+  :root{
+    --blue-600:#2f6fed; --blue-700:#2557c7; --blue-500:#4c8bff; --cyan-400:#38c6e0;
+    --ink-900:#0f1a2e; --ink-700:#334155; --ink-500:#64748b; --ink-300:#cbd5e1;
+    --line:#e6eaf1; --bg:#f5f7fb; --card:#ffffff; --danger:#e5484d; --success:#16a34a;
+    --radius-lg:18px; --radius-md:12px; --shadow:0 12px 32px rgba(15,26,46,0.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{margin:0;font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink-900);-webkit-font-smoothing:antialiased;}
+  .shell{min-height:100vh;display:grid;grid-template-columns:1.1fr 1fr;}
+  @media (max-width:880px){.brand-panel{display:none;}}
 
-/* ── animated background ── */
-.bg-blob {
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(70px);
-  opacity: .55;
-  z-index: 0;
-  pointer-events: none;
-}
-.blob-1 { width: 520px; height: 520px; top: -180px; left: -120px; background: radial-gradient(circle, rgba(56,189,248,.55), transparent 70%); animation: floatBlob1 16s ease-in-out infinite; }
-.blob-2 { width: 460px; height: 460px; bottom: -160px; right: -100px; background: radial-gradient(circle, rgba(37,99,235,.45), transparent 70%); animation: floatBlob2 19s ease-in-out infinite; }
-.blob-3 { width: 360px; height: 360px; top: 40%; left: 60%; background: radial-gradient(circle, rgba(30,58,138,.35), transparent 70%); animation: floatBlob3 22s ease-in-out infinite; }
-@keyframes floatBlob1 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(60px,40px) scale(1.08); } 66% { transform: translate(-30px,70px) scale(0.95); } }
-@keyframes floatBlob2 { 0%,100% { transform: translate(0,0) scale(1); } 40% { transform: translate(-50px,-40px) scale(1.1); } 70% { transform: translate(30px,-60px) scale(0.92); } }
-@keyframes floatBlob3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-70px,30px) scale(1.15); } }
-.grid-overlay {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background-image: radial-gradient(circle, rgba(37,99,235,0.08) 1px, transparent 1px);
-  background-size: 26px 26px;
-  mask-image: radial-gradient(ellipse 900px 700px at 50% 30%, black 40%, transparent 100%);
-}
+  /* Left brand panel */
+  .brand-panel{position:relative;background:linear-gradient(155deg,#12306b 0%, var(--blue-700) 45%, var(--cyan-400) 130%);color:#fff;padding:56px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;}
+  .brand-panel::before{content:"";position:absolute;inset:0;background:radial-gradient(600px 300px at 90% -10%, rgba(255,255,255,0.18), transparent 60%),radial-gradient(500px 300px at -10% 110%, rgba(255,255,255,0.12), transparent 60%);pointer-events:none;}
+  .brand-logo{display:flex;align-items:center;gap:12px;font-weight:800;font-size:22px;letter-spacing:-0.02em;position:relative;z-index:1;}
+  .brand-logo .mark{width:40px;height:40px;border-radius:11px;background:rgba(255,255,255,0.16);display:flex;align-items:center;justify-content:center;}
+  .brand-logo .mark svg{width:22px;height:22px;}
+  .brand-copy{position:relative;z-index:1;max-width:420px;}
+  .brand-copy h1{font-size:32px;line-height:1.28;font-weight:800;letter-spacing:-0.02em;margin:0 0 14px;}
+  .brand-copy p{font-size:15.5px;line-height:1.6;color:rgba(255,255,255,0.85);margin:0;}
+  .steps-recap{position:relative;z-index:1;display:flex;flex-direction:column;gap:16px;}
+  .steps-recap .item{display:flex;align-items:center;gap:12px;font-size:14.5px;font-weight:600;color:rgba(255,255,255,0.75);transition:color .2s;}
+  .steps-recap .item.active{color:#fff;}
+  .steps-recap .dot{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.16);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:800;flex-shrink:0;transition:all .2s;}
+  .steps-recap .item.active .dot{background:#fff;color:var(--blue-700);}
+  .steps-recap .item.done .dot{background:#fff;color:var(--blue-700);}
+  .steps-recap .item.done .dot::before{content:'✓';}
+  .steps-recap .item.done .dot i{display:none;}
+  .brand-footer{position:relative;z-index:1;font-size:13px;color:rgba(255,255,255,0.65);}
 
-/* ── shell ── */
-.auth-shell { position: relative; z-index: 1; width: 100%; max-width: 560px; }
-.brand-row { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 22px; animation: dropIn .7s cubic-bezier(.16,1,.3,1); }
-@keyframes dropIn { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
-.brand-logo { width: 44px; height: 44px; border-radius: 13px; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 24px rgba(37,99,235,.35); position: relative; overflow: hidden; }
-.brand-logo img { width: 28px; filter: brightness(0) invert(1); position: relative; z-index: 1; }
-.brand-logo::after { content:''; position:absolute; inset:-40%; background: conic-gradient(from 0deg, transparent, rgba(255,255,255,.55), transparent 30%); animation: spinSheen 4.5s linear infinite; }
-@keyframes spinSheen { to { transform: rotate(360deg); } }
-.brand-text h1 { font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; letter-spacing: -.3px; }
-.brand-text p { font-size: 11px; color: var(--text-b); letter-spacing: .03em; }
+  /* Right form panel */
+  .form-panel{display:flex;align-items:flex-start;justify-content:center;padding:40px 32px;overflow-y:auto;}
+  .form-card{width:100%;max-width:440px;}
+  .mobile-logo{display:none;align-items:center;gap:10px;font-weight:800;font-size:19px;color:var(--ink-900);margin-bottom:24px;}
+  .mobile-logo .mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--blue-600),var(--cyan-400));display:flex;align-items:center;justify-content:center;}
+  .mobile-logo .mark svg{width:18px;height:18px;}
+  @media (max-width:880px){.mobile-logo{display:flex;}}
 
-.auth-card {
-  background: rgba(255,255,255,.86);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--border);
-  border-radius: 22px;
-  box-shadow: var(--shadow-lg);
-  padding: 30px 30px 26px;
-  animation: cardIn .7s cubic-bezier(.16,1,.3,1) .1s both;
-  position: relative;
-  overflow: hidden;
-}
-.auth-card::before {
-  content: ''; position: absolute; top: -2px; left: -2px; right: -2px; height: 3px;
-  background: var(--accent-grad); border-radius: 22px 22px 0 0;
-}
-@keyframes cardIn { from { opacity: 0; transform: translateY(26px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .progress-track{display:flex;gap:6px;margin-bottom:26px;}
+  .progress-track span{height:4px;flex:1;background:var(--line);border-radius:99px;transition:background .2s ease;}
+  .progress-track span.on{background:var(--blue-600);}
 
-/* ── step indicator ── */
-.steps-track { display: flex; align-items: center; margin-bottom: 26px; padding: 0 2px; }
-.step-dot { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
-.step-dot span {
-  width: 32px; height: 32px; border-radius: 50%; background: var(--bg-base); border: 2px solid var(--border);
-  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--text-dim);
-  transition: all .4s cubic-bezier(.34,1.56,.64,1);
-}
-.step-dot label { font-size: 10px; font-weight: 600; color: var(--text-dim); letter-spacing: .03em; text-transform: uppercase; transition: color .3s; }
-.step-dot.active span { background: var(--accent-grad); border-color: transparent; color: #fff; box-shadow: 0 0 0 5px rgba(37,99,235,.14), 0 6px 16px rgba(37,99,235,.35); transform: scale(1.08); }
-.step-dot.active label { color: var(--accent-1); }
-.step-dot.done span { background: var(--accent-1); border-color: transparent; color: #fff; }
-.step-dot.done span::before { content: '✓'; }
-.step-dot.done span i { display: none; }
-.step-line { flex: 1; height: 2px; background: var(--border); margin: 0 6px 18px; position: relative; overflow: hidden; border-radius: 2px; }
-.step-line::after { content:''; position: absolute; inset: 0; background: var(--accent-grad); transform: scaleX(0); transform-origin: left; transition: transform .5s cubic-bezier(.65,0,.35,1); }
-.step-line.filled::after { transform: scaleX(1); }
+  .step-tag{font-size:12.5px;font-weight:700;color:var(--blue-600);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}
+  .form-card h2{font-size:24px;font-weight:800;letter-spacing:-0.02em;margin:0 0 6px;}
+  .form-card .sub{color:var(--ink-500);font-size:14px;margin:0 0 24px;line-height:1.5;}
 
-/* ── step panels ── */
-.steps-viewport { position: relative; overflow: hidden; }
-.step-panel { display: none; animation: panelIn .45s cubic-bezier(.16,1,.3,1); }
-.step-panel.active { display: block; }
-@keyframes panelIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
-.step-panel.back-anim { animation: panelInBack .45s cubic-bezier(.16,1,.3,1); }
-@keyframes panelInBack { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: translateX(0); } }
+  .err-banner{display:none;align-items:center;gap:8px;background:rgba(229,72,77,.08);border:1px solid rgba(229,72,77,.2);color:var(--danger);font-size:12.5px;font-weight:500;padding:10px 13px;border-radius:var(--radius-md);margin-bottom:16px;}
+  .err-banner.show{display:flex;}
 
-.step-title { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -.4px; margin-bottom: 5px; }
-.step-sub { font-size: 13px; color: var(--text-b); margin-bottom: 22px; line-height: 1.5; }
+  .field{margin-bottom:16px;position:relative;}
+  .field label{display:block;font-size:13px;font-weight:600;color:var(--ink-700);margin-bottom:7px;}
+  .input-wrap{position:relative;display:flex;align-items:center;}
+  .input-wrap svg.leading{position:absolute;left:14px;width:17px;height:17px;color:var(--ink-500);pointer-events:none;}
+  .field input, .field textarea{
+    width:100%;padding:12.5px 14px 12.5px 42px;border-radius:var(--radius-md);border:1.5px solid var(--line);
+    background:#fbfcfe;font-size:14px;font-family:inherit;color:var(--ink-900);outline:none;
+    transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;appearance:none;
+  }
+  .field textarea{padding-left:14px;resize:vertical;min-height:78px;line-height:1.5;}
+  .field input::placeholder, .field textarea::placeholder{color:#a3aec2;}
+  .field input:focus, .field textarea:focus{border-color:var(--blue-500);background:#fff;box-shadow:0 0 0 4px rgba(76,139,255,0.14);}
+  .field.error input{border-color:var(--danger);box-shadow:0 0 0 4px rgba(229,72,77,0.12);}
+  .field input.ok{border-color:var(--success);}
+  .error-text{display:none;color:var(--danger);font-size:12px;margin-top:6px;font-weight:500;}
+  .field.error .error-text{display:block;}
+  .field-hint{font-size:12px;margin-top:6px;min-height:14px;font-weight:500;}
+  .field-hint.bad{color:var(--danger);}
+  .field-hint.good{color:var(--success);}
 
-.form-row { margin-bottom: 15px; position: relative; }
-.form-row label { display: block; font-size: 12px; font-weight: 600; color: var(--text-b); margin-bottom: 6px; }
-.input-wrap { position: relative; }
-.form-input {
-  width: 100%; background: var(--bg-base); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-  padding: 12px 14px; font-size: 14px; color: var(--text-h); font-family: inherit; outline: none;
-  transition: border-color .25s, box-shadow .25s, background .25s;
-}
-.form-input:focus { border-color: var(--accent-1); background: #fff; box-shadow: 0 0 0 4px rgba(37,99,235,.10); }
-.form-input.err { border-color: var(--red); animation: shake .4s; }
-.form-input.ok { border-color: var(--green); }
-@keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
-textarea.form-input { resize: vertical; min-height: 78px; line-height: 1.5; }
+  .field-status{position:absolute;right:14px;top:38px;display:none;align-items:center;}
+  .field-status.show{display:flex;}
+  .field-status.checking svg{animation:spin .7s linear infinite;color:var(--ink-500);}
+  .field-status.good{color:var(--success);}
+  .field-status.bad{color:var(--danger);}
 
-.field-status { position: absolute; right: 12px; top: 38px; font-size: 13px; display: none; align-items: center; }
-.field-status.show { display: flex; }
-.field-status.checking svg { animation: spin .7s linear infinite; color: var(--text-dim); }
-.field-status.good { color: var(--green); }
-.field-status.bad { color: var(--red); }
-@keyframes spin { to { transform: rotate(360deg); } }
-.field-hint { font-size: 11px; margin-top: 5px; min-height: 14px; transition: color .2s; }
-.field-hint.bad { color: var(--red); }
-.field-hint.good { color: var(--green); }
+  .pw-strength{display:flex;gap:4px;margin-top:8px;}
+  .pw-strength span{height:4px;flex:1;border-radius:2px;background:var(--line);transition:background .3s;}
+  .pw-strength-label{font-size:11px;color:var(--ink-500);margin-top:5px;}
 
-.pw-toggle { position: absolute; right: 12px; top: 34px; cursor: pointer; color: var(--text-dim); background: none; border: none; display: flex; padding: 4px; }
-.pw-toggle:hover { color: var(--accent-1); }
-.pw-strength { display: flex; gap: 4px; margin-top: 7px; }
-.pw-strength span { height: 4px; flex: 1; border-radius: 2px; background: var(--border); transition: background .3s; }
-.pw-strength-label { font-size: 10.5px; color: var(--text-dim); margin-top: 5px; }
+  .toggle-pass{position:absolute;right:12px;background:none;border:none;cursor:pointer;padding:6px;color:var(--ink-500);display:flex;align-items:center;justify-content:center;border-radius:8px;}
+  .toggle-pass:hover{background:#eef1f6;color:var(--ink-700);}
+  .toggle-pass svg{width:17px;height:17px;}
 
-.err-banner {
-  display: none; align-items: center; gap: 8px; background: rgba(220,38,38,.08); border: 1px solid rgba(220,38,38,.2);
-  color: var(--red); font-size: 12.5px; font-weight: 500; padding: 10px 13px; border-radius: var(--radius-sm); margin-bottom: 14px;
-}
-.err-banner.show { display: flex; animation: bannerIn .3s cubic-bezier(.34,1.56,.64,1); }
-@keyframes bannerIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  .btn-primary{width:100%;padding:14px;border:none;border-radius:var(--radius-md);background:linear-gradient(135deg,var(--blue-600),var(--blue-500));color:#fff;font-family:inherit;font-size:15px;font-weight:700;letter-spacing:-0.01em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 10px 22px rgba(47,111,237,0.28);transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease;}
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 14px 26px rgba(47,111,237,0.34);}
+  .btn-primary:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none;}
+  .btn-primary .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;display:none;animation:spin .7s linear infinite;}
+  .btn-primary.loading .spinner{display:inline-block;}
+  .btn-primary.loading .btn-label{opacity:.85;}
+  @keyframes spin{to{transform:rotate(360deg);}}
 
-/* ── category cards ── */
-.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 6px; }
-.cat-card {
-  background: var(--bg-base); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-  padding: 18px 14px; cursor: pointer; text-align: center; transition: all .28s cubic-bezier(.34,1.56,.64,1);
-  position: relative; overflow: hidden;
-}
-.cat-card::before { content:''; position:absolute; inset:0; background: var(--accent-grad-soft); opacity: 0; transition: opacity .28s; }
-.cat-card:hover { transform: translateY(-4px); border-color: rgba(37,99,235,.35); box-shadow: var(--shadow-glow); }
-.cat-card:hover::before { opacity: 1; }
-.cat-card.selected { border-color: var(--accent-1); background: #fff; box-shadow: var(--shadow-glow); transform: translateY(-3px); }
-.cat-card.selected::before { opacity: 1; }
-.cat-icon {
-  width: 46px; height: 46px; border-radius: 13px; background: var(--accent-grad); display: flex; align-items: center;
-  justify-content: center; margin: 0 auto 10px; color: #fff; box-shadow: 0 8px 18px rgba(37,99,235,.28);
-  transition: transform .3s cubic-bezier(.34,1.56,.64,1); position: relative; z-index: 1;
-}
-.cat-card:hover .cat-icon { transform: scale(1.1) rotate(-6deg); }
-.cat-icon svg { width: 22px; height: 22px; }
-.cat-card h4 { font-size: 13.5px; font-weight: 700; color: var(--text-h); margin-bottom: 3px; position: relative; z-index: 1; }
-.cat-card p { font-size: 10.5px; color: var(--text-b); line-height: 1.4; position: relative; z-index: 1; }
-.cat-check {
-  position: absolute; top: 10px; right: 10px; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--accent-grad); color: #fff; display: flex; align-items: center; justify-content: center;
-  font-size: 10px; opacity: 0; transform: scale(.5); transition: all .25s cubic-bezier(.34,1.56,.64,1); z-index: 2;
-}
-.cat-card.selected .cat-check { opacity: 1; transform: scale(1); }
+  .btn-back{background:none;border:none;color:var(--ink-500);font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:18px;padding:0;}
+  .btn-back:hover{color:var(--ink-700);}
+  .btn-back svg{width:15px;height:15px;}
 
-/* ── buttons ── */
-.step-actions { display: flex; gap: 10px; margin-top: 22px; }
-.btn {
-  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  font-size: 14px; font-weight: 700; border-radius: var(--radius-sm); padding: 13px 18px; cursor: pointer;
-  border: none; font-family: inherit; transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s, opacity .18s;
-  position: relative; overflow: hidden;
-}
-.btn-primary { background: var(--accent-grad); color: #fff; box-shadow: 0 8px 22px rgba(37,99,235,.32); background-size: 200% 200%; }
-.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(37,99,235,.42); background-position: 100% 0; }
-.btn-primary:active { transform: translateY(0) scale(.98); }
-.btn-primary:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
-.btn-ghost { flex: 0 0 auto; background: var(--bg-base); color: var(--text-h); border: 1.5px solid var(--border); }
-.btn-ghost:hover { background: #dbe9fc; transform: translateY(-2px); }
-.btn-skip { flex: 0 0 auto; background: none; color: var(--text-dim); font-weight: 600; font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px; }
-.btn-skip:hover { color: var(--accent-1); }
-.spinner-ring { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; display: none; }
-.btn.loading .spinner-ring { display: inline-block; }
-.btn.loading .btn-label { opacity: .7; }
+  .step-actions{display:flex;gap:10px;margin-top:6px;align-items:center;}
+  .btn-ghost{flex:0 0 auto;background:#eef1f6;color:var(--ink-900);border:1.5px solid var(--line);border-radius:var(--radius-md);padding:13px 18px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s ease;}
+  .btn-ghost:hover{background:#e2e7f0;transform:translateY(-1px);}
+  .btn-skip{flex:0 0 auto;background:none;border:none;color:var(--ink-500);font-weight:600;font-size:12.5px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-family:inherit;}
+  .btn-skip:hover{color:var(--blue-600);}
 
-.foot-link { text-align: center; font-size: 12.5px; color: var(--text-b); margin-top: 18px; }
-.foot-link a { color: var(--accent-1); font-weight: 700; text-decoration: none; }
-.foot-link a:hover { text-decoration: underline; }
+  .divider-text{text-align:center;font-size:14px;color:var(--ink-500);margin-top:22px;}
+  .divider-text a{color:var(--blue-600);font-weight:700;text-decoration:none;}
+  .divider-text a:hover{text-decoration:underline;}
 
-/* ── success step ── */
-.success-wrap { text-align: center; padding: 18px 0 6px; }
-.success-ring {
-  width: 92px; height: 92px; border-radius: 50%; margin: 0 auto 22px; background: var(--accent-grad-soft);
-  display: flex; align-items: center; justify-content: center; position: relative;
-  animation: ringPop .6s cubic-bezier(.34,1.56,.64,1);
-}
-@keyframes ringPop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
-.success-ring::before { content:''; position:absolute; inset:-8px; border-radius: 50%; border: 2px solid rgba(37,99,235,.25); animation: pulseRing 1.8s ease-out infinite; }
-@keyframes pulseRing { 0% { transform: scale(.9); opacity: .8; } 100% { transform: scale(1.35); opacity: 0; } }
-.success-ring svg { width: 42px; height: 42px; }
-.success-check-path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: drawCheck .5s ease .5s forwards; }
-@keyframes drawCheck { to { stroke-dashoffset: 0; } }
-.success-title { font-family: 'Space Grotesk', sans-serif; font-size: 21px; font-weight: 700; margin-bottom: 8px; }
-.success-sub { font-size: 13px; color: var(--text-b); margin-bottom: 22px; }
-.loading-dots { display: inline-flex; gap: 4px; vertical-align: middle; margin-left: 2px; }
-.loading-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--accent-1); animation: dotBounce 1.2s ease-in-out infinite; }
-.loading-dots span:nth-child(2) { animation-delay: .15s; }
-.loading-dots span:nth-child(3) { animation-delay: .3s; }
-@keyframes dotBounce { 0%,80%,100% { transform: translateY(0); opacity: .4; } 40% { transform: translateY(-4px); opacity: 1; } }
-.progress-shimmer { width: 100%; height: 4px; border-radius: 4px; background: var(--border); overflow: hidden; margin-top: 4px; }
-.progress-shimmer-fill { height: 100%; width: 40%; background: var(--accent-grad); border-radius: 4px; animation: shimmerMove 1.1s ease-in-out infinite; }
-@keyframes shimmerMove { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+  /* Category cards */
+  .cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px;}
+  .cat-card{background:#fbfcfe;border:1.5px solid var(--line);border-radius:var(--radius-md);padding:18px 14px;cursor:pointer;text-align:center;transition:all .25s cubic-bezier(.34,1.56,.64,1);position:relative;overflow:hidden;}
+  .cat-card:hover{transform:translateY(-3px);border-color:var(--blue-500);box-shadow:0 10px 24px rgba(47,111,237,0.15);}
+  .cat-card.selected{border-color:var(--blue-600);background:#fff;box-shadow:0 10px 24px rgba(47,111,237,0.18);}
+  .cat-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--blue-600),var(--cyan-400));display:flex;align-items:center;justify-content:center;margin:0 auto 10px;color:#fff;transition:transform .25s cubic-bezier(.34,1.56,.64,1);}
+  .cat-card:hover .cat-icon{transform:scale(1.08) rotate(-5deg);}
+  .cat-icon svg{width:21px;height:21px;}
+  .cat-card h4{font-size:13.5px;font-weight:700;color:var(--ink-900);margin-bottom:3px;}
+  .cat-card p{font-size:10.5px;color:var(--ink-500);line-height:1.4;}
+  .cat-check{position:absolute;top:10px;right:10px;width:18px;height:18px;border-radius:50%;background:var(--blue-600);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;opacity:0;transform:scale(.5);transition:all .2s cubic-bezier(.34,1.56,.64,1);}
+  .cat-card.selected .cat-check{opacity:1;transform:scale(1);}
 
-@media (max-width: 480px) {
-  .auth-card { padding: 24px 18px 20px; border-radius: 18px; }
-  .cat-grid { grid-template-columns: 1fr 1fr; gap: 9px; }
-  .step-dot label { display: none; }
-}
+  /* Success screen */
+  .success-wrap{text-align:center;padding:20px 0;}
+  .success-icon{width:76px;height:76px;border-radius:50%;background:#e9f9ee;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;animation:pop .4s cubic-bezier(.34,1.56,.64,1);}
+  .success-icon svg{width:38px;height:38px;color:var(--success);}
+  @keyframes pop{0%{transform:scale(0);}80%{transform:scale(1.08);}100%{transform:scale(1);}}
+  .success-wrap h2{font-size:23px;margin:0 0 8px;}
+  .success-wrap p{color:var(--ink-500);font-size:14.5px;margin:0 0 22px;line-height:1.6;}
+  .progress-shimmer{width:100%;height:4px;border-radius:4px;background:var(--line);overflow:hidden;}
+  .progress-shimmer-fill{height:100%;width:40%;background:linear-gradient(135deg,var(--blue-600),var(--cyan-400));border-radius:4px;animation:shimmerMove 1.1s ease-in-out infinite;}
+  @keyframes shimmerMove{0%{margin-left:-40%;}100%{margin-left:100%;}}
+
+  .step{display:none;}
+  .step.active{display:block;}
+  .back-home{position:fixed;top:22px;left:22px;display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--ink-500);text-decoration:none;z-index:5;}
+  .back-home:hover{color:var(--ink-700);}
+  .back-home svg{width:16px;height:16px;}
+  @media (max-width:880px){.back-home{position:static;margin-bottom:18px;}}
+  @media (max-width:480px){.cat-grid{gap:9px;}}
 </style>
 </head>
 <body>
 
-<div class="bg-blob blob-1"></div>
-<div class="bg-blob blob-2"></div>
-<div class="bg-blob blob-3"></div>
-<div class="grid-overlay"></div>
+<div class="shell">
 
-<div class="auth-shell">
-  <div class="brand-row">
-    <div class="brand-logo"><img src="{{ url_for('static', filename='img/PravaahAI-logo.png') }}" alt="PravaahAI" /></div>
-    <div class="brand-text"><h1>PravaahAI</h1><p>Global Trade Intelligence</p></div>
-  </div>
-
-  <div class="auth-card">
-
-    <div class="steps-track" id="steps-track">
-      <div class="step-dot active" data-step="1"><span><i>1</i></span><label>Account</label></div>
-      <div class="step-line" id="line-1"></div>
-      <div class="step-dot" data-step="2"><span><i>2</i></span><label>Category</label></div>
-      <div class="step-line" id="line-2"></div>
-      <div class="step-dot" data-step="3"><span><i>3</i></span><label>Business</label></div>
-      <div class="step-line" id="line-3"></div>
-      <div class="step-dot" data-step="4"><span><i>4</i></span><label>Done</label></div>
+  <!-- LEFT: brand panel -->
+  <aside class="brand-panel">
+    <div class="brand-logo">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg></span>
+      Pravaah<span style="color:#9fe0ee">AI</span>
     </div>
 
-    <div class="steps-viewport">
+    <div class="brand-copy">
+      <h1>Every conversation. One continuous flow.</h1>
+      <p>Set up your BusinessOS in a few quick steps, then start managing WhatsApp, Email, Voice and Web from a single connected inbox.</p>
+    </div>
 
-      <!-- STEP 1: ACCOUNT -->
-      <div class="step-panel active" id="panel-1">
-        <div class="step-title">Create your account</div>
-        <div class="step-sub">Let's get your workspace started — takes less than a minute.</div>
+    <div class="steps-recap" id="stepsRecap">
+      <div class="item active" data-step="1"><span class="dot"><i>1</i></span> Account details</div>
+      <div class="item" data-step="2"><span class="dot"><i>2</i></span> Choose category</div>
+      <div class="item" data-step="3"><span class="dot"><i>3</i></span> Business details</div>
+    </div>
+
+    <div class="brand-footer">© 2026 PravaahAI · The complete BusinessOS for conversations</div>
+  </aside>
+
+  <!-- RIGHT: form panel -->
+  <main class="form-panel">
+    <div class="form-card">
+
+      <a class="back-home" href="/login">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+        Back to sign in
+      </a>
+
+      <div class="mobile-logo">
+        <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg></span>
+        PravaahAI
+      </div>
+
+      <div class="progress-track" id="progressTrack">
+        <span class="on" data-p="1"></span>
+        <span data-p="2"></span>
+        <span data-p="3"></span>
+      </div>
+
+      <!-- STEP 1: Account -->
+      <section class="step active" id="step1">
+        <div class="step-tag">Step 1 of 3</div>
+        <h2>Create your account</h2>
+        <p class="sub">Let's get your workspace started — takes less than a minute.</p>
         <div class="err-banner" id="err-1"></div>
 
-        <div class="form-row">
-          <label>Username</label>
+        <div class="field" id="f-username">
+          <label for="f-username-input">Username</label>
           <div class="input-wrap">
-            <input class="form-input" id="f-username" placeholder="e.g. bhuvi_trades" autocomplete="username" />
+            <svg class="leading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <input type="text" id="f-username-input" placeholder="e.g. bhuvi_trades" autocomplete="username">
             <span class="field-status" id="status-username"></span>
           </div>
           <div class="field-hint" id="hint-username"></div>
         </div>
 
-        <div class="form-row">
-          <label>Email Address</label>
+        <div class="field" id="f-email">
+          <label for="f-email-input">Email address</label>
           <div class="input-wrap">
-            <input class="form-input" id="f-email" type="email" placeholder="you@business.com" autocomplete="email" />
+            <svg class="leading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>
+            <input type="email" id="f-email-input" placeholder="you@business.com" autocomplete="email">
             <span class="field-status" id="status-email"></span>
           </div>
           <div class="field-hint" id="hint-email"></div>
         </div>
 
-        <div class="form-row">
-          <label>Phone Number</label>
-          <input class="form-input" id="f-phone" placeholder="+971 50 123 4567" autocomplete="tel" />
+        <div class="field" id="f-phone">
+          <label for="f-phone-input">Phone number</label>
+          <div class="input-wrap">
+            <svg class="leading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.99.36 1.96.68 2.89a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.19-1.25a2 2 0 0 1 2.11-.45c.93.32 1.9.55 2.89.68A2 2 0 0 1 22 16.92z"/></svg>
+            <input type="tel" id="f-phone-input" placeholder="+971 50 123 4567" autocomplete="tel">
+          </div>
         </div>
 
-        <div class="form-row">
-          <label>Password</label>
+        <div class="field" id="f-password">
+          <label for="f-password-input">Password</label>
           <div class="input-wrap">
-            <input class="form-input" id="f-password" type="password" placeholder="Minimum 6 characters" autocomplete="new-password" />
-            <button type="button" class="pw-toggle" onclick="togglePw('f-password',this)">
-              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="leading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input type="password" id="f-password-input" placeholder="Minimum 6 characters" style="padding-right:40px;" autocomplete="new-password">
+            <button type="button" class="toggle-pass" data-target="f-password-input" aria-label="Show password">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </div>
-          <div class="pw-strength" id="pw-strength">
-            <span></span><span></span><span></span><span></span>
-          </div>
+          <div class="pw-strength" id="pw-strength"><span></span><span></span><span></span><span></span></div>
           <div class="pw-strength-label" id="pw-strength-label">&nbsp;</div>
         </div>
 
         <div class="step-actions">
-          <button class="btn btn-primary" id="btn-step1" onclick="submitStep1()">
-            <span class="spinner-ring"></span><span class="btn-label">Continue</span>
+          <button class="btn-primary" id="btn-step1" type="button" onclick="submitStep1()">
+            <span class="spinner"></span><span class="btn-label">Continue</span>
           </button>
         </div>
-        <div class="foot-link">Already have an account? <a href="/login">Log in</a></div>
-      </div>
+        <div class="divider-text">Already have an account? <a href="/login">Sign In</a></div>
+      </section>
 
-      <!-- STEP 2: CATEGORY -->
-      <div class="step-panel" id="panel-2">
-        <div class="step-title">What's your business?</div>
-        <div class="step-sub">This helps us tailor your dashboard and AI prompts to your industry.</div>
+      <!-- STEP 1B: Email OTP verification -->
+      <section class="step" id="stepOtp">
+        <button type="button" class="btn-back" onclick="backToAccountStep()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Back
+        </button>
+        <div class="step-tag">Verify your email</div>
+        <h2>Check your inbox</h2>
+        <p class="sub">We've sent a 6-digit code to <strong id="otp-email-display"></strong>. Enter it below to continue.</p>
+        <div class="err-banner" id="err-otp"></div>
+
+        <div class="field" id="f-otp">
+          <label for="f-otp-input">Verification code</label>
+          <div class="input-wrap">
+            <svg class="leading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>
+            <input type="text" id="f-otp-input" placeholder="6-digit code" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+          </div>
+        </div>
+
+        <div class="step-actions">
+          <button class="btn-primary" id="btn-otp" type="button" onclick="submitOtp()">
+            <span class="spinner"></span><span class="btn-label">Verify & Continue</span>
+          </button>
+        </div>
+        <div class="divider-text">
+          Didn't get the code? <a href="#" id="resend-otp-link" onclick="resendOtp(event)">Resend</a>
+          <span id="resend-cooldown" style="display:none;color:var(--ink-500);"></span>
+        </div>
+      </section>
+
+      <!-- STEP 2: Category -->
+      <section class="step" id="step2">
+        <button type="button" class="btn-back" onclick="goToStep(1,true)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Back
+        </button>
+        <div class="step-tag">Step 2 of 3</div>
+        <h2>What's your business?</h2>
+        <p class="sub">This helps us tailor your dashboard and AI prompts to your industry.</p>
 
         <div class="cat-grid" id="cat-grid">
           <div class="cat-card" data-cat="real_estate">
@@ -353,141 +312,159 @@ textarea.form-input { resize: vertical; min-height: 78px; line-height: 1.5; }
           </div>
         </div>
 
-        <div class="step-actions">
-          <button class="btn btn-ghost" onclick="goToStep(1,true)">← Back</button>
-          <button class="btn btn-primary" id="btn-step2" onclick="submitStep2()" disabled>
-            <span class="spinner-ring"></span><span class="btn-label">Continue</span>
+        <div class="step-actions" style="margin-top:20px;">
+          <button class="btn-ghost" type="button" onclick="goToStep(1,true)">Back</button>
+          <button class="btn-primary" id="btn-step2" type="button" onclick="submitStep2()" disabled>
+            <span class="spinner"></span><span class="btn-label">Continue</span>
           </button>
         </div>
-      </div>
+      </section>
 
-      <!-- STEP 3: BUSINESS DETAILS -->
-      <div class="step-panel" id="panel-3">
-        <div class="step-title">Tell us about your business</div>
-        <div class="step-sub">Used to personalize your AI-generated outreach. You can edit this later in Profile.</div>
+      <!-- STEP 3: Business details -->
+      <section class="step" id="step3">
+        <button type="button" class="btn-back" onclick="goToStep(2,true)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Back
+        </button>
+        <div class="step-tag">Step 3 of 3</div>
+        <h2>Tell us about your business</h2>
+        <p class="sub">Used to personalize your AI-generated outreach. You can edit this later in Profile.</p>
         <div class="err-banner" id="err-3"></div>
 
-        <div class="form-row">
-          <label>Business Name</label>
-          <input class="form-input" id="f-business-name" placeholder="e.g. Al Noor Spices Trading LLC" />
+        <div class="field">
+          <label for="f-business-name">Business name</label>
+          <div class="input-wrap">
+            <svg class="leading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <input type="text" id="f-business-name" placeholder="e.g. Al Noor Spices Trading LLC">
+          </div>
         </div>
 
-        <div class="form-row">
-          <label>Business Description <span style="color:var(--text-dim);font-weight:400;">(optional)</span></label>
-          <textarea class="form-input" id="f-business-description" placeholder="What do you sell or offer? Who are your typical customers?"></textarea>
+        <div class="field">
+          <label for="f-business-description">Business description <span style="color:var(--ink-500);font-weight:400;">(optional)</span></label>
+          <textarea id="f-business-description" placeholder="What do you sell or offer? Who are your typical customers?"></textarea>
         </div>
 
-        <div class="form-row">
-          <label>Business Type <span style="color:var(--text-dim);font-weight:400;">(optional)</span></label>
-          <input class="form-input" id="f-business-type" placeholder="e.g. Wholesale Trading, Brokerage, Agency" />
+        <div class="field">
+          <label for="f-business-type">Business type <span style="color:var(--ink-500);font-weight:400;">(optional)</span></label>
+          <div class="input-wrap">
+            <svg class="leading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1m-6 4h1m4 0h1m-6 4h1m4 0h1"/></svg>
+            <input type="text" id="f-business-type" placeholder="e.g. Wholesale Trading, Brokerage, Agency">
+          </div>
         </div>
 
-        <div class="form-row">
-          <label>Website <span style="color:var(--text-dim);font-weight:400;">(optional)</span></label>
-          <input class="form-input" id="f-website" placeholder="https://yourbusiness.com" />
+        <div class="field">
+          <label for="f-website">Website <span style="color:var(--ink-500);font-weight:400;">(optional)</span></label>
+          <div class="input-wrap">
+            <svg class="leading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>
+            <input type="text" id="f-website" placeholder="https://yourbusiness.com">
+          </div>
         </div>
 
-        <div class="form-row">
-          <label>Address <span style="color:var(--text-dim);font-weight:400;">(optional)</span></label>
-          <input class="form-input" id="f-address" placeholder="City, Country" />
+        <div class="field">
+          <label for="f-address">Address <span style="color:var(--ink-500);font-weight:400;">(optional)</span></label>
+          <div class="input-wrap">
+            <svg class="leading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <input type="text" id="f-address" placeholder="City, Country">
+          </div>
         </div>
 
         <div class="step-actions">
-          <button class="btn btn-ghost" onclick="goToStep(2,true)">← Back</button>
-          <button class="btn btn-skip" onclick="submitStep3(true)">Skip for now</button>
-          <button class="btn btn-primary" id="btn-step3" onclick="submitStep3(false)">
-            <span class="spinner-ring"></span><span class="btn-label">Finish Setup</span>
+          <button class="btn-ghost" type="button" onclick="goToStep(2,true)">Back</button>
+          <button class="btn-skip" type="button" onclick="submitStep3(true)">Skip for now</button>
+          <button class="btn-primary" id="btn-step3" type="button" onclick="submitStep3(false)">
+            <span class="spinner"></span><span class="btn-label">Finish Setup</span>
           </button>
         </div>
-      </div>
+      </section>
 
-      <!-- STEP 4: SUCCESS -->
-      <div class="step-panel" id="panel-4">
+      <!-- STEP 4: Success -->
+      <section class="step" id="step4">
         <div class="success-wrap">
-          <div class="success-ring">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <path class="success-check-path" d="M4 12.5l5 5L20 6" />
-            </svg>
+          <div class="success-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
           </div>
-          <div class="success-title">You're all set!</div>
-          <div class="success-sub">Setting up your workspace<span class="loading-dots"><span></span><span></span><span></span></span></div>
+          <h2>You're all set!</h2>
+          <p>Setting up your workspace…</p>
           <div class="progress-shimmer"><div class="progress-shimmer-fill"></div></div>
         </div>
-      </div>
+      </section>
 
     </div>
-  </div>
+  </main>
+
 </div>
 
 <script>
 let selectedCategory = "";
 let checkDebounce = { username: null, email: null };
 
-function setLine(idx, filled) {
-  const el = document.getElementById(`line-${idx}`);
-  if (el) el.classList.toggle('filled', filled);
-}
-
-function goToStep(step, isBack) {
-  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active','back-anim'));
-  const panel = document.getElementById(`panel-${step}`);
-  panel.classList.add('active');
-  if (isBack) panel.classList.add('back-anim');
-
-  document.querySelectorAll('.step-dot').forEach(d => {
-    const n = parseInt(d.dataset.step);
-    d.classList.toggle('active', n === step);
-    d.classList.toggle('done', n < step);
+function setProgress(step){
+  document.querySelectorAll('#progressTrack span').forEach(s=>{
+    s.classList.toggle('on', parseInt(s.dataset.p) <= (step > 3 ? 3 : step));
   });
-  for (let i = 1; i <= 3; i++) setLine(i, i < step);
 }
 
-function togglePw(id, btn) {
-  const input = document.getElementById(id);
-  const isPw = input.type === 'password';
-  input.type = isPw ? 'text' : 'password';
-  btn.style.color = isPw ? 'var(--accent-1)' : '';
+function goToStep(step, isBack){
+  document.querySelectorAll('.step').forEach(p => p.classList.remove('active'));
+  document.getElementById(`step${step}`).classList.add('active');
+
+  document.querySelectorAll('#stepsRecap .item').forEach(el=>{
+    const n = parseInt(el.dataset.step);
+    el.classList.toggle('active', n === step);
+    el.classList.toggle('done', n < step);
+  });
+  setProgress(step);
+  window.scrollTo(0,0);
 }
 
-function showErr(panelId, msg) {
-  const el = document.getElementById(panelId);
+document.querySelectorAll('.toggle-pass').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const input = document.getElementById(btn.dataset.target);
+    const isPw = input.type === 'password';
+    input.type = isPw ? 'text' : 'password';
+    btn.querySelector('svg').innerHTML = isPw
+      ? '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.6 21.6 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 4c7 0 11 7 11 7a21.6 21.6 0 0 1-2.61 3.61M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+      : '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>';
+  });
+});
+
+function showErr(id, msg){
+  const el = document.getElementById(id);
   el.textContent = "⚠ " + msg;
   el.classList.add('show');
 }
-function hideErr(panelId) {
-  document.getElementById(panelId).classList.remove('show');
-}
+function hideErr(id){ document.getElementById(id).classList.remove('show'); }
 
-function setFieldStatus(field, state) {
-  // state: 'checking' | 'good' | 'bad' | ''
+function setFieldStatus(field, state){
   const statusEl = document.getElementById(`status-${field}`);
   const hintEl = document.getElementById(`hint-${field}`);
-  const inputEl = document.getElementById(`f-${field}`);
+  const inputEl = document.getElementById(`f-${field}-input`);
   statusEl.className = 'field-status';
-  inputEl.classList.remove('ok','err');
-  if (state === 'checking') {
+  inputEl.classList.remove('ok');
+  document.getElementById(`f-${field}`).classList.remove('error');
+
+  if (state === 'checking'){
     statusEl.classList.add('show','checking');
-    statusEl.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/></svg>`;
-    hintEl.textContent = '';
-  } else if (state === 'good') {
+    statusEl.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/></svg>`;
+    hintEl.textContent = ''; hintEl.className = 'field-hint';
+  } else if (state === 'good'){
     statusEl.classList.add('show','good');
-    statusEl.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
+    statusEl.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
     hintEl.textContent = ''; hintEl.className = 'field-hint';
     inputEl.classList.add('ok');
-  } else if (state === 'bad') {
+  } else if (state === 'bad'){
     statusEl.classList.add('show','bad');
-    statusEl.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg>`;
+    statusEl.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg>`;
     hintEl.textContent = field === 'username' ? 'This username is already taken' : 'This email is already registered';
     hintEl.className = 'field-hint bad';
-    inputEl.classList.add('err');
+    document.getElementById(`f-${field}`).classList.add('error');
   } else {
     statusEl.classList.remove('show');
     hintEl.textContent = '';
   }
 }
 
-async function checkAvailability(field, value) {
-  if (!value) { setFieldStatus(field, ''); return; }
+async function checkAvailability(field, value){
+  if (!value){ setFieldStatus(field, ''); return; }
   setFieldStatus(field, 'checking');
   try {
     const res = await fetch('/api/signup/check', {
@@ -499,18 +476,18 @@ async function checkAvailability(field, value) {
   } catch { setFieldStatus(field, ''); }
 }
 
-document.getElementById('f-username').addEventListener('input', (e) => {
+document.getElementById('f-username-input').addEventListener('input', (e)=>{
   clearTimeout(checkDebounce.username);
   const val = e.target.value.trim().toLowerCase();
-  checkDebounce.username = setTimeout(() => checkAvailability('username', val), 450);
+  checkDebounce.username = setTimeout(()=> checkAvailability('username', val), 450);
 });
-document.getElementById('f-email').addEventListener('input', (e) => {
+document.getElementById('f-email-input').addEventListener('input', (e)=>{
   clearTimeout(checkDebounce.email);
   const val = e.target.value.trim().toLowerCase();
-  checkDebounce.email = setTimeout(() => checkAvailability('email', val), 450);
+  checkDebounce.email = setTimeout(()=> checkAvailability('email', val), 450);
 });
 
-document.getElementById('f-password').addEventListener('input', (e) => {
+document.getElementById('f-password-input').addEventListener('input', (e)=>{
   const v = e.target.value;
   const bars = document.querySelectorAll('#pw-strength span');
   const label = document.getElementById('pw-strength-label');
@@ -519,25 +496,29 @@ document.getElementById('f-password').addEventListener('input', (e) => {
   if (v.length >= 10) score++;
   if (/[A-Z]/.test(v) && /[0-9]/.test(v)) score++;
   if (/[^A-Za-z0-9]/.test(v)) score++;
-  const colors = ['#dc2626','#f59e0b','#3b82f6','#0891b2'];
+  const colors = ['#e5484d','#f59e0b','#2f6fed','#16a34a'];
   const labels = ['Weak','Fair','Good','Strong'];
-  bars.forEach((b,i) => { b.style.background = i < score ? colors[Math.max(score-1,0)] : 'var(--border)'; });
+  bars.forEach((b,i)=>{ b.style.background = i < score ? colors[Math.max(score-1,0)] : 'var(--line)'; });
   label.textContent = v ? labels[Math.max(score-1,0)] : '\u00A0';
 });
 
-function setBtnLoading(btnId, loading) {
+document.getElementById('f-password-input').addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter') submitStep1();
+});
+
+function setBtnLoading(btnId, loading){
   const btn = document.getElementById(btnId);
   btn.classList.toggle('loading', loading);
   btn.disabled = loading;
 }
 
 /* ── STEP 1 ── */
-async function submitStep1() {
+async function submitStep1(){
   hideErr('err-1');
-  const username = document.getElementById('f-username').value.trim().toLowerCase();
-  const email    = document.getElementById('f-email').value.trim().toLowerCase();
-  const phone    = document.getElementById('f-phone').value.trim();
-  const password = document.getElementById('f-password').value;
+  const username = document.getElementById('f-username-input').value.trim().toLowerCase();
+  const email    = document.getElementById('f-email-input').value.trim().toLowerCase();
+  const phone    = document.getElementById('f-phone-input').value.trim();
+  const password = document.getElementById('f-password-input').value;
 
   if (!username || username.length < 3) { showErr('err-1', 'Please enter a username (at least 3 characters).'); return; }
   if (!email || !email.includes('@')) { showErr('err-1', 'Please enter a valid email address.'); return; }
@@ -552,7 +533,8 @@ async function submitStep1() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not create account');
-    goToStep(2, false);
+    document.getElementById('otp-email-display').textContent = email;
+    showOtpStep();
   } catch (err) {
     showErr('err-1', err.message);
   } finally {
@@ -560,22 +542,98 @@ async function submitStep1() {
   }
 }
 
+/* ── STEP 1B: OTP ── */
+let resendTimer = null;
+
+function showOtpStep(){
+  document.querySelectorAll('.step').forEach(p => p.classList.remove('active'));
+  document.getElementById('stepOtp').classList.add('active');
+  window.scrollTo(0,0);
+  startResendCooldown();
+}
+
+function backToAccountStep(){
+  document.querySelectorAll('.step').forEach(p => p.classList.remove('active'));
+  document.getElementById('step1').classList.add('active');
+}
+
+document.getElementById('f-otp-input').addEventListener('input', (e)=>{
+  e.target.value = e.target.value.replace(/\D/g,'').slice(0,6);
+});
+document.getElementById('f-otp-input').addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter') submitOtp();
+});
+
+async function submitOtp(){
+  hideErr('err-otp');
+  const otp = document.getElementById('f-otp-input').value.trim();
+  if (!otp) { showErr('err-otp', 'Enter the code sent to your email.'); return; }
+
+  setBtnLoading('btn-otp', true);
+  try {
+    const res = await fetch('/api/signup/verify-otp', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ otp })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Invalid code');
+    goToStep(2, false);
+  } catch (err) {
+    showErr('err-otp', err.message);
+  } finally {
+    setBtnLoading('btn-otp', false);
+  }
+}
+
+function startResendCooldown(seconds = 30){
+  const link = document.getElementById('resend-otp-link');
+  const cd = document.getElementById('resend-cooldown');
+  link.style.display = 'none';
+  cd.style.display = 'inline';
+  let remaining = seconds;
+  cd.textContent = `Resend in ${remaining}s`;
+  clearInterval(resendTimer);
+  resendTimer = setInterval(()=>{
+    remaining--;
+    if (remaining <= 0){
+      clearInterval(resendTimer);
+      cd.style.display = 'none';
+      link.style.display = 'inline';
+    } else {
+      cd.textContent = `Resend in ${remaining}s`;
+    }
+  }, 1000);
+}
+
+async function resendOtp(e){
+  e.preventDefault();
+  hideErr('err-otp');
+  try {
+    const res = await fetch('/api/signup/resend-otp', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not resend code');
+    startResendCooldown();
+  } catch (err) {
+    showErr('err-otp', err.message);
+  }
+}
+
 /* ── STEP 2 ── */
-document.querySelectorAll('.cat-card').forEach(card => {
-  card.addEventListener('click', () => {
-    document.querySelectorAll('.cat-card').forEach(c => c.classList.remove('selected'));
+document.querySelectorAll('.cat-card').forEach(card=>{
+  card.addEventListener('click', ()=>{
+    document.querySelectorAll('.cat-card').forEach(c=> c.classList.remove('selected'));
     card.classList.add('selected');
     selectedCategory = card.dataset.cat;
     document.getElementById('btn-step2').disabled = false;
   });
 });
-function submitStep2() {
+function submitStep2(){
   if (!selectedCategory) return;
   goToStep(3, false);
 }
 
 /* ── STEP 3 ── */
-async function submitStep3(skip) {
+async function submitStep3(skip){
   hideErr('err-3');
   const payload = {
     category: selectedCategory,
@@ -595,18 +653,14 @@ async function submitStep3(skip) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not save your details');
     goToStep(4, false);
-    setTimeout(() => { window.location.href = '/dashboard'; }, 1600);
+    setTimeout(()=>{ window.location.href = '/dashboard'; }, 1600);
   } catch (err) {
     showErr('err-3', err.message);
   } finally {
     setBtnLoading('btn-step3', false);
   }
 }
-
-// Allow Enter key to progress on step 1
-document.getElementById('f-password').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') submitStep1();
-});
 </script>
+
 </body>
 </html>

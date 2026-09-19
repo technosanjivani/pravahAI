@@ -42,7 +42,11 @@ import pandas as pd
 # Sender modules
 from evo import send_whatsapp_message, get_instance_status
 from gmail import send_gmail
-from resend import send_resend_email, verify_resend_key
+from resend import send_resend_email, verify_resend_key   # per-customer Resend (outreach campaigns)
+from adminresend import (                                  # our own official Resend (OTP + team invites)
+    send_admin_email, send_otp_email, send_team_invite_email,
+    generate_otp, is_admin_resend_configured,
+)
 import requests
 
 from scraper import scrape_website, normalize_website_for_dedupe
@@ -94,6 +98,13 @@ DEFAULT_FEATURE_FLAGS = {k: True for k in PLAN_FEATURE_KEYS}
 BUSINESS_CATEGORIES = {"real_estate", "share_market", "import_export"}
 SITE_VISIT_STATUSES = {"new", "read", "confirmed", "done", "won", "lost", "rescheduled"}
 TRIGGER_EVENTS = {"lead_added", "call_ended", "status_hot", "status_warm"}
+
+# One unified agent now drives every automation channel. Each channel can be
+# enabled on exactly one agent at a time (enabling it on a new agent turns it
+# off on whichever agent had it before).
+AGENT_CHANNEL_KEYS = ("whatsapp", "voice", "widget", "email")
+DEFAULT_AGENT_CHANNELS = {"whatsapp": False, "voice": True, "widget": True, "email": False}
+DEFAULT_AGENT_TASKS    = {"book_meeting": False, "site_visit": False}
 
 def upload_media_to_cloudinary(file_storage, resource_type="auto"):
     if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):
@@ -1303,6 +1314,46 @@ def real_estate_chat_reply(owner_id, lead, incoming_message, history):
 
     return {"success": True, "message": reply_text or "Could you share your budget and preferred location?"}
 
+
+def meeting_aware_chat_reply(owner_id, lead, incoming_message, history, task_prompt="", system_prompt=""):
+    """Generic (non real-estate) WhatsApp reply generator for agents whose
+    'Book Meeting' task is enabled — asks for a date/time and books straight
+    onto the owner's meeting-template availability via book_meeting()."""
+    history_text = "\n".join(
+        f"{'Lead' if h.get('direction')=='in' else 'You'}: {h.get('text','')}"
+        for h in history[-10:]
+    )
+    base_style = (system_prompt or "").strip() or "You are a friendly, concise WhatsApp sales assistant."
+    task = (task_prompt or "").strip() or "Keep the lead engaged and offer to book a meeting/call."
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    system = (
+        f"{base_style}\n\nYour goal for this lead: {task}\n\n"
+        f"Today's date is {today_str} (UTC). You can book a meeting on the owner's calendar. "
+        "Return ONLY valid JSON, no markdown fences, in this exact shape: "
+        '{"requested_datetime": "ISO 8601 UTC datetime the lead confirmed, e.g. 2026-09-22T10:00:00 — '
+        'leave empty until the lead has clearly agreed on both a date AND a time", '
+        '"reply": "your natural 1-3 sentence WhatsApp reply"}'
+    )
+    user_prompt = f"Recent conversation:\n{history_text}\n\nLead's latest message: {incoming_message}\n\nRespond now."
+    result = _mistral_chat(system, user_prompt, force_json=True)
+    if not result.get("success"):
+        return {"success": False, "error": result.get("error", "AI reply generation failed")}
+    data = result["data"]
+    reply_text = (data.get("reply") or "").strip()
+    requested = parse_iso_utc(data.get("requested_datetime", ""))
+    if requested:
+        ok, payload = book_meeting(owner_id, lead, requested)
+        if ok:
+            reply_text = (reply_text + " " if reply_text else "") + "You're booked ✅"
+        else:
+            alt_note = ""
+            alts = payload.get("alternatives") or []
+            if alts:
+                alt_note = " How about " + ", ".join(datetime.fromisoformat(a).strftime("%a %d %b, %H:%M UTC") for a in alts[:2]) + "?"
+            reply_text = (reply_text + " " if reply_text else "") + f"That slot isn't available.{alt_note}"
+    return {"success": True, "message": reply_text or "When would you like to schedule the meeting?"}
+
+
 def classify_lead_temperature(lead: dict, incoming_message: str, history: list, current_status: str = "cold") -> str:
     """Asks the AI to classify a lead as cold / warm / hot based on the
     conversation so far. Falls back to the current status on any failure."""
@@ -1423,6 +1474,40 @@ def assign_round_robin(owner_id: str):
     chosen = members[idx]
     users_col.update_one({"_id": ObjectId(owner_id)}, {"$inc": {"team_rr_index": 1}})
     return str(chosen["_id"])
+
+
+# ----------------------------------
+# Unified agent helpers — one agent drives whatsapp/voice/widget/email
+# ----------------------------------
+
+def get_primary_agent(owner_id: str, channel: str):
+    """Returns the single agent that has `channel` enabled for this owner
+    (most recently updated wins if more than one somehow is flagged),
+    or None if no agent has that channel on."""
+    if channel not in AGENT_CHANNEL_KEYS:
+        return None
+    return db["pravah-agents"].find_one(
+        {"owner_id": owner_id, f"channels.{channel}": True},
+        sort=[("updated_at", -1)],
+    )
+
+
+def _agent_prompt(owner_id: str, channel: str) -> str:
+    agent = get_primary_agent(owner_id, channel)
+    return (agent.get("system_prompt", "") if agent else "") or ""
+
+
+def enforce_single_channel_owner(owner_id: str, agent_id, channels: dict):
+    """Only one agent can own a given channel at a time. Whenever an agent
+    turns a channel ON, strip that channel from every other agent this
+    owner has."""
+    agents_col = db["pravah-agents"]
+    for key, enabled in (channels or {}).items():
+        if key in AGENT_CHANNEL_KEYS and enabled:
+            agents_col.update_many(
+                {"owner_id": owner_id, "_id": {"$ne": agent_id}},
+                {"$set": {f"channels.{key}": False}},
+            )
 
 
 
@@ -1726,8 +1811,8 @@ def execute_campaign_for_lead(campaign, lead, user, owner_id):
     gmail_pass   = creds.get("gmail_app_password", "")
     resend_key   = creds.get("resend_api_key", "")
     resend_from  = creds.get("resend_from_address", "")
-    ai_wa_prompt    = creds.get("ai_whatsapp_prompt", "")
-    ai_email_prompt = creds.get("ai_email_prompt", "")
+    ai_wa_prompt    = _agent_prompt(owner_id, "whatsapp")
+    ai_email_prompt = _agent_prompt(owner_id, "email")
 
     current_id = _find_next_node(edges_by_source, start_node["id"])
     hops = 0
@@ -2018,6 +2103,21 @@ def api_signup_check():
         taken = bool(users_col.find_one({"email": value, "type": "user"}))
     return jsonify({"available": not taken})
 
+#sending otp 
+
+def _send_signup_otp(user):
+    """Generates a fresh 10-minute OTP for this user and emails it via
+    PravaahAI's own official Resend account (adminresend.py) — never the
+    customer's own Resend integration."""
+    if not is_admin_resend_configured():
+        return {"success": False, "error": "Email sending is not configured on the server (ADMIN_RESEND_API_KEY missing)"}
+    otp_code = generate_otp()
+    users_col.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"otp_code": otp_code, "otp_expires_at": datetime.utcnow() + timedelta(minutes=10)}},
+    )
+    return send_otp_email(user["email"], otp_code, purpose="verify your email")
+
 
 @app.route("/api/signup/account", methods=["POST"])
 def api_signup_account():
@@ -2083,7 +2183,57 @@ def api_signup_account():
     session["role"]         = "owner"
     session["account_type"] = "user"
 
-    return jsonify({"success": True}), 201
+    # Best-effort: signup still succeeds even if the mail send fails —
+    # the user can hit "Resend" on the OTP screen.
+    saved_user = users_col.find_one({"_id": result.inserted_id})
+    otp_result = _send_signup_otp(saved_user)
+
+    return jsonify({"success": True, "otp_sent": bool(otp_result.get("success"))}), 201
+
+
+@app.route("/api/signup/resend-otp", methods=["POST"])
+@login_required
+@owner_required
+def api_signup_resend_otp():
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    if user.get("email_verified"):
+        return jsonify({"error": "Email is already verified"}), 400
+
+    result = _send_signup_otp(user)
+    if not result.get("success"):
+        return jsonify({"error": result.get("error", "Could not send OTP")}), 500
+    return jsonify({"success": True, "email": user["email"]})
+
+
+@app.route("/api/signup/verify-otp", methods=["POST"])
+@login_required
+@owner_required
+def api_signup_verify_otp():
+    data = request.get_json(silent=True) or {}
+    submitted_code = (data.get("otp") or "").strip()
+    if not submitted_code:
+        return jsonify({"error": "Enter the code sent to your email"}), 400
+
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    if user.get("email_verified"):
+        return jsonify({"success": True, "already_verified": True})
+
+    if not user.get("otp_code") or not user.get("otp_expires_at"):
+        return jsonify({"error": "No code was requested. Please resend the code."}), 400
+    if user["otp_expires_at"] <= datetime.utcnow():
+        return jsonify({"error": "This code has expired. Please resend a new one."}), 400
+    if user.get("otp_code") != submitted_code:
+        return jsonify({"error": "Incorrect code. Please try again."}), 400
+
+    users_col.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"email_verified": True}, "$unset": {"otp_code": "", "otp_expires_at": ""}},
+    )
+    return jsonify({"success": True})
 
 
 @app.route("/api/signup/profile", methods=["POST"])
@@ -2680,6 +2830,41 @@ def _leads_scope_query():
         query["assigned_to"] = current_actor_id()
     return query
 
+
+def _apply_leads_date_filter(query, args):
+    """Reads date_preset ('today'|'week'|'month') or date_from/date_to
+    (YYYY-MM-DD) from the request args and narrows the query's created_at."""
+    preset = (args.get("date_preset") or "").strip()
+    date_from = (args.get("date_from") or "").strip()
+    date_to = (args.get("date_to") or "").strip()
+    now = datetime.utcnow()
+    start = end = None
+    if preset == "today":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=1)
+    elif preset == "week":
+        start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=7)
+    elif preset == "month":
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = (start.replace(year=start.year + 1, month=1) if start.month == 12
+               else start.replace(month=start.month + 1))
+    elif date_from or date_to:
+        try:
+            start = datetime.strptime(date_from, "%Y-%m-%d") if date_from else None
+        except ValueError:
+            start = None
+        try:
+            end = (datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)) if date_to else None
+        except ValueError:
+            end = None
+    if start or end:
+        rng = {}
+        if start: rng["$gte"] = start
+        if end:   rng["$lt"] = end
+        query["created_at"] = rng
+    return query
+
 @app.route("/api/leads", methods=["GET"])
 @login_required
 def api_list_leads():
@@ -2698,6 +2883,7 @@ def api_list_leads():
         query["segment_id"] = segment_id
     if status in LEAD_STATUSES:
         query["status"] = status
+    query = _apply_leads_date_filter(query, request.args)
     leads = list(leads_col.find(query).sort("created_at", -1))
     return jsonify({"leads": [serialize_lead(l) for l in leads]})
 
@@ -3021,6 +3207,7 @@ def api_leads_export():
         query["segment_id"] = segment_id
     if status in LEAD_STATUSES:
         query["status"] = status
+    query = _apply_leads_date_filter(query, request.args)
     leads = list(leads_col.find(query).sort("created_at", -1))
     segment_names = {str(s["_id"]): s.get("name", "") for s in segments_col.find({"owner_id": current_user_id()})}
     rows = [{
@@ -4195,8 +4382,6 @@ def api_get_integrations():
         "gmail_app_password":  "●●●●●●●●" if creds.get("gmail_app_password") else "",
         "resend_api_key":      "●●●●●●●●" if creds.get("resend_api_key") else "",
         "resend_from_address": creds.get("resend_from_address", ""),
-        "ai_whatsapp_prompt":  creds.get("ai_whatsapp_prompt", ""),
-        "ai_email_prompt":     creds.get("ai_email_prompt", ""),
         "has_evo":     bool(creds.get("evo_instance")),
         "has_gmail":   bool(creds.get("gmail_app_password")),
         "has_resend":  bool(creds.get("resend_api_key")),
@@ -4235,10 +4420,6 @@ def api_save_integrations():
     maybe_update("wirebase_api_key")
     maybe_update("wirebase_webhook_secret")
 
-    if "ai_whatsapp_prompt" in data:
-        existing["ai_whatsapp_prompt"] = (data.get("ai_whatsapp_prompt") or "").strip()
-    if "ai_email_prompt" in data:
-        existing["ai_email_prompt"] = (data.get("ai_email_prompt") or "").strip()
     if data.get("active_provider") in ("evo", "wirebase"):
         existing["active_provider"] = data["active_provider"]
 
@@ -4510,32 +4691,19 @@ def api_invite_team_member():
     }
     result = teams_col.insert_one(member_doc)
 
-    # Send credentials using PravaahAI's own Resend account (not the user's),
-    # configured via .env — separate from the per-account Resend integration
-    # used for outreach campaigns.
-    platform_resend_key  = os.getenv("PLATFORM_RESEND_API_KEY", "")
-    platform_from_email  = os.getenv("PLATFORM_RESEND_FROM", "team@pravaahai.app")
+    # Send credentials using PravaahAI's own official Resend account —
+    # never the customer's own Resend integration. See adminresend.py.
     login_url = request.host_url.rstrip("/") + "/login"
-
-    email_body = (
-        f"<p>Hi {member_doc['name']},</p>"
-        f"<p>You've been added as a team member on <strong>{business_name}</strong>'s PravaahAI account.</p>"
-        f"<p><strong>Login email:</strong> {email}<br/>"
-        f"<strong>Temporary password:</strong> {temp_password}</p>"
-        f"<p>Log in here: <a href=\"{login_url}\">{login_url}</a></p>"
-        f"<p>Please change your password after logging in.</p>"
-    )
 
     email_sent = False
     email_error = ""
-    if platform_resend_key:
-        try:
-            send_resend_email(platform_resend_key, platform_from_email, email, "Your PravaahAI team invite", email_body)
-            email_sent = True
-        except Exception as e:
-            email_error = str(e)
+    if is_admin_resend_configured():
+        result = send_team_invite_email(email, member_doc["name"], temp_password, login_url, business_name)
+        email_sent = bool(result.get("success"))
+        if not email_sent:
+            email_error = result.get("error", "Unknown error")
     else:
-        email_error = "PLATFORM_RESEND_API_KEY not set in .env"
+        email_error = "ADMIN_RESEND_API_KEY not set in .env"
 
     saved = teams_col.find_one({"_id": result.inserted_id})
     resp = {"member": serialize_team_member(saved), "email_sent": email_sent}
@@ -5029,9 +5197,7 @@ def api_ai_generate():
     if not lead:
         return jsonify({"error": "Lead not found"}), 404
 
-    user = users_col.find_one({"_id": ObjectId(current_user_id())})
-    creds = user.get("integrations", {}) if user else {}
-    custom_prompt = creds.get("ai_whatsapp_prompt", "") if content_type == "whatsapp" else creds.get("ai_email_prompt", "")
+    custom_prompt = _agent_prompt(current_user_id(), "whatsapp" if content_type == "whatsapp" else "email")
 
     result = generate_ai_content(lead, content_type, instructions, custom_prompt)
     if not result.get("success"):
@@ -5096,7 +5262,7 @@ def api_test_campaign_whatsapp(campaign_id):
 
     message = data.get("message", "")
     if data.get("use_ai"):
-        ai_prompt  = creds.get("ai_whatsapp_prompt", "")
+        ai_prompt  = _agent_prompt(current_user_id(), "whatsapp")
         ai_result  = generate_ai_content(lead_ctx, "whatsapp", data.get("ai_instructions", ""), ai_prompt)
         if not ai_result.get("success"):
             return jsonify({"error": f"AI generation failed: {ai_result.get('error')}"}), 400
@@ -5192,11 +5358,12 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
         fresh_lead = leads_col.find_one({"_id": lead["_id"]})
         fire_status_trigger(owner_id, fresh_lead, old_status, new_status)   # 🔔 trigger campaigns
 
-        # 3. Generate and send an AI auto-reply — only if the AI Bot toggle is
-        # on globally, this number hasn't been muted, and the account has an
-        # active (non-expired) plan.
+        # 3. Generate and send an AI auto-reply — only if the single unified
+        # agent has WhatsApp enabled as its channel, this number hasn't been
+        # muted, and the account has an active (non-expired) plan.
         creds = owner.get("integrations", {})
-        if not creds.get("ai_bot_enabled"):
+        wa_agent = get_primary_agent(owner_id, "whatsapp")
+        if not wa_agent:
             return
         if lead.get("ai_disabled"):
             return
@@ -5204,13 +5371,19 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
             log("WA-INBOUND", f"owner {owner_id}: plan inactive/expired, skipping AI auto-reply")
             return
 
-        if owner.get("category") == "real_estate":
+        if owner.get("category") == "real_estate" and (wa_agent.get("tasks") or {}).get("site_visit"):
             reply = real_estate_chat_reply(owner_id, lead, text, history)
+        elif (wa_agent.get("tasks") or {}).get("book_meeting"):
+            reply = meeting_aware_chat_reply(
+                owner_id, lead, text, history,
+                task_prompt=lead.get("ai_task_prompt", ""),
+                system_prompt=wa_agent.get("system_prompt", ""),
+            )
         else:
             reply = generate_chat_reply(
                 lead, text, history,
                 task_prompt=lead.get("ai_task_prompt", ""),
-                system_prompt=creds.get("ai_bot_system_prompt") or creds.get("ai_whatsapp_prompt", ""),
+                system_prompt=wa_agent.get("system_prompt", ""),
             )
         if not reply.get("success"):
             log("WA-INBOUND", f"owner {owner_id}: AI reply generation failed — {reply.get('error')}")
@@ -5324,10 +5497,11 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
         fresh_lead = leads_col.find_one({"_id": lead["_id"]})
         fire_status_trigger(owner_id, fresh_lead, old_status, new_status)   # 🔔 trigger campaigns
 
-        # 3. AI auto-reply, only if the bot toggle is on globally, this
-        # specific number hasn't been muted, and the plan is active.
+        # 3. AI auto-reply, only if the single unified agent has WhatsApp
+        # enabled, this specific number hasn't been muted, and the plan is active.
         creds = owner.get("integrations", {}) or {}
-        if not creds.get("ai_bot_enabled"):
+        wa_agent = get_primary_agent(owner_id, "whatsapp")
+        if not wa_agent:
             return
         if lead.get("ai_disabled"):
             return
@@ -5335,13 +5509,19 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
             log("WIREBASE-INBOUND", f"owner {owner_id}: plan inactive/expired, skipping AI auto-reply")
             return
 
-        if owner.get("category") == "real_estate":
+        if owner.get("category") == "real_estate" and (wa_agent.get("tasks") or {}).get("site_visit"):
             reply = real_estate_chat_reply(owner_id, lead, text, history)
+        elif (wa_agent.get("tasks") or {}).get("book_meeting"):
+            reply = meeting_aware_chat_reply(
+                owner_id, lead, text, history,
+                task_prompt=lead.get("ai_task_prompt", ""),
+                system_prompt=wa_agent.get("system_prompt", ""),
+            )
         else:
             reply = generate_chat_reply(
                 lead, text, history,
                 task_prompt=lead.get("ai_task_prompt", ""),
-                system_prompt=creds.get("ai_bot_system_prompt") or creds.get("ai_whatsapp_prompt", ""),
+                system_prompt=wa_agent.get("system_prompt", ""),
             )
         if not reply.get("success"):
             log("WIREBASE-INBOUND", f"owner {owner_id}: AI reply generation failed — {reply.get('error')}")
@@ -5508,6 +5688,47 @@ def api_dashboard_stats():
         "status_counts": status_counts,
         "timeseries": timeseries,
     })
+
+
+@app.route("/api/dashboard/today-activity", methods=["GET"])
+@login_required
+def api_dashboard_today_activity():
+    """Today's meetings + (for real-estate accounts) today's site visits,
+    combined and time-sorted, for the dashboard's 'Today's Activity' card."""
+    owner_id = current_user_id()
+    now = datetime.utcnow()
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+
+    items = []
+    for m in meetings_col.find({"owner_id": owner_id, "scheduled_at": {"$gte": start, "$lt": end}}).sort("scheduled_at", 1):
+        badge = {"completed": "Completed", "missed": "Missed", "cancelled": "Cancelled", "rescheduled": "Rescheduled"}.get(m.get("status"), "Upcoming")
+        items.append({
+            "type": "meeting",
+            "title": f"Meeting — {m.get('lead_name') or 'Lead'}",
+            "subtitle": (m.get("description") or "")[:60] or "Meeting",
+            "time": m["scheduled_at"].strftime("%I:%M %p") if m.get("scheduled_at") else "",
+            "sort_at": m["scheduled_at"].isoformat() if m.get("scheduled_at") else "",
+            "status": m.get("status", "scheduled"),
+            "badge": badge,
+        })
+
+    user = users_col.find_one({"_id": ObjectId(owner_id)}) or {}
+    if user.get("category") == "real_estate":
+        for v in site_visits_col.find({"owner_id": owner_id, "created_at": {"$gte": start, "$lt": end}}).sort("created_at", 1):
+            badge = {"done": "Completed", "won": "Completed", "lost": "Cancelled", "confirmed": "Upcoming"}.get(v.get("status"), "Pending")
+            items.append({
+                "type": "site_visit",
+                "title": f"Site visit — {v.get('lead_name') or 'Lead'}",
+                "subtitle": f"{v.get('visit_time','')} · {v.get('property_headline','') or v.get('preferred_location','')}".strip(" ·"),
+                "time": v.get("visit_time", ""),
+                "sort_at": v["created_at"].isoformat() if v.get("created_at") else "",
+                "status": v.get("status", "new"),
+                "badge": badge,
+            })
+
+    items.sort(key=lambda i: i["sort_at"])
+    return jsonify({"items": items})
 
 
 # ==================================================================
@@ -5988,6 +6209,8 @@ def init_eva(app, db, users_col, leads_col):
         return bool(row)
  
     def serialize_agent(a):
+        channels = dict(DEFAULT_AGENT_CHANNELS); channels.update(a.get("channels") or {})
+        tasks    = dict(DEFAULT_AGENT_TASKS);    tasks.update(a.get("tasks") or {})
         return {
             "_id": str(a["_id"]), "name": a.get("name", ""), "system_prompt": a.get("system_prompt", ""),
             "gender": a.get("gender", "female"), "language": a.get("language", "auto"),
@@ -5999,6 +6222,8 @@ def init_eva(app, db, users_col, leads_col):
             "office_hours_start": a.get("office_hours_start", "09:00"),
             "office_hours_end": a.get("office_hours_end", "18:00"),
             "office_hours_days": a.get("office_hours_days") or ["monday","tuesday","wednesday","thursday","friday","saturday"],
+            "channels": channels,
+            "tasks": tasks,
             "created_at": a.get("created_at").isoformat() if a.get("created_at") else None,
         }
  
@@ -6051,6 +6276,13 @@ def init_eva(app, db, users_col, leads_col):
         office_days = [d for d in days_in if d in valid_days] if isinstance(days_in, list) else \
             ["monday","tuesday","wednesday","thursday","friday","saturday"]
 
+        channels = dict(DEFAULT_AGENT_CHANNELS)
+        if isinstance(data.get("channels"), dict):
+            channels.update({k: bool(v) for k, v in data["channels"].items() if k in AGENT_CHANNEL_KEYS})
+        tasks = dict(DEFAULT_AGENT_TASKS)
+        if isinstance(data.get("tasks"), dict):
+            tasks.update({k: bool(v) for k, v in data["tasks"].items() if k in DEFAULT_AGENT_TASKS})
+
         doc = {
             "owner_id": current_user_id(), "name": name,
             "system_prompt": (data.get("system_prompt") or "").strip(),
@@ -6066,9 +6298,12 @@ def init_eva(app, db, users_col, leads_col):
             "office_hours_start": (data.get("office_hours_start") or "09:00").strip(),
             "office_hours_end": (data.get("office_hours_end") or "18:00").strip(),
             "office_hours_days": office_days,
+            "channels": channels,
+            "tasks": tasks,
             "created_at": datetime.utcnow(), "updated_at": datetime.utcnow(),
         }
         result = agents_col.insert_one(doc)
+        enforce_single_channel_owner(current_user_id(), result.inserted_id, channels)
         return jsonify({"agent": serialize_agent(agents_col.find_one({"_id": result.inserted_id}))}), 201
  
     @app.route("/api/agents/<agent_id>", methods=["PUT", "PATCH"])
@@ -6102,9 +6337,24 @@ def init_eva(app, db, users_col, leads_col):
         if "office_hours_days" in data and isinstance(data["office_hours_days"], list):
             valid_days = {"monday","tuesday","wednesday","thursday","friday","saturday","sunday"}
             update["office_hours_days"] = [d for d in data["office_hours_days"] if d in valid_days]
+
+        new_channels = None
+        if isinstance(data.get("channels"), dict):
+            existing = agents_col.find_one({"_id": oid, "owner_id": current_user_id()}) or {}
+            new_channels = dict(DEFAULT_AGENT_CHANNELS); new_channels.update(existing.get("channels") or {})
+            new_channels.update({k: bool(v) for k, v in data["channels"].items() if k in AGENT_CHANNEL_KEYS})
+            update["channels"] = new_channels
+        if isinstance(data.get("tasks"), dict):
+            existing2 = agents_col.find_one({"_id": oid, "owner_id": current_user_id()}) or {}
+            new_tasks = dict(DEFAULT_AGENT_TASKS); new_tasks.update(existing2.get("tasks") or {})
+            new_tasks.update({k: bool(v) for k, v in data["tasks"].items() if k in DEFAULT_AGENT_TASKS})
+            update["tasks"] = new_tasks
+
         result = agents_col.update_one({"_id": oid, "owner_id": current_user_id()}, {"$set": update})
         if result.matched_count == 0:
             return jsonify({"error": "Agent not found"}), 404
+        if new_channels is not None:
+            enforce_single_channel_owner(current_user_id(), oid, new_channels)
         return jsonify({"agent": serialize_agent(agents_col.find_one({"_id": oid}))})
  
     @app.route("/api/agents/<agent_id>", methods=["DELETE"])
@@ -6381,7 +6631,34 @@ def init_eva(app, db, users_col, leads_col):
         if not result.get("success"):
             return jsonify({"error": result.get("error", "Could not place call")}), 400
         return jsonify({"call_id": result["call_id"]})
- 
+
+    @app.route("/api/leads/<lead_id>/quick-call", methods=["POST"])
+    @login_required
+    @require_active_plan
+    def api_quick_call_lead(lead_id):
+        """One-click Call from the Leads sheet — no agent picker, just uses
+        this account's single voice-channel agent."""
+        try:
+            lead = leads_col.find_one({"_id": ObjectId(lead_id), "owner_id": current_user_id()})
+        except InvalidId:
+            return jsonify({"error": "Invalid lead id"}), 400
+        if not lead or not lead.get("phone"):
+            return jsonify({"error": "Lead not found or has no phone number"}), 400
+        agent = get_primary_agent(current_user_id(), "voice")
+        if not agent:
+            return jsonify({"error": "No agent has Voice enabled — turn it on under Eva Voice AI → Voice Agents → Channels & Tasks"}), 400
+        voip = voip_col.find_one({"owner_id": current_user_id()})
+        has_twilio = bool(voip and voip.get("account_sid") and voip.get("auth_token") and voip.get("from_number"))
+        if not has_twilio and not _agent_has_vanisetu_number(current_user_id(), agent["_id"]):
+            return jsonify({"error": "Add a caller ID for the voice agent first (Eva Voice AI → Calling Settings)"}), 400
+        user = users_col.find_one({"_id": ObjectId(current_user_id())})
+        if get_remaining_minutes(user) <= 0:
+            return jsonify({"error": "You are out of Eva minutes"}), 400
+        result = place_outbound_call(current_user_id(), lead, agent, voip, campaigns_col, calls_col, campaign_id=None)
+        if not result.get("success"):
+            return jsonify({"error": result.get("error", "Could not place call")}), 400
+        return jsonify({"call_id": result["call_id"]})
+
     @app.route("/api/test-call", methods=["POST"])
     @login_required
     @require_active_plan

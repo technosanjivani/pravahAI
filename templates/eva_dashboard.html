@@ -544,6 +544,7 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
           <div class="agent-tab-bar" style="padding:0 22px; margin:14px 0 0;">
             <button type="button" class="agent-tab-btn active" data-atab="profile" onclick="switchAgentTab('profile')">Profile</button>
             <button type="button" class="agent-tab-btn" data-atab="role" onclick="switchAgentTab('role')">Role</button>
+            <button type="button" class="agent-tab-btn" data-atab="channels" onclick="switchAgentTab('channels')">Channels &amp; Tasks</button>
             <button type="button" class="agent-tab-btn" data-atab="workflow" onclick="switchAgentTab('workflow')">Workflow</button>
             <button type="button" class="agent-tab-btn" data-atab="hours" onclick="switchAgentTab('hours')">Office Hours</button>
             <button type="button" class="agent-tab-btn" data-atab="actions" onclick="switchAgentTab('actions')">Actions</button>
@@ -598,6 +599,44 @@ tbody tr:hover{background:rgba(37,99,235,.03); cursor:pointer;}
               <div class="field">
                 <label>WhatsApp info Eva can send</label>
                 <textarea id="agentWhatsapp" placeholder="Pricing, catalog link, brochure text, etc. Eva will draft a WhatsApp message from this if the lead asks for details during the call."></textarea>
+              </div>
+            </div>
+
+            <!-- CHANNELS & TASKS -->
+            <div class="agent-tab-panel" id="atab-channels">
+              <div class="field">
+                <label>Automation Channels <span style="font-weight:400;color:var(--text-dim);">— this is the one agent that runs each channel; turning a channel on here turns it off for any other agent</span></label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;">
+                  <label style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;background:var(--bg-hover);">
+                    <input type="checkbox" id="agentChanWhatsapp" style="width:auto;accent-color:var(--accent-1);">
+                    <span>💬 WhatsApp <span class="hint" style="display:block;margin:2px 0 0;">Auto-replies via your active provider (Wirebase / Evolution)</span></span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;background:var(--bg-hover);">
+                    <input type="checkbox" id="agentChanVoice" style="width:auto;accent-color:var(--accent-1);" checked>
+                    <span>📞 Voice Calls <span class="hint" style="display:block;margin:2px 0 0;">Outbound &amp; inbound calls (VaniSetu / VoiceLink / Twilio)</span></span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;background:var(--bg-hover);">
+                    <input type="checkbox" id="agentChanWidget" style="width:auto;accent-color:var(--accent-1);" checked>
+                    <span>🖥️ Web Widget <span class="hint" style="display:block;margin:2px 0 0;">Chat widget on your site</span></span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;background:var(--bg-hover);">
+                    <input type="checkbox" id="agentChanEmail" style="width:auto;accent-color:var(--accent-1);">
+                    <span>📧 Email <span class="hint" style="display:block;margin:2px 0 0;">AI-drafted campaign emails use this agent's prompt</span></span>
+                  </label>
+                </div>
+              </div>
+              <div class="field" style="border-top:1px dashed var(--border);padding-top:16px;margin-top:6px;">
+                <label>Tasks</label>
+                <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px;">
+                  <label style="display:flex;align-items:flex-start;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;background:var(--bg-hover);">
+                    <input type="checkbox" id="agentTaskBookMeeting" style="width:auto;accent-color:var(--accent-1);margin-top:2px;">
+                    <span>📅 Book Meetings <span class="hint" style="display:block;margin:2px 0 0;">Agent can offer &amp; book a slot straight from WhatsApp or a call, using your Meeting Template (availability + Google Meet link) under Meetings.</span></span>
+                  </label>
+                  <label style="display:flex;align-items:flex-start;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;background:var(--bg-hover);">
+                    <input type="checkbox" id="agentTaskSiteVisit" style="width:auto;accent-color:var(--accent-1);margin-top:2px;">
+                    <span>🏠 Site Visits <span class="hint" style="display:block;margin:2px 0 0;">Real-estate accounts only — agent collects budget/location, shows matching inventory, and books a site visit.</span></span>
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -1192,6 +1231,16 @@ async function loadAgents(){
 }
 
 
+function agentChannelSummary(a){
+  const c = a.channels || {};
+  const labels = [];
+  if (c.whatsapp) labels.push('WA');
+  if (c.voice !== false) labels.push('Voice');
+  if (c.widget !== false) labels.push('Widget');
+  if (c.email) labels.push('Email');
+  return labels.join(' · ') || 'No channels';
+}
+
 function renderAgentList(){
   const box = document.getElementById('agentsList');
   const empty = document.getElementById('agentsEmpty');
@@ -1201,7 +1250,7 @@ function renderAgentList(){
       <div class="agent-list-avatar">${escapeHtml((a.name||'?')[0].toUpperCase())}<span class="dot"></span></div>
       <div>
         <div class="agent-list-name">${escapeHtml(a.name)}</div>
-        <div class="agent-list-role">${a.auto_call_new_leads ? 'Auto-call ON' : 'Sales'}</div>
+        <div class="agent-list-role">${agentChannelSummary(a)}</div>
       </div>
     </div>`).join('');
 }
@@ -1254,6 +1303,16 @@ function fillAgentPanel(agent){
   document.getElementById('agentHoursEnd').value = agent ? (agent.office_hours_end || '18:00') : '18:00';
   renderAgentHoursDayPicker(agent ? agent.office_hours_days : null);
   toggleAgentHoursFields();
+
+  const channels = (agent && agent.channels) || {whatsapp:false, voice:true, widget:true, email:false};
+  document.getElementById('agentChanWhatsapp').checked = !!channels.whatsapp;
+  document.getElementById('agentChanVoice').checked = channels.voice !== false;
+  document.getElementById('agentChanWidget').checked = channels.widget !== false;
+  document.getElementById('agentChanEmail').checked = !!channels.email;
+  const tasks = (agent && agent.tasks) || {book_meeting:false, site_visit:false};
+  document.getElementById('agentTaskBookMeeting').checked = !!tasks.book_meeting;
+  document.getElementById('agentTaskSiteVisit').checked = !!tasks.site_visit;
+
   onAgentNameInput();
   document.getElementById('agentPanelTitle').textContent = agent ? agent.name : 'New voice agent';
 }
@@ -1298,6 +1357,16 @@ async function saveAgent(){
     office_hours_start: document.getElementById('agentHoursStart').value || '09:00',
     office_hours_end: document.getElementById('agentHoursEnd').value || '18:00',
     office_hours_days: Array.from(document.querySelectorAll('.agent-day-check:checked')).map(c => c.value),
+    channels: {
+      whatsapp: document.getElementById('agentChanWhatsapp').checked,
+      voice: document.getElementById('agentChanVoice').checked,
+      widget: document.getElementById('agentChanWidget').checked,
+      email: document.getElementById('agentChanEmail').checked,
+    },
+    tasks: {
+      book_meeting: document.getElementById('agentTaskBookMeeting').checked,
+      site_visit: document.getElementById('agentTaskSiteVisit').checked,
+    },
   };
   try{
     let savedAgent;
