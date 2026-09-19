@@ -4698,10 +4698,10 @@ def api_invite_team_member():
     email_sent = False
     email_error = ""
     if is_admin_resend_configured():
-        result = send_team_invite_email(email, member_doc["name"], temp_password, login_url, business_name)
-        email_sent = bool(result.get("success"))
+        email_result = send_team_invite_email(email, member_doc["name"], temp_password, login_url, business_name)
+        email_sent = bool(email_result.get("success"))
         if not email_sent:
-            email_error = result.get("error", "Unknown error")
+            email_error = email_result.get("error", "Unknown error")
     else:
         email_error = "ADMIN_RESEND_API_KEY not set in .env"
 
