@@ -2530,19 +2530,68 @@ def api_public_widget_config(public_id):
     if remaining <= 0:
         return jsonify({"error": "Owner is out of Eva minutes"}), 402
 
+    # Tasks this widget's agent is allowed to run (book meeting / site visit).
+    # These come straight from the agent config in the Eva dashboard.
+    tasks = dict(DEFAULT_AGENT_TASKS)
+    tasks.update(agent.get("tasks") or {})
+
+    # If this agent can book meetings, inject the SAME availability context
+    # into the widget's system prompt that phone calls get — previously the
+    # widget path never did this, so Eva never knew it could offer a slot.
+    agent_system_prompt = agent.get("system_prompt", "")
+    meeting_ctx = get_meeting_context(str(owner["_id"])) if tasks.get("book_meeting") else None
+    if meeting_ctx:
+        agent_system_prompt += (
+            "\n\nYou can also book meetings for this visitor. "
+            f"Meetings are {meeting_ctx['duration_minutes']} minutes long. "
+            f"Available windows: {meeting_ctx['availability_text']}. "
+            "Only offer this after you have the visitor's name and phone number. "
+            "If they want to book, ask for their preferred date and time, then confirm "
+            "it through the booking webhook. If that slot isn't free, offer one of the "
+            "alternatives it returns."
+        )
+    if owner.get("category") == "real_estate" and tasks.get("site_visit"):
+        agent_system_prompt += (
+            "\n\nThis is a real-estate account. If the visitor is looking for a property, "
+            "first ask for their budget and preferred location (if not already known), "
+            "then use the property-matching webhook to show real listings — never invent "
+            "property details yourself. Once they pick one and give a date/time, book the "
+            "site visit through the booking webhook."
+        )
+
     return jsonify({
         "owner_id": str(owner["_id"]),
         "widget_id": str(widget["_id"]),
         "public_id": public_id,
+        # Tells the widget frontend the required sequence:
+        # 1) show `greeting` as a plain text bubble — do NOT open mic/voice yet
+        # 2) if require_lead_before_chat is true, show the name/email/phone form
+        #    and POST it to /api/eva-webhook/widget-lead to get a lead_id
+        # 3) only THEN start the conversation (text via /api/eva-webhook/widget-chat,
+        #    or voice) inside the same widget window
+        "greeting": widget.get("greeting") or "Hi! How can I help you today?",
         "require_lead_before_chat": widget.get("require_lead_before_chat", True),
+        "chat_endpoint": "/api/eva-webhook/widget-chat",
         "auto_greet": {
             "enabled": bool(widget.get("auto_greet_enabled", False)),
             "message": widget.get("auto_greet_message") or widget.get("greeting", ""),
             "delay_secs": widget.get("auto_greet_delay_secs", 5),
         },
+        "tasks": tasks,
+        # Full booking context so Eva's widget session can actually call the
+        # booking webhook when it emits BOOK_MEETING: — previously only the
+        # prompt text was sent, not the webhook url/owner_id/agent_id the
+        # trigger mechanism needs. lead_id is filled in later, once the
+        # visitor submits the lead form.
+        "meeting": ({
+            "owner_id": str(owner["_id"]),
+            "lead_id": "",
+            "agent_id": str(agent["_id"]),
+            **meeting_ctx,
+        } if meeting_ctx else None),
         "agent": {
             "name": agent.get("name", ""),
-            "system_prompt": agent.get("system_prompt", ""),
+            "system_prompt": agent_system_prompt,
             "gender": agent.get("gender", "female"),
             "language": agent.get("language", "auto"),
             "speaker": agent.get("speaker", ""),
@@ -2597,6 +2646,101 @@ def api_eva_webhook_widget_lead():
         send_push_notification(owner_id, "🆕 New Lead (Web Widget)", f"{name} just chatted with your widget")
 
     return jsonify({"received": True, "lead_id": lead_id})
+
+
+@app.route("/api/eva-webhook/widget-chat", methods=["POST"])
+def api_eva_webhook_widget_chat():
+    """One turn of an in-widget TEXT conversation. Call this for every
+    message the visitor types, AFTER the lead has been captured (if
+    require_lead_before_chat is on) via /api/eva-webhook/widget-lead.
+    Returns the AI reply synchronously so it can render in the same
+    window/tab immediately — no separate voice call needed. Automatically
+    routes to meeting-booking or real-estate site-visit logic if the
+    widget's agent has those tasks enabled."""
+    if not EVA_API_SECRET or request.headers.get("X-Eva-Secret") != EVA_API_SECRET:
+        return jsonify({"error": "Invalid or missing X-Eva-Secret"}), 401
+
+    data = request.get_json(silent=True) or {}
+    owner_id = data.get("owner_id")
+    widget_id = data.get("widget_id")
+    lead_id = data.get("lead_id", "")
+    message = (data.get("message") or "").strip()
+    if not owner_id or not message:
+        return jsonify({"error": "owner_id and message are required"}), 400
+
+    try:
+        owner = users_col.find_one({"_id": ObjectId(owner_id)})
+    except InvalidId:
+        owner = None
+    if not owner or owner.get("status") != "active":
+        return jsonify({"error": "Account inactive"}), 403
+    if not get_plan_status(owner)["active"]:
+        return jsonify({"error": "Plan is inactive or expired"}), 402
+
+    agent = None
+    if widget_id:
+        widget = widgets_col.find_one({"_id": ObjectId(widget_id)}) if ObjectId.is_valid(widget_id) else None
+        if widget and widget.get("agent_id"):
+            try:
+                agent = db["pravah-agents"].find_one({"_id": ObjectId(widget["agent_id"]), "owner_id": owner_id})
+            except InvalidId:
+                agent = None
+    if not agent:
+        agent = get_primary_agent(owner_id, "widget")
+    if not agent:
+        return jsonify({"error": "No agent is configured for this widget"}), 404
+
+    lead = None
+    if lead_id and ObjectId.is_valid(lead_id):
+        lead = leads_col.find_one({"_id": ObjectId(lead_id), "owner_id": owner_id})
+    if not lead:
+        # No lead captured yet (require_lead_before_chat was off) — still
+        # let the AI reply using whatever the frontend passed in directly.
+        lead = {
+            "_id": None,
+            "name": (data.get("name") or "Visitor").strip(),
+            "phone": (data.get("phone") or "").strip(),
+            "email": (data.get("email") or "").strip(),
+            "business_name": "", "website": "", "description": "",
+        }
+
+    lead_id_str = str(lead["_id"]) if lead.get("_id") else ""
+    history = []
+    if lead_id_str:
+        messages_col.insert_one({
+            "owner_id": owner_id, "lead_id": lead_id_str, "direction": "in",
+            "channel": "widget", "text": message, "created_at": datetime.utcnow(),
+        })
+        trim_message_history(owner_id, lead_id_str, keep=10)
+        history = list(messages_col.find({"owner_id": owner_id, "lead_id": lead_id_str}).sort("created_at", 1))
+
+    tasks = agent.get("tasks") or {}
+    if owner.get("category") == "real_estate" and tasks.get("site_visit"):
+        reply = real_estate_chat_reply(owner_id, lead, message, history)
+    elif tasks.get("book_meeting"):
+        reply = meeting_aware_chat_reply(
+            owner_id, lead, message, history,
+            task_prompt=lead.get("ai_task_prompt", ""),
+            system_prompt=agent.get("system_prompt", ""),
+        )
+    else:
+        reply = generate_chat_reply(
+            lead, message, history,
+            task_prompt=lead.get("ai_task_prompt", ""),
+            system_prompt=agent.get("system_prompt", ""),
+        )
+
+    if not reply.get("success"):
+        return jsonify({"error": reply.get("error", "AI reply generation failed")}), 400
+
+    if lead_id_str and reply.get("message"):
+        messages_col.insert_one({
+            "owner_id": owner_id, "lead_id": lead_id_str, "direction": "out",
+            "channel": "widget", "text": reply["message"], "ai_generated": True,
+            "created_at": datetime.utcnow(),
+        })
+
+    return jsonify({"reply": reply.get("message", "")})
 
 
 @app.route("/api/eva-webhook/widget-session-result", methods=["POST"])

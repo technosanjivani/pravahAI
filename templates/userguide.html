@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>PravaahAI — User Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f2f4f9;
+    --panel: #ffffff;
+    --border: rgba(15,23,42,.08);
+    --accent-1: #2563eb;
+    --accent-2: #1e3a8a;
+    --accent-3: #0ea5e9;
+    --accent-grad: linear-gradient(135deg,#38bdf8 0%,#2563eb 55%,#1e3a8a 100%);
+    --text-h: #0f172a;
+    --text-b: #64748b;
+    --text-dim: #94a3b8;
+    --hover: #eef2ff;
+    --danger: #ef4444;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      color-scheme: dark;
+      --bg: #0a1120;
+      --panel: #101a2e;
+      --border: rgba(96,150,255,.16);
+      --hover: #16223b;
+      --text-h: #eaf1ff;
+      --text-b: #a6b4cf;
+      --text-dim: #64749a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0a1120;
+    --panel: #101a2e;
+    --border: rgba(96,150,255,.16);
+    --hover: #16223b;
+    --text-h: #eaf1ff;
+    --text-b: #a6b4cf;
+    --text-dim: #64749a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: calc(70px + env(safe-area-inset-top,0px)); }
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text-h);
+    padding-top: env(safe-area-inset-top,0px);
+    padding-bottom: env(safe-area-inset-bottom,0px);
+  }
+  h1,h2,h3 { font-family:'Inter', sans-serif; font-weight:800; letter-spacing:-.01em; color:var(--text-h); margin:0; }
+  a { color: inherit; }
+  ::selection { background: rgba(37,99,235,.25); }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    top: env(safe-area-inset-top,0px);
+    height: 64px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px;
+    background: var(--panel);
+    box-shadow: 0 1px 2px rgba(15,23,42,.04);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar .mark {
+    width: 36px; height: 36px; border-radius: 11px; flex-shrink:0;
+    background: var(--accent-grad); color:#fff; font-weight:800; font-size:15px;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 4px 12px rgba(37,99,235,.35);
+  }
+  .topbar .title { font-size: 15px; font-weight: 800; }
+  .topbar .subtitle { font-size: 10.5px; color: var(--text-dim); margin-top: 1px; font-weight: 500; }
+  .menu-btn {
+    display: none; margin-left: auto; width: 36px; height: 36px; border-radius: 10px;
+    background: var(--hover); border: 1px solid var(--border); color: var(--text-h);
+    align-items: center; justify-content: center; cursor: pointer;
+  }
+  .theme-btn {
+    margin-left: auto; width: 36px; height: 36px; border-radius: 10px;
+    background: var(--hover); border: 1px solid var(--border); color: var(--text-h);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;
+  }
+  .topbar .menu-btn { margin-left: 8px; }
+
+  /* ---------- Layout ---------- */
+  .shell { display:flex; max-width: 1180px; margin: 0 auto; align-items:flex-start; }
+
+  .sidebar {
+    width: 240px; flex-shrink: 0;
+    position: sticky;
+    top: calc(64px + env(safe-area-inset-top,0px));
+    height: calc(100vh - 64px - env(safe-area-inset-top,0px));
+    overflow-y: auto;
+    padding: 22px 14px 40px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+  }
+  .sidebar::-webkit-scrollbar { width: 5px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+  .sec-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .09em; font-weight: 700;
+    color: var(--text-dim); padding: 14px 10px 6px;
+  }
+  .sec-label:first-child { padding-top: 4px; }
+  .nav-link {
+    display: block; padding: 9px 11px; margin-bottom: 2px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; color: var(--text-b); text-decoration: none;
+    border-left: 3px solid transparent; transition: background .15s, color .15s;
+  }
+  .nav-link:hover { background: var(--hover); color: var(--accent-1); }
+  .nav-link.active { background: var(--hover); color: var(--accent-1); font-weight: 700; border-left-color: var(--accent-1); }
+
+  .main { flex: 1; min-width: 0; padding: 32px 40px 100px; background: var(--bg); }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    background: var(--accent-grad);
+    border-radius: 18px;
+    padding: 40px 36px;
+    color: #fff;
+    margin-bottom: 30px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 28px rgba(37,99,235,.25);
+  }
+  .hero::after {
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(420px 220px at 90% -10%, rgba(255,255,255,.18), transparent 60%);
+  }
+  .hero .badge {
+    display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700;
+    background: rgba(255,255,255,.18); padding: 5px 12px; border-radius: 99px; margin-bottom: 14px;
+  }
+  .hero h1 { font-size: 30px; color:#fff; margin-bottom: 8px; }
+  .hero p { font-size: 14px; color: rgba(255,255,255,.9); max-width: 560px; line-height: 1.6; margin:0; }
+
+  /* ---------- Sections ---------- */
+  section { margin-bottom: 52px; scroll-margin-top: 80px; }
+  section h1.sec-title {
+    font-size: 22px; margin-bottom: 4px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  section .sec-desc { font-size: 13px; color: var(--text-b); margin: 4px 0 18px; max-width: 640px; }
+  h2.sub-title {
+    font-size: 15.5px; color: var(--accent-1); margin-top: 26px; margin-bottom: 10px;
+    padding-bottom: 7px; border-bottom: 1px solid var(--border); font-weight: 700;
+  }
+  h3.mini-title { font-size: 13.5px; color: var(--text-h); margin: 14px 0 6px; }
+  p { font-size: 13.5px; color: var(--text-b); line-height: 1.7; margin: 0 0 10px; }
+  ul, ol { margin: 6px 0 14px 20px; padding:0; }
+  li { font-size: 13.5px; color: var(--text-b); line-height: 1.65; margin-bottom: 5px; }
+  strong { color: var(--text-h); font-weight: 700; }
+
+  /* pill badge, styled like the "LIVE OVERVIEW" chip */
+  .start-badge {
+    display:inline-flex; align-items:center; gap:6px; font-size: 10px; font-weight: 800; letter-spacing:.04em;
+    background: rgba(37,99,235,.08); color: var(--accent-1); padding: 5px 12px 5px 10px; border-radius: 99px;
+    border: 1px solid rgba(37,99,235,.15);
+  }
+  .start-badge::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-1);
+    box-shadow: 0 0 0 3px rgba(37,99,235,.18);
+  }
+
+  .info-box, .tip-box {
+    border-radius: 12px; padding: 14px 16px; margin: 14px 0; font-size: 12.5px; line-height: 1.6;
+    box-shadow: var(--shadow);
+  }
+  .info-box { background: rgba(37,99,235,.06); border-left: 3px solid var(--accent-1); color: var(--text-h); }
+  .tip-box { background: rgba(8,145,178,.07); border-left: 3px solid #0891b2; color: var(--text-h); }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 12.5px; }
+  th {
+    background: var(--hover); text-align:left; padding: 10px 14px; font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim); font-weight: 700;
+  }
+  td { padding: 11px 14px; border-top: 1px solid var(--border); color: var(--text-b); }
+  table { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+
+  .steps { counter-reset: stepnum; list-style: none; margin: 10px 0 18px 0; }
+  .steps li {
+    position: relative; padding-left: 34px; margin-bottom: 11px;
+  }
+  .steps li::before {
+    counter-increment: stepnum; content: counter(stepnum);
+    position: absolute; left: 0; top: -1px; width: 22px; height: 22px; border-radius: 8px;
+    background: var(--accent-grad); color: #fff; font-size: 11px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; flex-shrink:0;
+    box-shadow: 0 3px 8px rgba(37,99,235,.3);
+  }
+
+  .card-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 14px 0 18px; }
+  .feature-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .feature-card h3 { font-size: 13.5px; margin-bottom: 6px; color: var(--accent-2); font-weight: 700; }
+  .feature-card p { margin: 0; font-size: 12.5px; }
+
+  .faq-item {
+    margin-bottom: 12px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .faq-item .q { font-size: 13.5px; font-weight: 700; color: var(--accent-1); margin-bottom: 4px; }
+  .faq-item p { margin: 0; }
+
+  .end-note {
+    text-align:center; padding: 30px 0 10px; color: var(--text-dim); font-size: 12px;
+    border-top: 1px solid var(--border); margin-top: 10px;
+  }
+
+  /* Mobile */
+  @media (max-width: 900px) {
+    .menu-btn { display: flex; }
+    .sidebar {
+      position: fixed; left: 0; top: calc(64px + env(safe-area-inset-top,0px));
+      height: calc(100vh - 64px - env(safe-area-inset-top,0px));
+      width: 260px; background: var(--panel); z-index: 60;
+      transform: translateX(-100%); transition: transform .25s ease;
+      border-right: 1px solid var(--border);
+    }
+    .sidebar.open { transform: translateX(0); box-shadow: 8px 0 24px rgba(0,0,0,.15); }
+    .overlay {
+      display:none; position: fixed; inset: 0; top: calc(64px + env(safe-area-inset-top,0px));
+      background: rgba(0,0,0,.35); z-index: 55;
+    }
+    .overlay.open { display:block; }
+    .main { padding: 24px 18px 80px; }
+    .hero { padding: 28px 22px; }
+    .hero h1 { font-size: 24px; }
+    .card-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="mark">P</div>
+  <div>
+    <div class="title">PravaahAI</div>
+    <div class="subtitle">User Guide</div>
+  </div>
+  <button class="theme-btn" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">
+    <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+  </button>
+  <button class="menu-btn" id="menuBtn" aria-label="Open menu">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+  </button>
+</header>
+
+<div class="overlay" id="overlay"></div>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <div class="sec-label">Getting Started</div>
+    <a class="nav-link" href="#what-is-pravaahai">What is PravaahAI</a>
+    <a class="nav-link" href="#setting-up">Setting Up</a>
+
+    <div class="sec-label">Core Features</div>
+    <a class="nav-link" href="#leads">Leads</a>
+    <a class="nav-link" href="#whatsapp-bot">WhatsApp Bot</a>
+    <a class="nav-link" href="#campaigns">Campaigns</a>
+    <a class="nav-link" href="#eva-voice-ai">Eva Voice AI</a>
+    <a class="nav-link" href="#web-widget">Web Widget</a>
+    <a class="nav-link" href="#meetings">Meetings</a>
+
+    <div class="sec-label">Business Add-ons</div>
+    <a class="nav-link" href="#real-estate">Real Estate Tools</a>
+    <a class="nav-link" href="#team">Team Members</a>
+
+    <div class="sec-label">Account</div>
+    <a class="nav-link" href="#plans">Plans &amp; Eva Minutes</a>
+    <a class="nav-link" href="#integrations">Integrations</a>
+
+    <div class="sec-label">Help</div>
+    <a class="nav-link" href="#tips">Tips &amp; Best Practices</a>
+    <a class="nav-link" href="#faq">FAQ</a>
+  </nav>
+
+  <main class="main">
+
+    <div class="hero">
+      <span class="badge">📘 User Guide</span>
+      <h1>PravaahAI</h1>
+      <p>Simple steps to grow your business with AI — capture leads, reply automatically on WhatsApp, call customers, and book meetings, all without lifting a finger.</p>
+    </div>
+
+    <!-- WHAT IS PRAVAAHAI -->
+    <section id="what-is-pravaahai">
+      <h1 class="sec-title">What is PravaahAI? <span class="start-badge">START HERE</span></h1>
+      <p class="sec-desc">An all-in-one AI assistant for your business.</p>
+
+      <p><strong>PravaahAI</strong> finds and manages your leads, talks to your customers on WhatsApp and phone calls automatically, and helps you book meetings — so you spend less time chasing people and more time closing deals.</p>
+
+      <div class="info-box">Think of PravaahAI as a tireless sales assistant that never sleeps: it replies to WhatsApp messages, makes phone calls, sends emails, and books meetings — all by itself, using AI.</div>
+
+      <h2 class="sub-title">How It Works — The Big Picture</h2>
+      <ol class="steps">
+        <li><strong>Leads come in</strong> — added by you, imported from a file, or captured from your website/WhatsApp.</li>
+        <li><strong>Your AI Agent talks to them</strong> — on WhatsApp, on a phone call, or on your website's chat widget.</li>
+        <li><strong>The lead gets scored</strong> — PravaahAI marks them Cold, Warm, or Hot based on how the conversation goes.</li>
+        <li><strong>Meetings get booked automatically</strong> — if a lead is interested, the AI books a slot and sends reminders.</li>
+        <li><strong>You just review and close</strong> — check your dashboard, see who's hot, and follow up.</li>
+      </ol>
+
+      <h2 class="sub-title">Who is PravaahAI For?</h2>
+      <table>
+        <tr><th>Business Type</th><th>How PravaahAI Helps</th></tr>
+        <tr><td>Import / Export Trading</td><td>Chases leads across WhatsApp &amp; calls, in any language</td></tr>
+        <tr><td>Real Estate</td><td>Shows property listings, books site visits automatically</td></tr>
+        <tr><td>Share Market / Finance</td><td>Qualifies leads and books advisory calls</td></tr>
+        <tr><td>Any sales team</td><td>Never misses a follow-up, replies instantly 24/7</td></tr>
+      </table>
+    </section>
+
+    <!-- SETTING UP -->
+    <section id="setting-up">
+      <h1 class="sec-title">Setting Up Your Account</h1>
+      <p class="sec-desc">A few quick things to connect once, and you're set.</p>
+
+      <h2 class="sub-title">Step 1: Complete Your Profile</h2>
+      <ol class="steps">
+        <li>Go to <strong>Profile</strong> in the sidebar.</li>
+        <li>Add your business name, category (Real Estate / Share Market / Import-Export / Other), website and address.</li>
+        <li>This helps the AI write better, more relevant messages for your leads.</li>
+      </ol>
+
+      <h2 class="sub-title">Step 2: Connect a Messaging Channel</h2>
+      <p>Go to <strong>Integrations</strong> and connect one WhatsApp provider — either <strong>Evolution API</strong> or <strong>Wirebase</strong>. This is how PravaahAI sends and receives WhatsApp messages for you.</p>
+      <div class="tip-box">Tip: You only need one active provider at a time. Switch anytime from the "Active WhatsApp Provider" toggle in Integrations.</div>
+
+      <h2 class="sub-title">Step 3: Connect Email (Optional)</h2>
+      <p>Add your <strong>Gmail</strong> (with an app password) or <strong>Resend</strong> account if you want to send outreach emails as part of campaigns.</p>
+
+      <h2 class="sub-title">Step 4: Create Your AI Agent</h2>
+      <p>Go to <strong>Eva Voice AI → Voice Agents</strong> and create one agent. This single agent can be turned ON for WhatsApp, Voice Calls, Web Widget, and Email — so your tone stays consistent everywhere.</p>
+
+      <h2 class="sub-title">Step 5: Pick a Plan</h2>
+      <p>Go to <strong>My Plan</strong> to choose a subscription. Every plan includes a set number of "Eva Minutes" — the minutes your AI agent is allowed to spend on phone calls.</p>
+    </section>
+
+    <!-- LEADS -->
+    <section id="leads">
+      <h1 class="sec-title">Leads — Your Contact List</h1>
+      <p class="sec-desc">Every contact lives here — added by hand, imported, or captured automatically.</p>
+
+      <h2 class="sub-title">Adding Leads</h2>
+      <table>
+        <tr><th>Method</th><th>What it does</th></tr>
+        <tr><td>Add Lead</td><td>Add one lead manually — name &amp; phone are required</td></tr>
+        <tr><td>Import CSV / Excel</td><td>Upload a spreadsheet; match your columns to PravaahAI's fields</td></tr>
+        <tr><td>Automatic Capture</td><td>New WhatsApp chats or Web Widget visitors become leads by themselves</td></tr>
+      </table>
+
+      <h2 class="sub-title">Understanding Lead Status</h2>
+      <p>Every lead is automatically marked with a temperature, based on how the conversation is going:</p>
+      <ul>
+        <li><strong>🕓 Pending</strong> — just added, no conversation yet</li>
+        <li><strong>❄️ Cold</strong> — not very interested</li>
+        <li><strong>🌤 Warm</strong> — showing some interest</li>
+        <li><strong>🔥 Hot</strong> — ready to buy or book</li>
+      </ul>
+      <div class="info-box">You can also change a lead's status yourself at any time from the dropdown next to their name.</div>
+
+      <h2 class="sub-title">Segments</h2>
+      <p>Segments are simple folders for organizing leads — for example "Dubai Expo 2026" or "Cold Outreach Q1". Use them to filter leads and target specific groups with campaigns.</p>
+
+      <h2 class="sub-title">Useful Lead Actions</h2>
+      <ul>
+        <li><strong>📞 Call</strong> — instantly calls the lead using your voice agent</li>
+        <li><strong>💬 WhatsApp</strong> — opens the full chat history and lets you send a manual message</li>
+        <li><strong>✏️ Edit</strong> — update lead details or their "AI Task" (a specific goal for the bot)</li>
+        <li><strong>🔎 Scrape Emails</strong> — automatically visits each lead's website to fill in a missing email or description</li>
+      </ul>
+    </section>
+
+    <!-- WHATSAPP BOT -->
+    <section id="whatsapp-bot">
+      <h1 class="sec-title">WhatsApp Bot — Auto-Reply</h1>
+      <p class="sec-desc">PravaahAI's most-used feature — instant AI replies, day or night.</p>
+
+      <h2 class="sub-title">How It Works</h2>
+      <ol class="steps">
+        <li>A lead sends a WhatsApp message to your connected number.</li>
+        <li>PravaahAI checks who they are (or creates a new lead if they're new).</li>
+        <li>Your AI Agent reads the conversation and its own instructions, then writes a natural reply.</li>
+        <li>The lead's temperature is updated based on the conversation.</li>
+        <li>The reply is sent back automatically, and logged in your Inbox.</li>
+      </ol>
+
+      <div class="info-box">Most leads go cold because nobody replies fast enough. PravaahAI replies within seconds, any time of day, so no message is ever left waiting.</div>
+
+      <h2 class="sub-title">The Inbox</h2>
+      <p>Every WhatsApp conversation shows up here — you can read the full history, and reply manually any time. There's also a toggle to <strong>mute the AI</strong> for a specific lead, useful once a human takes over that chat.</p>
+
+      <h2 class="sub-title">Setting the Bot's Behavior</h2>
+      <p>Your AI agent's <strong>system prompt</strong> (set under Eva Voice AI → Voice Agents → Role) controls its tone and personality. Each lead can also have its own <strong>AI Task</strong> — a specific goal like "convince them to book a demo".</p>
+    </section>
+
+    <!-- CAMPAIGNS -->
+    <section id="campaigns">
+      <h1 class="sec-title">Automation Campaigns</h1>
+      <p class="sec-desc">Multi-step outreach — WhatsApp, Email, Calls — built with drag-and-drop.</p>
+
+      <h2 class="sub-title">Building a Campaign</h2>
+      <ol class="steps">
+        <li>Click <strong>New Campaign</strong>, give it a name.</li>
+        <li>Drag steps onto the canvas: WhatsApp, Email, Call, Wait, or Condition.</li>
+        <li>Click each step to set its message — or turn on <strong>Auto-generate with AI</strong> to let AI personalize the message for every lead.</li>
+        <li>Connect the steps in order by dragging from one step's dot to the next.</li>
+        <li>Assign leads to the campaign — filter by segment or status to pick the right group.</li>
+        <li>Click <strong>Launch</strong> — now or scheduled for later.</li>
+      </ol>
+
+      <div class="card-grid">
+        <div class="feature-card">
+          <h3>Broadcast Campaigns</h3>
+          <p>Sent once, to a fixed list of leads you picked. Messages go out in small batches over time so they don't look like spam.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Trigger Campaigns</h3>
+          <p>Run automatically, forever, the moment something happens — a new lead comes in, a call ends, or a lead becomes Hot or Warm.</p>
+        </div>
+      </div>
+
+      <p>Instead of messaging every lead by hand, build the sequence once and let PravaahAI run it consistently for every new lead that fits.</p>
+    </section>
+
+    <!-- EVA VOICE AI -->
+    <section id="eva-voice-ai">
+      <h1 class="sec-title">Eva Voice AI — Phone Calls</h1>
+      <p class="sec-desc">PravaahAI's calling engine — natural spoken conversations, no human needed.</p>
+
+      <h2 class="sub-title">How a Call Works</h2>
+      <ol class="steps">
+        <li>Eva dials the lead using your connected phone number (VaniSetu, VoiceLink, or Twilio).</li>
+        <li>Your agent's opening line starts the call.</li>
+        <li>The AI listens and responds naturally, following its system prompt.</li>
+        <li>After the call, AI writes a summary, decides the outcome, and updates the lead's status.</li>
+        <li>If a follow-up is needed, Eva schedules itself to call back automatically.</li>
+      </ol>
+
+      <h2 class="sub-title">Setting Up Calling</h2>
+      <table>
+        <tr><th>Section</th><th>What to do</th></tr>
+        <tr><td>Calling Settings</td><td>Choose your active provider (VaniSetu / VoiceLink / Twilio) and enter its credentials</td></tr>
+        <tr><td>Caller IDs</td><td>Add the phone numbers Eva will call from, and assign each to an agent</td></tr>
+        <tr><td>Voice Agents</td><td>Set the agent's voice, language, opening line, and behavior</td></tr>
+      </table>
+
+      <h2 class="sub-title">Eva Minutes</h2>
+      <p>Every call uses "Eva Minutes" from your plan's balance. You can see how many minutes are left at the top of the Eva dashboard, and recharge any time from <strong>My Plan</strong>.</p>
+
+      <h2 class="sub-title">Auto-Call New Leads</h2>
+      <p>Turn this on for an agent, and Eva will automatically call every new lead the moment they're added — respecting your chosen office hours.</p>
+
+      <h2 class="sub-title">Test Call &amp; Text Chat Test</h2>
+      <p>Before going live, use <strong>Test Call</strong> to try a real call to any number, or <strong>Text Chat Test</strong> to chat with your agent's personality in writing — no minutes used.</p>
+    </section>
+
+    <!-- WEB WIDGET -->
+    <section id="web-widget">
+      <h1 class="sec-title">Web Widget — Chat on Your Website</h1>
+      <p class="sec-desc">Puts your AI agent right on your site as a chat bubble.</p>
+
+      <h2 class="sub-title">Setting It Up</h2>
+      <ol class="steps">
+        <li>Go to <strong>Eva Voice AI → Web Widget</strong>.</li>
+        <li>Click <strong>New Widget</strong>, pick the agent it should use, and choose a bubble color.</li>
+        <li>Write a greeting message.</li>
+        <li>Copy the embed code and paste it into your website's HTML.</li>
+      </ol>
+
+      <h2 class="sub-title">Handy Options</h2>
+      <ul>
+        <li><strong>Capture Leads</strong> — saves visitor details into your Leads list automatically</li>
+        <li><strong>Ask for details first</strong> — collects name/phone before the chat starts</li>
+        <li><strong>Auto-greet</strong> — the AI speaks first after a short delay, instead of waiting to be clicked</li>
+      </ul>
+    </section>
+
+    <!-- MEETINGS -->
+    <section id="meetings">
+      <h1 class="sec-title">Meetings</h1>
+      <p class="sec-desc">Booked automatically — on WhatsApp, on a call, or manually by you.</p>
+
+      <h2 class="sub-title">Setting Your Availability</h2>
+      <p>Go to <strong>Eva Voice AI → Meeting Templates</strong> and set your weekly available hours, meeting length, and Google Meet link. The AI only offers slots inside these hours.</p>
+
+      <h2 class="sub-title">How Automatic Booking Works</h2>
+      <ol class="steps">
+        <li>The lead tells the AI (on WhatsApp or a call) they'd like a meeting.</li>
+        <li>The AI asks for a date and time.</li>
+        <li>PravaahAI checks it's inside your available hours and not already booked.</li>
+        <li>If it's free, the meeting is booked and confirmed automatically.</li>
+        <li>If it's not free, the AI offers the closest available alternatives.</li>
+      </ol>
+
+      <div class="tip-box">10 minutes before any meeting, PravaahAI automatically sends a WhatsApp reminder to the lead and a notification to you.</div>
+    </section>
+
+    <!-- REAL ESTATE -->
+    <section id="real-estate">
+      <h1 class="sec-title">Real Estate Tools</h1>
+      <p class="sec-desc">Extra tools unlocked when your business category is set to Real Estate.</p>
+
+      <h2 class="sub-title">Inventory</h2>
+      <p>Add your property listings with photos, videos, and a brochure PDF. Each property gets its own shareable public page that you can send to any lead.</p>
+
+      <h2 class="sub-title">Site Visits</h2>
+      <p>When a lead chats with your WhatsApp bot about a property, the AI asks for their budget and preferred area, shows matching listings, and books a site visit automatically. All requested visits appear on the Site Visits page for you to confirm.</p>
+    </section>
+
+    <!-- TEAM -->
+    <section id="team">
+      <h1 class="sec-title">Team Members</h1>
+      <p class="sec-desc">Invite your team so leads can be shared and worked on together.</p>
+
+      <ul>
+        <li>Go to <strong>Team</strong> and click <strong>Invite Team Member</strong>. They'll receive their login by email.</li>
+        <li>When a lead replies for the first time, they are automatically assigned to a team member in round-robin order (evenly, one after another).</li>
+        <li>Team members only see leads assigned to them — owners see everything.</li>
+        <li>Team members cannot access Integrations or Settings.</li>
+      </ul>
+    </section>
+
+    <!-- PLANS -->
+    <section id="plans">
+      <h1 class="sec-title">Plans &amp; Eva Minutes</h1>
+      <p class="sec-desc">Your subscription decides which features are unlocked and how many calling minutes you get.</p>
+
+      <h2 class="sub-title">Checking Your Plan</h2>
+      <p>Go to <strong>My Plan</strong> to see your current plan, minutes used vs. remaining, and when it renews.</p>
+
+      <h2 class="sub-title">Recharging</h2>
+      <ul>
+        <li><strong>Buy or Upgrade a Plan</strong> — pick a plan from the Available Plans list and pay securely online</li>
+        <li><strong>Recharge Eva Minutes</strong> — top up extra calling minutes any time without changing your plan</li>
+      </ul>
+      <div class="tip-box">If a feature says "Recharge Needed", it just means your plan has expired or you're out of Eva Minutes — recharge from My Plan to keep going.</div>
+    </section>
+
+    <!-- INTEGRATIONS -->
+    <section id="integrations">
+      <h1 class="sec-title">Integrations</h1>
+      <p class="sec-desc">Where you connect the outside tools PravaahAI uses to send messages and emails.</p>
+
+      <table>
+        <tr><th>Integration</th><th>Used For</th></tr>
+        <tr><td>Evolution API / Wirebase</td><td>Sending &amp; receiving WhatsApp messages</td></tr>
+        <tr><td>Gmail</td><td>Sending emails from your personal Gmail address</td></tr>
+        <tr><td>Resend</td><td>Sending emails from your own business domain</td></tr>
+        <tr><td>Calling Settings (Eva)</td><td>The phone line Eva calls from — VaniSetu, VoiceLink, or Twilio</td></tr>
+      </table>
+      <p>Use the <strong>Test Connection</strong> button next to each integration to confirm it's working correctly.</p>
+    </section>
+
+    <!-- TIPS -->
+    <section id="tips">
+      <h1 class="sec-title">Tips &amp; Best Practices</h1>
+      <ul>
+        <li><strong>Write a clear system prompt</strong> for your AI agent — the clearer the instructions, the better the conversations.</li>
+        <li><strong>Use Segments</strong> to keep your leads organized before running a campaign.</li>
+        <li><strong>Start with a Test Call or Text Chat Test</strong> before launching anything live.</li>
+        <li><strong>Set office hours</strong> so leads aren't called at odd times.</li>
+        <li><strong>Check the Inbox daily</strong> — even though the AI replies automatically, it's good to review important conversations.</li>
+        <li><strong>Keep your Meeting Template up to date</strong> so the AI never offers a time you're not actually free.</li>
+      </ul>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq">
+      <h1 class="sec-title">Frequently Asked Questions</h1>
+
+      <div class="faq-item">
+        <div class="q">Do I need to reply to every WhatsApp message myself?</div>
+        <p>No — once your AI agent has WhatsApp turned on, it replies automatically. You can always jump in and reply manually any time.</p>
+      </div>
+      <div class="faq-item">
+        <div class="q">What happens if I run out of Eva Minutes?</div>
+        <p>Voice calls will pause until you recharge. WhatsApp and Email automation are not affected.</p>
+      </div>
+      <div class="faq-item">
+        <div class="q">Can one agent handle WhatsApp, calls, and my website widget at once?</div>
+        <p>Yes — one agent can be switched on for every channel at the same time, so your tone stays consistent everywhere.</p>
+      </div>
+      <div class="faq-item">
+        <div class="q">Can I turn off the AI for one specific lead?</div>
+        <p>Yes — open that lead's conversation in the Inbox and turn off the "AI Auto-Reply" toggle.</p>
+      </div>
+    </section>
+
+    <div class="end-note">PravaahAI · Global Trade Intelligence Platform — End of User Guide</div>
+
+  </main>
+</div>
+
+<script>
+  // Mobile sidebar toggle
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('overlay');
+  const menuBtn = document.getElementById('menuBtn');
+  function openMenu(){ sidebar.classList.add('open'); overlay.classList.add('open'); }
+  function closeMenu(){ sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+  menuBtn.addEventListener('click', () => sidebar.classList.contains('open') ? closeMenu() : openMenu());
+  overlay.addEventListener('click', closeMenu);
+  sidebar.querySelectorAll('.nav-link').forEach(a => a.addEventListener('click', closeMenu));
+
+  // Active link highlight on scroll
+  const links = Array.from(document.querySelectorAll('.nav-link'));
+  const sections = links.map(l => document.querySelector(l.getAttribute('href'))).filter(Boolean);
+  function setActive(){
+    let current = sections[0];
+    const offset = 90;
+    for (const sec of sections) {
+      if (sec.getBoundingClientRect().top - offset <= 0) current = sec;
+    }
+    links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + current.id));
+  }
+  window.addEventListener('scroll', setActive, { passive: true });
+  setActive();
+
+  // Theme toggle
+  const themeBtn = document.getElementById('themeToggle');
+  const root = document.documentElement;
+  function applyIcon(isDark){
+    document.getElementById('themeIcon').innerHTML = isDark
+      ? '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'
+      : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>';
+  }
+  let stored = null;
+  try { stored = localStorage.getItem('pravaah-guide-theme'); } catch(e) {}
+  if (stored === 'dark' || stored === 'light') { root.setAttribute('data-theme', stored); applyIcon(stored === 'dark'); }
+  else { applyIcon(window.matchMedia('(prefers-color-scheme: dark)').matches); }
+  themeBtn.addEventListener('click', () => {
+    const isDark = root.getAttribute('data-theme') === 'dark' ||
+      (!root.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const next = isDark ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    applyIcon(next === 'dark');
+    try { localStorage.setItem('pravaah-guide-theme', next); } catch(e) {}
+  });
+</script>
+
+</body>
+</html>
