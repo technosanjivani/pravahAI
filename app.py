@@ -766,6 +766,7 @@ def serialize_widget(w):
         "agent_id": w.get("agent_id", ""),
         "status": w.get("status", "active"),
         "primary_color": w.get("primary_color", "#2454E8"),
+        "icon_url": w.get("icon_url", ""),
         "greeting": w.get("greeting", "Hi! How can I help you today?"),
         "collect_lead": w.get("collect_lead", True),
         "require_lead_before_chat": w.get("require_lead_before_chat", True),
@@ -2476,6 +2477,7 @@ def api_create_widget():
         "agent_id": agent_id,
         "status": "active",
         "primary_color": (data.get("primary_color") or "#2454E8").strip(),
+        "icon_url": (data.get("icon_url") or "").strip(),
         "greeting": (data.get("greeting") or "Hi! How can I help you today?").strip(),
         "collect_lead": bool(data.get("collect_lead", True)),
         "require_lead_before_chat": bool(data.get("require_lead_before_chat", True)),
@@ -2508,6 +2510,7 @@ def api_update_widget(widget_id):
             return jsonify({"error": "Agent not found"}), 404
         update["agent_id"] = data["agent_id"]
     if "primary_color" in data: update["primary_color"] = data["primary_color"]
+    if "icon_url" in data: update["icon_url"] = (data.get("icon_url") or "").strip()
     if "greeting" in data: update["greeting"] = data["greeting"]
     if "collect_lead" in data: update["collect_lead"] = bool(data["collect_lead"])
     if "require_lead_before_chat" in data: update["require_lead_before_chat"] = bool(data["require_lead_before_chat"])
@@ -2526,6 +2529,26 @@ def api_update_widget(widget_id):
     if result.matched_count == 0:
         return jsonify({"error": "Widget not found"}), 404
     return jsonify({"widget": serialize_widget(widgets_col.find_one({"_id": oid}))})
+
+
+@app.route("/api/widgets/upload-icon", methods=["POST"])
+@login_required
+@owner_required
+def api_upload_widget_icon():
+    """Uploads a widget bubble icon/logo/GIF to Cloudinary and returns its
+    URL, which the frontend then saves as the widget's icon_url."""
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "No file selected"}), 400
+    ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+    if ext not in {"png", "jpg", "jpeg", "gif", "webp", "svg"}:
+        return jsonify({"error": "Please upload a PNG, JPG, GIF, WEBP or SVG image"}), 400
+    result = upload_media_to_cloudinary(f, resource_type="image")
+    if not result.get("success"):
+        return jsonify({"error": result.get("error", "Upload failed")}), 400
+    return jsonify(result)
 
 
 @app.route("/api/widgets/<widget_id>", methods=["DELETE"])
@@ -2608,6 +2631,7 @@ def api_public_widget_config(public_id):
         # 3) only THEN start the conversation (text via /api/eva-webhook/widget-chat,
         #    or voice) inside the same widget window
         "greeting": widget.get("greeting") or "Hi! How can I help you today?",
+        "icon_url": widget.get("icon_url", ""),
         "require_lead_before_chat": widget.get("require_lead_before_chat", True),
         "chat_endpoint": "/api/eva-webhook/widget-chat",
         "auto_greet": {

@@ -140,6 +140,16 @@
       </div>
 
       <div class="field">
+        <label>Widget icon (logo/GIF) — optional</label>
+        <input type="file" id="wIconFile" accept="image/*" onchange="uploadWidgetIcon()">
+        <div class="hint">Shown as the bubble on your site instead of the default mic icon.</div>
+        <div id="wIconPreviewWrap" style="display:none; margin-top:8px; align-items:center; gap:10px;">
+          <img id="wIconPreview" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid var(--line);">
+          <button type="button" class="btn btn-ghost" onclick="removeWidgetIcon()">Remove</button>
+        </div>
+      </div>
+
+      <div class="field">
         <label>Greeting / opening line</label>
         <textarea id="wGreeting" placeholder="Hi! How can I help you today?" oninput="renderPreview()"></textarea>
       </div>
@@ -219,6 +229,32 @@
 let WIDGETS = [];
 let AGENTS = [];
 let editingId = null;
+let currentIconUrl = '';
+
+async function uploadWidgetIcon(){
+  const file = document.getElementById('wIconFile').files[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append('file', file);
+  try{
+    toast('Uploading icon...');
+    const res = await fetch('/api/widgets/upload-icon', {method:'POST', body: formData});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    currentIconUrl = data.url;
+    document.getElementById('wIconPreview').src = currentIconUrl;
+    document.getElementById('wIconPreviewWrap').style.display = 'flex';
+    renderPreview();
+    toast('Icon uploaded');
+  }catch(e){ toast(e.message); }
+}
+
+function removeWidgetIcon(){
+  currentIconUrl = '';
+  document.getElementById('wIconPreviewWrap').style.display = 'none';
+  document.getElementById('wIconFile').value = '';
+  renderPreview();
+}
 
 function toast(msg){
   const t = document.getElementById('toast');
@@ -295,6 +331,9 @@ function openWidgetModal(){
   document.getElementById('wAutoGreetMessage').value = '';
   document.getElementById('wAutoGreetDelayValue').value = '5';
   document.getElementById('wAutoGreetDelayUnit').value = 'seconds';
+  currentIconUrl = '';
+  document.getElementById('wIconFile').value = '';
+  document.getElementById('wIconPreviewWrap').style.display = 'none';
   toggleAutoGreetFields();
   renderPreview();
   document.getElementById('widgetModal').classList.add('active');
@@ -353,6 +392,7 @@ async function saveWidget(){
   const payload = {
     name, agent_id,
     primary_color: document.getElementById('wColor').value,
+    icon_url: currentIconUrl,
     greeting: document.getElementById('wGreeting').value.trim(),
     collect_lead: document.getElementById('wCollectLead').checked,
     require_lead_before_chat: document.getElementById('wRequireLeadFirst').checked,
