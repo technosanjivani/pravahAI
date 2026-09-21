@@ -1,0 +1,14 @@
+.env
+.env.*
+.git
+.gitignore
+*.pem
+*.key
+venv/
+env/
+__pycache__/
+*.pyc
+PravahDoc/
+*.log
+node_modules/
+.DS_Store

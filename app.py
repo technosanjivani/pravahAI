@@ -11,6 +11,8 @@ from flask import (
     send_file,
     send_from_directory
 )
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from functools import wraps
 
@@ -207,10 +209,40 @@ load_dotenv()
 
 app = Flask(__name__)
 
-app.secret_key = os.getenv("SECRET_KEY", "change-me")
+_SECRET_KEY = os.getenv("SECRET_KEY", "")
+if not _SECRET_KEY or _SECRET_KEY == "change-me":
+    raise RuntimeError(
+        "SECRET_KEY is missing or set to the default 'change-me'. "
+        "Set a real, random SECRET_KEY in the environment before starting the app."
+    )
+app.secret_key = _SECRET_KEY
+
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "1") == "1"
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
+    hours=int(os.getenv("SESSION_LIFETIME_HOURS", "12"))
+)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
+
+FLASK_DEBUG = os.getenv("FLASK_DEBUG", "0") == "1"
+
+# ----------------------------------
+# Rate limiting
+# ----------------------------------
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    storage_uri=os.getenv("RATELIMIT_STORAGE_URI", "memory://"),  # move to redis:// once you scale past 1 web process
+    default_limits=[os.getenv("RATELIMIT_DEFAULT", "200 per hour")],
+)
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Too many requests. Please slow down and try again shortly."}), 429
+    flash("Too many attempts. Please wait a moment and try again.")
+    return redirect(request.referrer or "/login")
 
 # ----------------------------------
 # MongoDB
@@ -2088,8 +2120,8 @@ def signup():
         return redirect("/dashboard")
     return render_template("signup.html")
 
-
 @app.route("/api/signup/check", methods=["POST"])
+@limiter.limit(os.getenv("RATELIMIT_SIGNUP_CHECK", "20 per minute"))
 def api_signup_check():
     """Live-availability check while typing on Step 1 (username / email)."""
     data = request.get_json(silent=True) or {}
@@ -2120,6 +2152,7 @@ def _send_signup_otp(user):
 
 
 @app.route("/api/signup/account", methods=["POST"])
+@limiter.limit(os.getenv("RATELIMIT_SIGNUP_ACCOUNT", "10 per hour"))
 def api_signup_account():
     """Step 1 — creates the account with just the essentials and logs the
     user in immediately, so the rest of onboarding is just an authenticated
@@ -2263,6 +2296,7 @@ def api_signup_profile():
 ADMIN_SIGNUP_KEY = os.getenv("ADMIN_SIGNUP_KEY", "")  # set this in .env so randoms can't self-promote to admin
 
 @app.route("/admin/signup", methods=["GET", "POST"])
+@limiter.limit(os.getenv("RATELIMIT_ADMIN_SIGNUP", "10 per hour"))
 def admin_signup():
     if request.method == "POST":
         username   = request.form.get("username", "").strip().lower()
@@ -2318,10 +2352,12 @@ def admin_signup():
     return render_template("admin_signup.html")
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit(os.getenv("RATELIMIT_LOGIN", "10 per minute"))
 def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip().lower()
         password = request.form.get("password", "")
+        remember = bool(request.form.get("remember"))
 
         # Try account owner / admin first
         user = users_col.find_one({"username": username, "type": "user"})
@@ -2329,6 +2365,7 @@ def login():
             if user.get("status", "active") != "active":
                 flash("This account has been disabled. Contact support.")
                 return redirect("/login")
+            session.permanent        = remember
             session["user_id"]      = str(user["_id"])
             session["actor_id"]     = str(user["_id"])
             session["username"]     = user["username"]
@@ -2348,6 +2385,7 @@ def login():
             if not owner or owner.get("status", "active") != "active":
                 flash("This account has been disabled. Contact support.")
                 return redirect("/login")
+            session.permanent        = remember
             session["user_id"]      = member["owner_id"]           # data is scoped to the owner
             session["actor_id"]     = str(member["_id"])
             session["username"]     = member.get("name") or member["email"]
@@ -3017,11 +3055,12 @@ def api_list_leads():
     status = request.args.get("status", "").strip()
     query = _leads_scope_query()
     if q:
+        q_safe = re.escape(q[:200])
         query["$or"] = [
-            {"name": {"$regex": q, "$options": "i"}},
-            {"business_name": {"$regex": q, "$options": "i"}},
-            {"email": {"$regex": q, "$options": "i"}},
-            {"phone": {"$regex": q, "$options": "i"}},
+            {"name": {"$regex": q_safe, "$options": "i"}},
+            {"business_name": {"$regex": q_safe, "$options": "i"}},
+            {"email": {"$regex": q_safe, "$options": "i"}},
+            {"phone": {"$regex": q_safe, "$options": "i"}},
         ]
     if segment_id:
         query["segment_id"] = segment_id
@@ -3339,13 +3378,14 @@ def api_leads_export():
     query = _leads_scope_query()
     q = request.args.get("q", "").strip()
     segment_id = request.args.get("segment_id", "").strip()
-    status = request.args.get("status", "").strip()
+    status = request.args.get("status", "").strip()    
     if q:
-        query["$or"] = [
-            {"name": {"$regex": q, "$options": "i"}},
-            {"business_name": {"$regex": q, "$options": "i"}},
-            {"email": {"$regex": q, "$options": "i"}},
-            {"phone": {"$regex": q, "$options": "i"}},
+     q_safe = re.escape(q[:200])
+     query["$or"] = [
+            {"name": {"$regex": q_safe, "$options": "i"}},
+            {"business_name": {"$regex": q_safe, "$options": "i"}},
+            {"email": {"$regex": q_safe, "$options": "i"}},
+            {"phone": {"$regex": q_safe, "$options": "i"}},
         ]
     if segment_id:
         query["segment_id"] = segment_id
@@ -7002,7 +7042,8 @@ def api_push_unsubscribe():
                     continue
                 place_outbound_call(owner_id, lead, agent, voip, campaigns_col, calls_col, campaign_id=call_doc.get("campaign_id"))
  
-    threading.Thread(target=_followup_scanner, daemon=True, name="PravaahEvaFollowupScanner").start()
+    if RUN_WORKERS:
+        threading.Thread(target=_followup_scanner, daemon=True, name="PravaahEvaFollowupScanner").start()
 
     # ---------------- background campaign scheduler ----------------
     def _campaign_scheduler():
@@ -7024,7 +7065,8 @@ def api_push_unsubscribe():
                     log("SCHEDULER", f"{campaign_id} failed to launch: {payload.get('error')}")
                     campaigns_col.update_one({"_id": c["_id"]}, {"$set": {"status": "draft"}})
 
-    threading.Thread(target=_campaign_scheduler, daemon=True, name="PravaahEvaCampaignScheduler").start()
+    if RUN_WORKERS:
+        threading.Thread(target=_campaign_scheduler, daemon=True, name="PravaahEvaCampaignScheduler").start()
 
     log("INIT", "PravaahAI Eva-dashboard routes registered.")
 
@@ -7118,10 +7160,14 @@ def _scheduled_calls_scanner():
             )
 
 
-threading.Thread(target=_wa_campaign_scheduler, daemon=True, name="PravaahCampaignScheduler").start()
-threading.Thread(target=_meeting_reminder_scanner, daemon=True, name="PravaahMeetingReminderScanner").start()
-threading.Thread(target=_scheduled_calls_scanner, daemon=True, name="PravaahScheduledCallScanner").start()
+RUN_WORKERS = os.getenv("RUN_WORKERS", "1") == "1"   # set to "0" on scaled-out web replicas
+log("STARTUP", f"Background schedulers {'ENABLED' if RUN_WORKERS else 'DISABLED'} on this process (RUN_WORKERS={os.getenv('RUN_WORKERS','1')})")
+
+if RUN_WORKERS:
+    threading.Thread(target=_wa_campaign_scheduler, daemon=True, name="PravaahCampaignScheduler").start()
+    threading.Thread(target=_meeting_reminder_scanner, daemon=True, name="PravaahMeetingReminderScanner").start()
+    threading.Thread(target=_scheduled_calls_scanner, daemon=True, name="PravaahScheduledCallScanner").start()
 
 init_eva(app, db, users_col, leads_col)
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 6875)), debug=True)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 6875)), debug=FLASK_DEBUG)

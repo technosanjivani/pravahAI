@@ -24,6 +24,11 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY . .
 
+# Run as a non-root user — a break-in no longer gets root inside the container
+RUN addgroup --system app && adduser --system --ingroup app app \
+    && chown -R app:app /app
+USER app
+
 
 EXPOSE 6875
 

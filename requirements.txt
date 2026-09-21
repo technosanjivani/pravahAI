@@ -1,22 +1,22 @@
 Flask==2.3.0
-gunicorn
+Werkzeug==2.3.7
+gunicorn==21.2.0
 python-dotenv==0.21.0
 
-pymongo
-dnspython
+pymongo==4.6.1
+dnspython==2.4.2
 
-Werkzeug
+pandas==2.1.4
+openpyxl==3.1.2
+xlrd==2.0.1
 
-pandas
-openpyxl
-xlrd
+requests==2.31.0
+beautifulsoup4==4.12.2
 
-requests
-beautifulsoup4
+resend==0.7.0
+cloudinary==1.36.0
 
-resend
-cloudinary
-
-pywebpush
-py-vapid
-razorpay
+pywebpush==2.0.0
+py-vapid==1.9.0
+razorpay==1.4.1
+Flask-Limiter==3.5.0

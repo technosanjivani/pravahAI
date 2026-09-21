@@ -1,6 +1,8 @@
 import csv
+import ipaddress
 import json
 import re
+import socket
 import sys
 import time
 from urllib.parse import urljoin, urlparse
@@ -23,6 +25,45 @@ DELAY_BETWEEN_REQUESTS = 1.0      # politeness delay, seconds
 
 USER_AGENT = "Mozilla/5.0 (compatible; InfoBot/1.0; contact-scraper)"
 HEADERS = {"User-Agent": USER_AGENT}
+
+MAX_RESPONSE_BYTES = 5 * 1024 * 1024   # 5 MB cap per fetched page
+MAX_REDIRECTS = 5
+
+
+class _BlockedURL(Exception):
+    """Raised internally when a URL/IP fails the SSRF safety check."""
+    pass
+
+
+def _is_unsafe_ip(ip_str: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return True  # can't parse it -> treat as unsafe
+    return (
+        ip.is_private or ip.is_loopback or ip.is_link_local
+        or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+    )
+
+
+def _assert_url_is_safe(url: str):
+    """Raises _BlockedURL if the URL's scheme is not http/https, or if ANY
+    IP that its hostname resolves to is private/loopback/link-local/reserved.
+    This is checked fresh on every hop of a redirect chain."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise _BlockedURL(f"Blocked scheme: {parsed.scheme!r}")
+    hostname = parsed.hostname
+    if not hostname:
+        raise _BlockedURL("No hostname in URL")
+    try:
+        addrinfo = socket.getaddrinfo(hostname, None)
+    except socket.gaierror as e:
+        raise _BlockedURL(f"DNS resolution failed: {e}")
+    for family, _, _, _, sockaddr in addrinfo:
+        ip_str = sockaddr[0]
+        if _is_unsafe_ip(ip_str):
+            raise _BlockedURL(f"Blocked unsafe IP {ip_str} for host {hostname}")
 
 EMAIL_REGEX = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 
@@ -70,13 +111,67 @@ def normalize_website_for_dedupe(url: str) -> str:
 
 
 def fetch(url: str, timeout: int = REQUEST_TIMEOUT):
-    """GET a URL, return the response object or None on any failure."""
-    try:
-        resp = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
-        if resp.status_code == 200:
-            return resp
-    except requests.RequestException:
-        return None
+    """GET a URL, return the response object or None on any failure.
+
+    SSRF-safe: validates scheme + resolves the hostname to an IP and
+    rejects private/loopback/link-local/reserved addresses BEFORE the
+    request is made, and re-checks on every redirect hop (a public URL
+    that redirects to an internal one is blocked, not silently followed).
+    Also caps the response body size.
+    """
+    current_url = url
+    for _ in range(MAX_REDIRECTS + 1):
+        try:
+            _assert_url_is_safe(current_url)
+        except _BlockedURL as e:
+            print(f"[SSRF-BLOCKED] {current_url} -> {e}", flush=True)
+            return None
+
+        try:
+            resp = requests.get(
+                current_url,
+                headers=HEADERS,
+                timeout=timeout,
+                allow_redirects=False,   # we follow manually so each hop gets re-checked
+                stream=True,
+            )
+        except requests.RequestException:
+            return None
+
+        if resp.status_code in (301, 302, 303, 307, 308):
+            location = resp.headers.get("Location")
+            resp.close()
+            if not location:
+                return None
+            current_url = urljoin(current_url, location)
+            continue
+
+        if resp.status_code != 200:
+            resp.close()
+            return None
+
+        # Enforce a size cap while reading the body
+        try:
+            content_length = int(resp.headers.get("Content-Length", 0) or 0)
+        except ValueError:
+            content_length = 0
+        if content_length and content_length > MAX_RESPONSE_BYTES:
+            resp.close()
+            return None
+
+        chunks = []
+        total = 0
+        for chunk in resp.iter_content(chunk_size=65536):
+            total += len(chunk)
+            if total > MAX_RESPONSE_BYTES:
+                resp.close()
+                return None
+            chunks.append(chunk)
+        resp._content = b"".join(chunks)
+        resp.close()
+        return resp
+
+    print(f"[SSRF-BLOCKED] {url} -> too many redirects", flush=True)
     return None
 
 
