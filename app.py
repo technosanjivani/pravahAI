@@ -107,6 +107,9 @@ TRIGGER_EVENTS = {"lead_added", "call_ended", "status_hot", "status_warm"}
 AGENT_CHANNEL_KEYS = ("whatsapp", "voice", "widget", "email")
 DEFAULT_AGENT_CHANNELS = {"whatsapp": False, "voice": True, "widget": True, "email": False}
 DEFAULT_AGENT_TASKS    = {"book_meeting": False, "site_visit": False}
+# Every language Eva's voice pipeline supports (native-script replies +
+# matching Sarvam TTS voice). "auto" mirrors whatever the lead speaks.
+AGENT_LANGUAGE_CHOICES = {"auto", "en", "hi", "bn", "ta", "te", "kn", "ml"}
 
 def upload_media_to_cloudinary(file_storage, resource_type="auto"):
     if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):
@@ -6582,7 +6585,7 @@ def init_eva(app, db, users_col, leads_col):
             "owner_id": current_user_id(), "name": name,
             "system_prompt": (data.get("system_prompt") or "").strip(),
             "gender": data.get("gender") if data.get("gender") in ("male", "female") else "female",
-            "language": data.get("language") if data.get("language") in ("en", "hi", "auto") else "auto",
+            "language": data.get("language") if data.get("language") in AGENT_LANGUAGE_CHOICES else "auto",
             "speaker": (data.get("speaker") or "").strip(),
             "opening_line": (data.get("opening_line") or "Hi {{name}}, do you have a quick minute?").strip(),
             "min_duration_secs": int(data.get("min_duration_secs", 20) or 20),
@@ -6615,7 +6618,7 @@ def init_eva(app, db, users_col, leads_col):
                 update[f] = (data.get(f) or "").strip()
         if data.get("gender") in ("male", "female"):
             update["gender"] = data["gender"]
-        if data.get("language") in ("en", "hi", "auto"):
+        if data.get("language") in AGENT_LANGUAGE_CHOICES:
             update["language"] = data["language"]
         if "min_duration_secs" in data:
             update["min_duration_secs"] = int(data["min_duration_secs"] or 20)
