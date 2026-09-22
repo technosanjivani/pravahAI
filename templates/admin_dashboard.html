@@ -543,7 +543,7 @@ tbody tr:hover { background: var(--bg-hover); }
       <div class="field"><label>Phone</label><input type="text" id="nu_phone"></div>
       <div class="field"><label>Business name</label><input type="text" id="nu_business"></div>
       <div class="field"><label>Region</label>
-        <select id="nu_region"><option value="international">International</option><option value="india">India</option></select>
+        <select id="nu_region"><option value="india">India</option><option value="international">International</option></select>
       </div>
       <div class="field"><label>Initial plan (optional)</label><select id="nu_plan"><option value="">No plan</option></select></div>
       <div class="field"><label>Password (leave blank to auto-generate)</label><input type="text" id="nu_password"></div>
@@ -581,6 +581,31 @@ tbody tr:hover { background: var(--bg-hover); }
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('addMinutesModal')">Cancel</button>
       <button class="btn btn-primary" id="submitAddMinutes">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit user modal -->
+<div class="modal-overlay" id="editUserModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Edit user</h3><div class="modal-close" onclick="closeModal('editUserModal')">✕</div></div>
+    <div class="modal-body">
+      <input type="hidden" id="eu_user_id">
+      <div class="field"><label>Username</label><input type="text" id="eu_username"></div>
+      <div class="field"><label>Email</label><input type="email" id="eu_email"></div>
+      <div class="field"><label>Phone</label><input type="text" id="eu_phone"></div>
+      <div class="field"><label>Business name</label><input type="text" id="eu_business"></div>
+      <div class="field"><label>Business type</label><input type="text" id="eu_business_type"></div>
+      <div class="field"><label>Website</label><input type="text" id="eu_website"></div>
+      <div class="field"><label>Address</label><input type="text" id="eu_address"></div>
+      <div class="field"><label>Region</label>
+        <select id="eu_region"><option value="india">India</option><option value="international">International</option></select>
+      </div>
+      <div class="field"><label>Reset password <span style="font-weight:400;text-transform:none;">(leave blank to keep current)</span></label><input type="text" id="eu_password"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('editUserModal')">Cancel</button>
+      <button class="btn btn-primary" id="submitEditUser">Save changes</button>
     </div>
   </div>
 </div>
@@ -749,6 +774,7 @@ function renderUsers(users) {
         : `<span class="badge b-red"><span class="badge-dot" style="background:var(--red)"></span>Disabled</span>`}</td>
       <td>
         <div class="row-actions">
+          <button class="btn btn-ghost btn-sm" onclick='openEditUser(${JSON.stringify(u).replace(/'/g, "&#39;")})'>Edit</button>
           <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${u._id}','${u.status}')">${u.status === 'active' ? 'Disable' : 'Enable'}</button>
           <button class="btn btn-ghost btn-sm" onclick="openAssignPlan('${u._id}','${u.plan ? u.plan._id : ''}')">Plan</button>
           <button class="btn btn-ghost btn-sm" onclick="openAddMinutes('${u._id}')">Minutes</button>
@@ -854,6 +880,41 @@ $('submitCreateUser').addEventListener('click', async () => {
     const data = await api('/api/admin/users', { method: 'POST', body: JSON.stringify(payload) });
     toast('User created' + (data.temp_password ? ` — temp password: ${data.temp_password}` : ''));
     closeModal('createUserModal');
+    loadUsers();
+  } catch (e) { toast(e.message, true); }
+});
+
+function openEditUser(u) {
+  $('eu_user_id').value = u._id;
+  $('eu_username').value = u.username || '';
+  $('eu_email').value = u.email || '';
+  $('eu_phone').value = u.phone || '';
+  $('eu_business').value = u.business_name || '';
+  $('eu_business_type').value = u.business_type || '';
+  $('eu_website').value = u.website || '';
+  $('eu_address').value = u.address || '';
+  $('eu_region').value = u.region || 'india';
+  $('eu_password').value = '';
+  openModal('editUserModal');
+}
+$('submitEditUser').addEventListener('click', async () => {
+  try {
+    const userId = $('eu_user_id').value;
+    const payload = {
+      username: $('eu_username').value.trim(),
+      email: $('eu_email').value.trim(),
+      phone: $('eu_phone').value.trim(),
+      business_name: $('eu_business').value.trim(),
+      business_type: $('eu_business_type').value.trim(),
+      website: $('eu_website').value.trim(),
+      address: $('eu_address').value.trim(),
+      region: $('eu_region').value,
+    };
+    const newPass = $('eu_password').value.trim();
+    if (newPass) payload.new_password = newPass;
+    await api(`/api/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+    toast('User updated');
+    closeModal('editUserModal');
     loadUsers();
   } catch (e) { toast(e.message, true); }
 });

@@ -945,7 +945,7 @@ def get_plan_status(user):
         "eva_minutes_used": round(minutes_used, 2),
         "eva_minutes_remaining": round(max(0.0, minutes_total - minutes_used), 2),
         "recharge_contact_number": get_recharge_contact_number(),
-        "region": user.get("region", "international"),
+        "region": user.get("region", "india"),
         "razorpay_key_id": RAZORPAY_KEY_ID,   # safe to expose — it's the public key
     }
 
@@ -1030,10 +1030,13 @@ def serialize_admin_user(u):
         "email": u.get("email", ""),
         "phone": u.get("phone", ""),
         "business_name": u.get("business_name", ""),
+        "business_type": u.get("business_type", ""),
+        "website": u.get("website", ""),
+        "address": u.get("address", ""),
         "status": u.get("status", "active"),
         "email_verified": u.get("email_verified", False),
         "account_type": u.get("account_type", "user"),
-        "region": u.get("region", "international"),
+        "region": u.get("region", "india"),
         "plan": {"_id": str(plan["_id"]), "name": plan.get("name", "")} if plan else None,
         "plan_status": plan_status,
         "plan_assigned_at": u.get("plan_assigned_at").isoformat() if u.get("plan_assigned_at") else None,
@@ -1358,12 +1361,12 @@ def meeting_aware_chat_reply(owner_id, lead, incoming_message, history, task_pro
     )
     base_style = (system_prompt or "").strip() or "You are a friendly, concise WhatsApp sales assistant."
     task = (task_prompt or "").strip() or "Keep the lead engaged and offer to book a meeting/call."
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    today_str = _now_ist().strftime("%Y-%m-%d")
     system = (
         f"{base_style}\n\nYour goal for this lead: {task}\n\n"
-        f"Today's date is {today_str} (UTC). You can book a meeting on the owner's calendar. "
+        f"Today's date is {today_str} (IST — Indian Standard Time). You can book a meeting on the owner's calendar. "
         "Return ONLY valid JSON, no markdown fences, in this exact shape: "
-        '{"requested_datetime": "ISO 8601 UTC datetime the lead confirmed, e.g. 2026-09-22T10:00:00 — '
+        '{"requested_datetime": "ISO 8601 IST datetime the lead confirmed, e.g. 2026-09-22T10:00:00 — '
         'leave empty until the lead has clearly agreed on both a date AND a time", '
         '"reply": "your natural 1-3 sentence WhatsApp reply"}'
     )
@@ -1373,16 +1376,17 @@ def meeting_aware_chat_reply(owner_id, lead, incoming_message, history, task_pro
         return {"success": False, "error": result.get("error", "AI reply generation failed")}
     data = result["data"]
     reply_text = (data.get("reply") or "").strip()
-    requested = parse_iso_utc(data.get("requested_datetime", ""))
-    if requested:
-        ok, payload = book_meeting(owner_id, lead, requested)
+    requested_ist = parse_iso_utc(data.get("requested_datetime", ""))
+    if requested_ist:
+        requested_utc = requested_ist - IST_OFFSET   # store everything internally as true UTC
+        ok, payload = book_meeting(owner_id, lead, requested_utc)
         if ok:
             reply_text = (reply_text + " " if reply_text else "") + "You're booked ✅"
         else:
             alt_note = ""
             alts = payload.get("alternatives") or []
             if alts:
-                alt_note = " How about " + ", ".join(datetime.fromisoformat(a).strftime("%a %d %b, %H:%M UTC") for a in alts[:2]) + "?"
+                alt_note = " How about " + ", ".join(format_ist(datetime.fromisoformat(a), "%a %d %b, %I:%M %p") for a in alts[:2]) + "?"
             reply_text = (reply_text + " " if reply_text else "") + f"That slot isn't available.{alt_note}"
     return {"success": True, "message": reply_text or "When would you like to schedule the meeting?"}
 
@@ -1427,6 +1431,16 @@ IST_OFFSET = timedelta(hours=5, minutes=30)  # office-hours checks assume IST
 
 def _now_ist():
     return datetime.utcnow() + IST_OFFSET
+
+
+def format_ist(dt: datetime, fmt: str = "%A, %d %b %Y at %I:%M %p") -> str:
+    """Formats a naive UTC datetime (as stored throughout this app) as a
+    human-readable IST string, appending ' IST' — used anywhere a meeting
+    time is shown or told to a user, so nobody has to mentally convert
+    from UTC themselves."""
+    if not dt:
+        return ""
+    return (dt + IST_OFFSET).strftime(fmt) + " IST"
 
 
 def is_within_office_hours(agent: dict, dt=None) -> bool:
@@ -1614,8 +1628,9 @@ def is_time_available(owner_id: str, dt: datetime, duration_minutes: int = None)
     if not template:
         return False, "No meeting availability has been configured yet", None
     duration_minutes = duration_minutes or template.get("duration_minutes", 30)
-    weekday = dt.strftime("%A").lower()
-    hhmm = dt.strftime("%H:%M")
+    dt_ist = dt + IST_OFFSET   # weekly slot hours (e.g. "09:00"-"18:00") are entered in IST
+    weekday = dt_ist.strftime("%A").lower()
+    hhmm = dt_ist.strftime("%H:%M")
     slot_ok = any(
         s.get("day") == weekday and s.get("available", True)
         and s.get("start", "00:00") <= hhmm <= s.get("end", "00:00")
@@ -1685,7 +1700,7 @@ def book_meeting(owner_id, lead, scheduled_at, duration_minutes=None, call_id=""
     meeting = meetings_col.find_one({"_id": inserted.inserted_id})
 
     owner = users_col.find_one({"_id": ObjectId(owner_id)})
-    when_str = scheduled_at.strftime("%A, %d %b %Y at %H:%M UTC")
+    when_str = format_ist(scheduled_at)
     lead_msg = (
         f"Your meeting is confirmed for {when_str}."
         + (f" Join here: {template.get('meet_link')}" if template.get("meet_link") else "")
@@ -1715,7 +1730,7 @@ def get_meeting_context(owner_id):
     lines = [f"{day.capitalize()}: {', '.join(times)}" for day, times in by_day.items()]
     return {
         "duration_minutes": template.get("duration_minutes", 30),
-        "availability_text": "; ".join(lines) + " (times in UTC)",
+        "availability_text": "; ".join(lines) + " (times in IST — Indian Standard Time)",
         "booking_webhook_url": f"{PRAVAAH_PUBLIC_BASE_URL}/api/eva-webhook/book-meeting",
     }
 
@@ -2183,7 +2198,7 @@ def api_signup_account():
     doc = {
         "type": "user",
         "account_type": "user",
-        "region": "international",
+        "region": "india",
         "plan_id": None,
         "eva_minutes": 0.0,
         "eva_minutes_used": 0.0,
@@ -2325,7 +2340,7 @@ def admin_signup():
         users_col.insert_one({
             "type": "user",
             "account_type": "admin",
-            "region": "international",
+            "region": "india",
             "plan_id": None,
             "eva_minutes": 0.0,
             "eva_minutes_used": 0.0,
@@ -2608,8 +2623,8 @@ def api_public_widget_config(public_id):
             f"Available windows: {meeting_ctx['availability_text']}. "
             "Only offer this after you have the visitor's name and phone number. "
             "If they want to book, ask for their preferred date and time, then confirm "
-            "it through the booking webhook. If that slot isn't free, offer one of the "
-            "alternatives it returns."
+            "it through the booking webhook using IST (Indian Standard Time). If that slot "
+            "isn't free, offer one of the alternatives it returns."
         )
     if owner.get("category") == "real_estate" and tasks.get("site_visit"):
         agent_system_prompt += (
@@ -2869,7 +2884,7 @@ def api_public_plans():
     """Plans a user can self-select for purchase/upgrade — never includes
     admin-only custom plans, and is filtered to the account's region."""
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
-    region = (user.get("region") if user else "international") or "international"
+    region = (user.get("region") if user else "india") or "india"
     plans = list(plans_col.find({"region": region, "is_custom": {"$ne": True}}).sort("price", 1))
     return jsonify({"plans": [serialize_plan(p) for p in plans]})
 
@@ -2930,7 +2945,7 @@ def api_create_minutes_order():
         return jsonify({"error": "Enter a valid number of minutes"}), 400
 
     user = users_col.find_one({"_id": ObjectId(current_user_id())})
-    region = (user.get("region") if user else "international") or "international"
+    region = (user.get("region") if user else "india") or "india"
     pricing = pricing_col.find_one({"key": "global"}) or {}
     rate = float(pricing.get("india_price_per_min" if region == "india" else "international_price_per_min", 0) or 0)
     currency = "INR" if region == "india" else "USD"
@@ -4171,7 +4186,7 @@ def api_reschedule_meeting(meeting_id):
     new_meeting = meetings_col.find_one({"_id": inserted.inserted_id})
 
     owner = users_col.find_one({"_id": ObjectId(current_user_id())})
-    when_str = new_dt.strftime("%A, %d %b %Y at %H:%M UTC")
+    when_str = format_ist(new_dt)
     if owner and old.get("lead_phone"):
         send_meeting_whatsapp(owner, old["lead_phone"],
             f"Your meeting has been rescheduled to {when_str}." +
@@ -4276,7 +4291,7 @@ def api_create_manual_meeting():
     meeting = meetings_col.find_one({"_id": inserted.inserted_id})
 
     owner = users_col.find_one({"_id": ObjectId(current_user_id())})
-    when_str = scheduled_at.strftime("%A, %d %b %Y at %H:%M UTC")
+    when_str = format_ist(scheduled_at)
     platform_label = {"google_meet": "Google Meet", "zoom": "Zoom", "teams": "Microsoft Teams", "other": "the link"}.get(platform, "the link")
 
     whatsapp_note = None
@@ -5036,7 +5051,7 @@ def api_admin_create_user():
     username = (data.get("username") or "").strip().lower()
     email    = (data.get("email") or "").strip().lower()
     password = data.get("password") or generate_temp_password()
-    region   = data.get("region") if data.get("region") in ("india", "international") else "international"
+    region   = data.get("region") if data.get("region") in ("india", "international") else "india"
 
     if not username or not email:
         return jsonify({"error": "Username and email are required"}), 400
@@ -5099,6 +5114,76 @@ def api_admin_update_user_status(user_id):
     if result.matched_count == 0:
         return jsonify({"error": "User not found"}), 404
     return jsonify({"updated": True, "status": status})
+
+
+@app.route("/api/admin/users/<user_id>", methods=["PATCH"])
+@login_required
+@admin_required
+def api_admin_update_user(user_id):
+    """Lets an admin edit a customer's full account details in one place —
+    username, email, phone, business info, and region — plus optionally
+    reset their password. Region defaults to 'india' when not otherwise set."""
+    try:
+        oid = ObjectId(user_id)
+    except InvalidId:
+        return jsonify({"error": "Invalid user id"}), 400
+    user = users_col.find_one({"_id": oid, "type": "user"})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    update = {}
+
+    if "username" in data:
+        new_username = (data.get("username") or "").strip().lower()
+        if not new_username:
+            return jsonify({"error": "Username cannot be empty"}), 400
+        if not re.match(r"^[a-z0-9_.]+$", new_username):
+            return jsonify({"error": "Username can only contain letters, numbers, dots and underscores"}), 400
+        clash = users_col.find_one({"username": new_username, "_id": {"$ne": oid}})
+        if clash:
+            return jsonify({"error": "That username is already taken"}), 400
+        update["username"] = new_username
+
+    if "email" in data:
+        new_email = (data.get("email") or "").strip().lower()
+        if not new_email or "@" not in new_email:
+            return jsonify({"error": "A valid email is required"}), 400
+        clash = users_col.find_one({"email": new_email, "_id": {"$ne": oid}})
+        if clash:
+            return jsonify({"error": "That email is already in use"}), 400
+        update["email"] = new_email
+
+    for field in ("phone", "business_name", "business_type", "website", "address"):
+        if field in data:
+            update[field] = (data.get(field) or "").strip()
+
+    if "region" in data:
+        region = data.get("region")
+        if region not in ("india", "international"):
+            return jsonify({"error": "region must be 'india' or 'international'"}), 400
+        update["region"] = region
+
+    if "category" in data:
+        cat = (data.get("category") or "").strip()
+        if cat and cat not in (BUSINESS_CATEGORIES | {"other"}):
+            return jsonify({"error": "Invalid category"}), 400
+        update["category"] = cat
+
+    if "status" in data and data["status"] in ("active", "disabled"):
+        update["status"] = data["status"]
+
+    if data.get("new_password"):
+        if len(data["new_password"]) < 6:
+            return jsonify({"error": "Password must be at least 6 characters"}), 400
+        update["password"] = generate_password_hash(data["new_password"])
+
+    if not update:
+        return jsonify({"error": "Nothing to update"}), 400
+
+    users_col.update_one({"_id": oid}, {"$set": update})
+    saved = users_col.find_one({"_id": oid})
+    return jsonify({"user": serialize_admin_user(saved)})
 
 
 @app.route("/api/admin/users/<user_id>/plan", methods=["PATCH"])
@@ -5820,29 +5905,31 @@ def api_eva_webhook_book_meeting():
     Expected JSON body:
       owner_id, lead_id (optional), lead_name, lead_phone,
       call_id (optional), agent_id (optional),
-      requested_datetime  — ISO string, e.g. "2026-08-12T15:00:00" (UTC, naive)
+      requested_datetime  — ISO string, e.g. "2026-08-12T15:00:00" (IST, naive)
     """
     if not EVA_API_SECRET or request.headers.get("X-Eva-Secret") != EVA_API_SECRET:
         return jsonify({"error": "Invalid or missing X-Eva-Secret"}), 401
 
     data = request.get_json(silent=True) or {}
-    owner_id   = data.get("owner_id")
-    lead_id    = data.get("lead_id", "")
-    lead_name  = data.get("lead_name", "")
-    lead_phone = data.get("lead_phone", "")
-    call_id    = data.get("call_id", "")
-    agent_id   = data.get("agent_id", "")
-    requested  = parse_iso_utc(data.get("requested_datetime", ""))
+    owner_id      = data.get("owner_id")
+    lead_id       = data.get("lead_id", "")
+    lead_name     = data.get("lead_name", "")
+    lead_phone    = data.get("lead_phone", "")
+    call_id       = data.get("call_id", "")
+    agent_id      = data.get("agent_id", "")
+    requested_ist = parse_iso_utc(data.get("requested_datetime", ""))
 
-    if not owner_id or not lead_phone or not requested:
+    if not owner_id or not lead_phone or not requested_ist:
         return jsonify({"error": "owner_id, lead_phone and requested_datetime are required"}), 400
+
+    requested_utc = requested_ist - IST_OFFSET   # Eva sends IST times; store everything as true UTC
 
     lead_ctx = {
         "_id": ObjectId(lead_id) if lead_id and ObjectId.is_valid(lead_id) else None,
         "lead_id": lead_id, "name": lead_name, "phone": lead_phone,
     }
 
-    ok, payload = book_meeting(owner_id, lead_ctx, requested, call_id=call_id, agent_id=agent_id)
+    ok, payload = book_meeting(owner_id, lead_ctx, requested_utc, call_id=call_id, agent_id=agent_id)
     return jsonify(payload), (201 if ok else 409)
 
 
@@ -6075,7 +6162,7 @@ def request_call_from_eva(call_id, to_number, twilio_creds, agent, lead, owner_i
             f"Available windows: {meeting_ctx['availability_text']}. "
             "The lead's name and phone number are already provided below — never ask for them again. "
             "If the lead wants to schedule a meeting, ask for their preferred date and time, "
-            "then confirm it by calling the booking webhook with that date/time. "
+            "then confirm it by calling the booking webhook with that date/time in IST (Indian Standard Time). "
             "If the webhook says the slot isn't available, offer one of the alternatives it returns."
         )
 
@@ -7133,7 +7220,7 @@ def _meeting_reminder_scanner():
             if not owner:
                 continue
             template = meeting_templates_col.find_one({"owner_id": m["owner_id"]}) or {}
-            when_str = m["scheduled_at"].strftime("%H:%M UTC")
+            when_str = format_ist(m["scheduled_at"], "%I:%M %p")
             link_part = f" {m.get('meet_link')}" if m.get("meet_link") else ""
 
             # 1) Automatic WhatsApp reminder to the lead (+ admin number if configured)
