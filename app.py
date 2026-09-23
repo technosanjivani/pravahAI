@@ -109,7 +109,8 @@ DEFAULT_AGENT_CHANNELS = {"whatsapp": False, "voice": True, "widget": True, "ema
 DEFAULT_AGENT_TASKS    = {"book_meeting": False, "site_visit": False}
 # Every language Eva's voice pipeline supports (native-script replies +
 # matching Sarvam TTS voice). "auto" mirrors whatever the lead speaks.
-AGENT_LANGUAGE_CHOICES = {"auto", "en", "hi", "bn", "ta", "te", "kn", "ml"}
+# --- NEW ---
+AGENT_LANGUAGE_CHOICES = {"auto", "en", "hi"}
 
 def upload_media_to_cloudinary(file_storage, resource_type="auto"):
     if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):
