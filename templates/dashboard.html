@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -1190,7 +1191,7 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
         </div>
       </div>
       <div class="settings-grid">
-        <!-- WhatsApp / Evolution -->
+        <!-- WhatsApp / Evolution 
         <div class="settings-card">
           <div class="settings-card-title">💬 WhatsApp</div>
           <div class="settings-card-sub">Enter your Evolution instance name — the server URL and API key are managed for you.</div>
@@ -1213,15 +1214,31 @@ table.logs-table td:first-child { color: var(--text-h); font-weight: 500; }
             <button class="btn btn-primary btn-sm" onclick="saveIntegrations()">Save</button>
           </div>
         </div>
-
+-->
 
         <!-- Active Provider -->
 <div class="settings-card reveal" style="grid-column: 1 / -1;">
   <div class="settings-card-title">🔀 Active WhatsApp Provider</div>
   <div class="settings-card-sub">Pick which platform actually sends & receives your WhatsApp messages. Only one is active at a time — switching doesn't delete the other's saved credentials.</div>
   <div class="segmented" id="provider-segmented">
+    <div class="segmented-opt" data-val="wbapi" onclick="setActiveProvider('wbapi')">WhatsApp 1-Click</div>
     <div class="segmented-opt" data-val="evo" onclick="setActiveProvider('evo')">Evolution API</div>
-    <div class="segmented-opt" data-val="wirebase" onclick="setActiveProvider('wirebase')">Wirebase</div>
+    <div class="segmented-opt" data-val="wirebase" onclick="setActiveProvider('wirebase')">Wirebase (manual)</div>
+  </div>
+</div>
+
+<!-- WhatsApp 1-Click (Wirebase Developer API) -->
+<div class="settings-card reveal" style="grid-column: 1 / -1;">
+  <div class="settings-card-title">📱 Connect WhatsApp</div>
+  <div class="settings-card-sub">Link your own WhatsApp number in one click — scan a QR code, just like WhatsApp Web. No accounts, instances or webhooks to set up.</div>
+  <div class="integration-status" id="wbapi-status"><span class="status-dot off"></span> <span>Not connected</span></div>
+  <div id="wbapi-qr-box" style="display:none;margin:14px 0;text-align:center;">
+    <div id="wbapi-qr-img" style="display:inline-flex;align-items:center;justify-content:center;padding:12px;background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);min-width:244px;min-height:244px;font-size:12px;color:var(--text-dim);">Generating QR…</div>
+    <div style="font-size:12px;color:var(--text-b);margin-top:8px;">Open WhatsApp → Settings → Linked Devices → Link a Device, then scan this code.</div>
+  </div>
+  <div class="settings-actions">
+    <button class="btn btn-primary btn-sm" id="wbapi-connect-btn" onclick="connectWbapi()">📱 Connect WhatsApp</button>
+    <button class="btn btn-ghost btn-sm" onclick="checkWbapiStatus(true)">🔌 Check Status</button>
   </div>
 </div>
 
@@ -4005,6 +4022,7 @@ async function loadIntegrations() {
     setStatus("resend-status",   data.has_resend   ? "ok" : "off", data.has_resend   ? "Configured" : "Not configured");
     setStatus("wirebase-status", data.has_wirebase ? "ok" : "off", data.has_wirebase ? "Configured" : "Not configured");
     renderProviderSegmented(data.active_provider || "evo");
+    renderWbapiCard(data);
   } catch { /* silent */ }
 }
 
@@ -4018,7 +4036,8 @@ async function setActiveProvider(val) {
   try {
     const res = await fetch("/api/integrations", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({active_provider: val})});
     if (!res.ok) throw new Error();
-    showToast(`Active provider set to ${val === 'wirebase' ? 'Wirebase' : 'Evolution API'} ✓`, "success");
+    const PROVIDER_LABELS = {evo:'Evolution API', wirebase:'Wirebase (manual)', wbapi:'WhatsApp 1-Click'};
+    showToast(`Active provider set to ${PROVIDER_LABELS[val] || val} ✓`, "success");
   } catch { showToast("Could not update provider", "error"); }
 }
 function copyText(id) {
@@ -4521,6 +4540,122 @@ function showToast(msg, type="") {
   toast.className = `show ${type}`;
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => toast.className = "", 3800);
+}
+
+
+/* ════════════════════════════════════════════════
+   WHATSAPP 1-CLICK (Wirebase Developer API)
+════════════════════════════════════════════════ */
+let wbapiPollTimer = null;
+let wbapiPollCount = 0;
+let wbapiLastQr = "";
+
+function renderWbapiCard(d) {
+  const btn = document.getElementById("wbapi-connect-btn");
+  if (!btn) return;
+  if (!d.wbapi_server_ready) {
+    setStatus("wbapi-status", "error", "1-Click connect isn't enabled on the server yet");
+    btn.disabled = true;
+    return;
+  }
+  btn.disabled = false;
+  if (d.wbapi_status === "connected") {
+    setStatus("wbapi-status", "ok", `Connected${d.wbapi_phone ? " · +" + d.wbapi_phone : ""}`);
+    btn.textContent = "🔄 Reconnect / Show QR";
+  } else if (d.wbapi_instance_id) {
+    setStatus("wbapi-status", "off", "Not connected — scan the QR to link");
+    btn.textContent = "📱 Show QR";
+  } else {
+    setStatus("wbapi-status", "off", "Not connected");
+    btn.textContent = "📱 Connect WhatsApp";
+  }
+  if (d.wbapi_instance_id) checkWbapiStatus(false);   // refresh the cached status with the live one
+}
+
+async function checkWbapiStatus(manual) {
+  try {
+    const res = await fetch("/api/wirebase-api/status");
+    const s = await res.json();
+    if (s.connected) setStatus("wbapi-status", "ok", `Connected${s.phone ? " · +" + s.phone : ""}`);
+    else if (s.status === "error") setStatus("wbapi-status", "error", s.error || "Could not check status");
+    else setStatus("wbapi-status", "off", s.status === "not_created" ? "Not connected" : "Not connected — scan the QR to link");
+    if (manual) showToast(s.connected ? "WhatsApp is connected ✓" : "WhatsApp is not connected yet", s.connected ? "success" : "error");
+    return s;
+  } catch {
+    if (manual) showToast("Could not check status", "error");
+    return null;
+  }
+}
+
+async function connectWbapi() {
+  const btn = document.getElementById("wbapi-connect-btn");
+  btn.disabled = true; btn.textContent = "Preparing…";
+  try {
+    const res = await fetch("/api/wirebase-api/connect", { method: "POST" });
+    const data = await res.json();
+    if (res.status === 402 && data.plan_blocked) { showPlanBlockedModal(data); return; }
+    if (!res.ok) throw new Error(data.error || "Could not start WhatsApp connection");
+    startWbapiPolling();
+  } catch (err) {
+    showToast(err.message, "error");
+  } finally {
+    btn.disabled = false;
+    loadIntegrations();   // re-renders the button label + status
+  }
+}
+
+function startWbapiPolling() {
+  stopWbapiPolling();
+  wbapiPollCount = 0;
+  wbapiLastQr = "";
+  document.getElementById("wbapi-qr-img").textContent = "Generating QR…";
+  document.getElementById("wbapi-qr-box").style.display = "block";
+  wbapiTick();
+  wbapiPollTimer = setInterval(wbapiTick, 3000);
+}
+
+function stopWbapiPolling() {
+  if (wbapiPollTimer) { clearInterval(wbapiPollTimer); wbapiPollTimer = null; }
+}
+
+async function wbapiTick() {
+  wbapiPollCount++;
+  if (wbapiPollCount > 60) {   // ~3 minutes
+    stopWbapiPolling();
+    document.getElementById("wbapi-qr-box").style.display = "none";
+    showToast("QR expired — click Connect WhatsApp to try again.", "error");
+    return;
+  }
+  try {
+    const s = await (await fetch("/api/wirebase-api/status")).json();
+    if (s.connected) {
+      stopWbapiPolling();
+      document.getElementById("wbapi-qr-box").style.display = "none";
+      showToast("WhatsApp connected ✓", "success");
+      loadIntegrations();
+      return;
+    }
+    // fetch QR until we have one, then refresh it about every 15s (QRs rotate)
+    if (!wbapiLastQr || wbapiPollCount % 5 === 0) {
+      const q = await (await fetch("/api/wirebase-api/qr")).json();
+      if (q.qr) renderWbapiQr(q.qr);
+    }
+  } catch { /* keep polling */ }
+}
+
+function renderWbapiQr(qr) {
+  if (qr === wbapiLastQr) return;
+  wbapiLastQr = qr;
+  const box = document.getElementById("wbapi-qr-img");
+  box.innerHTML = "";
+  if (qr.startsWith("data:image") || /^https?:\/\//.test(qr)) {
+    const img = document.createElement("img");
+    img.src = qr; img.alt = "WhatsApp QR";
+    img.style.cssText = "width:220px;height:220px;";
+    box.appendChild(img);
+  } else {
+    new QRCode(box, { text: qr, width: 220, height: 220 });   // raw WhatsApp QR string
+  }
 }
 
 document.querySelectorAll('.modal-overlay').forEach(overlay => {

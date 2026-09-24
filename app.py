@@ -43,6 +43,7 @@ import pandas as pd
 
 # Sender modules
 from evo import send_whatsapp_message, get_instance_status
+import wirebaseapi as wbapi                                # Wirebase Developer API (1-click WhatsApp connect)
 from gmail import send_gmail
 from resend import send_resend_email, verify_resend_key   # per-customer Resend (outreach campaigns)
 from adminresend import (                                  # our own official Resend (OTP + team invites)
@@ -572,7 +573,10 @@ def public_https_url(path: str = "") -> str:
     """Builds an absolute HTTPS URL for this host, regardless of what scheme
     the request actually arrived on (e.g. behind an http-only proxy/load
     balancer). Wirebase/Evolution webhook URLs must always be https://."""
-    host = request.host  # includes port if non-standard, no scheme
+    base = os.environ.get("PRAVAAH_PUBLIC_BASE_URL", "").rstrip("/")
+    if base:
+        return f"{base}{path}"
+    host = request.host  # fallback (only works inside a request context)
     return f"https://{host}{path}"
 
 
@@ -1801,6 +1805,13 @@ def send_whatsapp_dispatch(user: dict, phone: str, message: str) -> dict:
     integrations.active_provider toggle."""
     creds = user.get("integrations", {}) or {}
     provider = creds.get("active_provider", "evo")
+
+    # 1-click Wirebase Developer API (per-customer instance created inside PravaahAI)
+    if provider == "wbapi":
+        instance_id = creds.get("wbapi_instance_id", "")
+        if not instance_id:
+            return {"success": False, "error": "WhatsApp is not connected yet — open Integrations and scan the QR code"}
+        return wbapi.send_text(instance_id, phone, message)
 
     wirebase_ready = bool(
         creds.get("wirebase_base_url") and creds.get("wirebase_api_key") and creds.get("wirebase_instance_name")
@@ -4622,6 +4633,11 @@ def api_get_integrations():
         "wirebase_webhook_secret": "●●●●●●●●" if creds.get("wirebase_webhook_secret") else "",
         "has_wirebase_secret":     bool(creds.get("wirebase_webhook_secret")),
         "active_provider":        creds.get("active_provider", "evo"),
+        # Wirebase Developer API (1-click)
+        "wbapi_server_ready":     wbapi.is_configured(),
+        "wbapi_instance_id":      creds.get("wbapi_instance_id", ""),
+        "wbapi_status":           creds.get("wbapi_status", ""),
+        "wbapi_phone":            creds.get("wbapi_phone", ""),
     })
 
 @app.route("/api/integrations", methods=["POST"])
@@ -4647,7 +4663,7 @@ def api_save_integrations():
     maybe_update("wirebase_api_key")
     maybe_update("wirebase_webhook_secret")
 
-    if data.get("active_provider") in ("evo", "wirebase"):
+    if data.get("active_provider") in ("evo", "wirebase", "wbapi"):
         existing["active_provider"] = data["active_provider"]
 
     update = {"integrations": existing}
@@ -4674,7 +4690,13 @@ def api_whatsapp_bot_diagnose():
         {"check": "Active provider", "ok": True, "value": provider},
     ]
 
-    if provider == "wirebase":
+    if provider == "wbapi":
+        checks += [
+            {"check": "Wirebase API keys set on server", "ok": wbapi.is_configured()},
+            {"check": "WhatsApp instance created", "ok": bool(creds.get("wbapi_instance_id"))},
+            {"check": "WhatsApp connected (QR scanned)", "ok": creds.get("wbapi_status") == "connected"},
+        ]
+    elif provider == "wirebase":
         checks += [
             {"check": "Wirebase base URL set", "ok": bool(creds.get("wirebase_base_url"))},
             {"check": "Wirebase API key set", "ok": bool(creds.get("wirebase_api_key"))},
@@ -5701,6 +5723,7 @@ def _process_incoming_whatsapp(owner_id: str, phone_raw: str, text: str):
 
 
 @app.route("/webhook/<token>", methods=["POST"])
+@limiter.exempt
 def webhook_receive(token):
     raw_headers = safe_request_headers()
     payload = request.get_json(silent=True) or {}
@@ -5849,6 +5872,7 @@ def _process_incoming_wirebase(owner_id: str, phone_raw: str, text: str, push_na
 
 
 @app.route("/webhook/wirebase/<token>", methods=["POST"])
+@limiter.exempt
 def wirebase_webhook_receive(token):
     raw_headers = safe_request_headers()
     payload = request.get_json(silent=True) or {}
@@ -5894,6 +5918,191 @@ def wirebase_webhook_receive(token):
     ).start()
     return jsonify({"received": True}), 200
 
+# ==================================================================
+# WIREBASE DEVELOPER API — 1-click WhatsApp connect (multi-tenant)
+# ==================================================================
+
+def _wbapi_webhook_url(token: str) -> str:
+    return public_https_url("/webhook/wbapi/" + token)
+
+
+def _wbapi_owner_and_instance():
+    user = users_col.find_one({"_id": ObjectId(current_user_id())})
+    creds = ((user.get("integrations", {}) if user else {}) or {})
+    return user, creds, creds.get("wbapi_instance_id", "")
+
+
+def _wbapi_signature_ok(raw_body: bytes) -> bool:
+    """Optional HMAC check. OFF by default (WIREBASE_VERIFY_SIGNATURE=0) because the
+    exact signing string isn't in the docs — the unguessable token in the URL is the
+    primary auth. Accepts body, 'timestamp.body' and 'timestampbody' variants."""
+    if os.getenv("WIREBASE_VERIFY_SIGNATURE", "0") != "1":
+        return True
+    secret = os.getenv("WIREBASE_APP_SECRET", "")
+    sig_header = request.headers.get("X-Wirebase-Signature", "")
+    ts = request.headers.get("X-Wirebase-Timestamp", "")
+    if not (secret and sig_header):
+        return False
+    provided = sig_header.split("=", 1)[-1].strip()
+    for candidate in (raw_body, f"{ts}.".encode() + raw_body, ts.encode() + raw_body):
+        expected = hmac.new(secret.encode(), candidate, hashlib.sha256).hexdigest()
+        if hmac.compare_digest(expected, provided):
+            return True
+    return False
+
+
+@app.route("/api/wirebase-api/connect", methods=["POST"])
+@login_required
+@owner_required
+@require_feature("whatsapp_bot")
+@limiter.limit("10 per hour")
+def api_wbapi_connect():
+    """Creates this customer's tenant + WhatsApp instance on Wirebase (first time
+    only), attaches their private webhook URL, then starts the QR login."""
+    if not wbapi.is_configured():
+        return jsonify({"error": "1-click WhatsApp is not enabled on the server yet (missing WIREBASE_DEV_BASE_URL / WIREBASE_APP_SECRET)"}), 500
+
+    owner_id = current_user_id()
+    user, creds, instance_id = _wbapi_owner_and_instance()
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    token = user.get("wirebase_webhook_token")
+    if not token:
+        token = generate_webhook_token()
+        users_col.update_one({"_id": user["_id"]}, {"$set": {"wirebase_webhook_token": token}})
+    webhook_url = _wbapi_webhook_url(token)
+
+    if not instance_id:
+        tenant = wbapi.upsert_tenant(owner_id, user.get("business_name") or user.get("username") or owner_id, webhook_url)
+        if not tenant["success"]:
+            return jsonify({"error": f"Could not create your WhatsApp workspace: {tenant['error']}"}), 400
+
+        inst = wbapi.create_instance(owner_id, f"pravaah-{owner_id}", webhook_url)
+        if not inst["success"]:
+            return jsonify({"error": f"Could not create your WhatsApp instance: {inst['error']}"}), 400
+
+        instance = ((inst.get("data") or {}).get("instance")) or {}
+        instance_id = instance.get("id") or instance.get("_id")
+        if not instance_id:
+            return jsonify({"error": "Wirebase did not return an instance id", "raw": inst.get("data")}), 500
+
+        users_col.update_one({"_id": user["_id"]}, {"$set": {
+            "integrations.wbapi_instance_id":   str(instance_id),
+            "integrations.wbapi_instance_name": instance.get("name", f"pravaah-{owner_id}"),
+            "integrations.wbapi_status":        instance.get("status", "created"),
+            "integrations.active_provider":     "wbapi",
+        }})
+
+    con = wbapi.connect_instance(instance_id)
+    if not con["success"]:
+        return jsonify({"error": f"Could not start WhatsApp connection: {con['error']}"}), 400
+
+    log_webhook_event(owner_id, "wirebase", "outbound", "info",
+                      note="1-click connect started", payload={"instance_id": str(instance_id)})
+    return jsonify({"started": True, "instance_id": str(instance_id)})
+
+
+@app.route("/api/wirebase-api/qr", methods=["GET"])
+@login_required
+@owner_required
+@limiter.limit("40 per minute")
+def api_wbapi_qr():
+    user, creds, instance_id = _wbapi_owner_and_instance()
+    if not instance_id:
+        return jsonify({"error": "Click Connect WhatsApp first"}), 400
+    res = wbapi.get_qr(instance_id)
+    if not res["success"]:
+        return jsonify({"qr": "", "error": res["error"]})
+    data = res["data"]
+    qr = wbapi.extract_qr(data)
+    out = {"qr": qr}
+    if not qr and isinstance(data, dict):
+        out["debug_keys"] = list(data.keys())   # helps if the QR key name differs
+    return jsonify(out)
+
+
+@app.route("/api/wirebase-api/status", methods=["GET"])
+@login_required
+@owner_required
+@limiter.limit("40 per minute")
+def api_wbapi_status():
+    user, creds, instance_id = _wbapi_owner_and_instance()
+    if not instance_id:
+        return jsonify({"connected": False, "status": "not_created", "phone": ""})
+    res = wbapi.get_status(instance_id)
+    if not res["success"]:
+        return jsonify({"connected": False, "status": "error", "error": res["error"], "phone": ""})
+
+    d = res["data"] or {}
+    status = d.get("status", "")
+    connected = bool(d.get("connected")) or status == "connected"
+    phone = d.get("phoneNumber") or ""
+    cached_status = "connected" if connected else status
+
+    if cached_status != creds.get("wbapi_status") or phone != creds.get("wbapi_phone", ""):
+        users_col.update_one({"_id": user["_id"]}, {"$set": {
+            "integrations.wbapi_status": cached_status,
+            "integrations.wbapi_phone": phone,
+        }})
+    return jsonify({"connected": connected, "status": cached_status, "phone": phone})
+
+
+@app.route("/webhook/wbapi/<token>", methods=["POST"])
+@limiter.exempt   # ALL customers' events arrive from your Wirebase server's single IP
+def wbapi_webhook_receive(token):
+    raw_body = request.get_data()
+    raw_headers = safe_request_headers()
+    payload = request.get_json(silent=True) or {}
+
+    user = users_col.find_one({"wirebase_webhook_token": token, "type": "user"})
+    if not user:
+        log_webhook_event(None, "wirebase", "inbound", "error",
+                          note="Invalid webhook token in URL (wbapi)", payload=payload, headers=raw_headers)
+        return jsonify({"error": "Invalid webhook token"}), 404
+    owner_id = str(user["_id"])
+
+    if not _wbapi_signature_ok(raw_body):
+        log_webhook_event(owner_id, "wirebase", "inbound", "error",
+                          note="Bad or missing X-Wirebase-Signature", payload=payload, headers=raw_headers)
+        return jsonify({"error": "Invalid signature"}), 403
+
+    # The token in the URL and the tenant in the payload must belong to the same customer
+    ext_id = payload.get("externalUserId")
+    if ext_id and str(ext_id) != owner_id:
+        log_webhook_event(owner_id, "wirebase", "inbound", "error",
+                          note=f"externalUserId mismatch ({ext_id})", payload=payload, headers=raw_headers)
+        return jsonify({"error": "Tenant mismatch"}), 403
+
+    event = payload.get("event") or request.headers.get("X-Wirebase-Event", "")
+    if event != "message.received":
+        log_webhook_event(owner_id, "wirebase", "inbound", "info",
+                          note=f"event ignored: {event or 'unknown'}", payload=payload, headers=raw_headers)
+        return jsonify({"ok": True}), 200
+
+    msg = payload.get("message") or {}
+    from_raw = (msg.get("from") or "").strip()
+    text = (msg.get("text") or "").strip()
+    push_name = payload.get("pushName") or msg.get("pushName") or ""
+    wa_msg_id = msg.get("id")
+
+    if any(x in from_raw for x in ("@g.us", "@lid", "@broadcast")) or not from_raw or not text:
+        log_webhook_event(owner_id, "wirebase", "inbound", "skipped",
+                          note=f"skipped — from={from_raw!r} text={bool(text)}", payload=payload, headers=raw_headers)
+        return jsonify({"ok": True}), 200
+
+    phone_raw = from_raw.split("@")[0].split(":")[0]
+
+    log_webhook_event(owner_id, "wirebase", "inbound", "received",
+                      note=f"From {phone_raw}", payload=payload, headers=raw_headers)
+
+    # Same pipeline as the old Wirebase webhook: save msg → score → assign → AI reply
+    threading.Thread(
+        target=_process_incoming_wirebase,
+        args=(owner_id, phone_raw, text, push_name, wa_msg_id),
+        daemon=True,
+    ).start()
+    return jsonify({"received": True}), 200
 
 # ==================================================================
 # MEETING BOOKING WEBHOOK  (called by Eva mid-call, X-Eva-Secret auth)
