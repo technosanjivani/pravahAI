@@ -6525,6 +6525,14 @@ def request_call_from_eva_voicelink(call_id, to_number, did_number, voicelink_cr
                 "agent": {
                     "name": agent.get("name", ""),
                     "system_prompt": agent_system_prompt,
+                    # BUGFIX: gender/language/speaker were previously dropped
+                    # here (unlike the Twilio and VaniSetu dispatch functions
+                    # above), so every VoiceLink call silently ignored the
+                    # agent's configured voice gender and language and fell
+                    # back to Eva's defaults regardless of dashboard settings.
+                    "gender": agent.get("gender", "female"),
+                    "language": agent.get("language", "auto"),
+                    "speaker": agent.get("speaker", ""),
                     "opening_line": agent.get("opening_line", ""),
                     "min_duration_secs": agent.get("min_duration_secs", 20),
                     "max_duration_secs": agent.get("max_duration_secs", 180),
