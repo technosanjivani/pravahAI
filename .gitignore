@@ -143,3 +143,6 @@ tmp/
 config.local.py
 settings.local.py
 private_key.pem
+
+dev
+dev.py

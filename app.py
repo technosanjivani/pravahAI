@@ -6036,9 +6036,12 @@ def api_wbapi_status():
 
     d = res["data"] or {}
     status = d.get("status", "")
-    connected = bool(d.get("connected")) or status == "connected"
     phone = d.get("phoneNumber") or ""
-    cached_status = "connected" if connected else status
+    reported_connected = bool(d.get("connected")) or status == "connected"
+    # A real pairing always returns a phone number — never trust "connected"
+    # without one, since that's the signature of a stub/stale-session false positive.
+    connected = reported_connected and bool(phone)
+    cached_status = "connected" if connected else (status or "qr_pending")
 
     if cached_status != creds.get("wbapi_status") or phone != creds.get("wbapi_phone", ""):
         users_col.update_one({"_id": user["_id"]}, {"$set": {
